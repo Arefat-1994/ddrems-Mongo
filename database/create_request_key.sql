@@ -1,0 +1,22 @@
+CREATE TABLE IF NOT EXISTS request_key (
+    id INT AUTO_INCREMENT PRIMARY KEY,
+    property_id INT NOT NULL,
+    customer_id INT NOT NULL,
+    owner_id INT,
+    admin_id INT,
+    status ENUM('pending', 'accepted', 'rejected', 'cancelled') DEFAULT 'pending',
+    key_code VARCHAR(50),
+    request_message TEXT,
+    response_message TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    responded_at TIMESTAMP NULL,
+    FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE,
+    FOREIGN KEY (customer_id) REFERENCES users(id) ON DELETE CASCADE,
+    FOREIGN KEY (owner_id) REFERENCES users(id) ON DELETE SET NULL,
+    FOREIGN KEY (admin_id) REFERENCES users(id) ON DELETE SET NULL,
+    INDEX idx_status (status),
+    INDEX idx_customer (customer_id),
+    INDEX idx_property (property_id),
+    INDEX idx_admin (admin_id)
+);

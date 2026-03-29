@@ -1,0 +1,300 @@
+╔══════════════════════════════════════════════════════════════╗
+║          TEST GUIDE: DOCUMENT VERIFICATION                   ║
+╚══════════════════════════════════════════════════════════════╝
+
+Follow these steps to test the document verification system:
+
+═══════════════════════════════════════════════════════════════
+STEP 1: PREPARE TEST DATA
+═══════════════════════════════════════════════════════════════
+
+1. Login as Owner
+   Email: owner@ddrems.com
+   Password: admin123
+
+2. Add a New Property
+   • Click "Properties" in sidebar
+   • Click "Add Property"
+   • Fill in details:
+     - Title: Test Property for Verification
+     - Location: Addis Ababa
+     - Price: 5000000
+     - Type: House
+     - Status: pending
+   • Click "Add Property"
+   • Note the Property ID (e.g., ID: 15)
+
+3. Upload Documents
+   • Go to "My Properties"
+   • Find the property you just added
+   • Click "Documents" button
+   • Upload 2-3 test documents
+   • Note the access keys generated
+
+4. Logout
+
+═══════════════════════════════════════════════════════════════
+STEP 2: TEST DOCUMENT VERIFICATION
+═══════════════════════════════════════════════════════════════
+
+1. Login as Property Admin
+   Email: propertyadmin@ddrems.com
+   Password: admin123
+
+2. Go to Document Verification
+   • Click "📄 Document Verification" button
+   • You should see a search box
+
+3. Search for Property
+   • Enter the Property ID (e.g., 15)
+   • Click "🔍 Find Property" or press Enter
+   • Property details should display
+
+4. Verify Property Details Show:
+   ✓ Property title
+   ✓ Location
+   ✓ Price
+   ✓ Status badge
+   ✓ Three buttons (Approve, Suspend, Reject)
+
+═══════════════════════════════════════════════════════════════
+STEP 3: TEST DOCUMENT DISPLAY
+═══════════════════════════════════════════════════════════════
+
+1. Check Documents Section
+   ✓ Should see "📄 Property Documents" header
+   ✓ Should see list of uploaded documents
+   ✓ Each document shows:
+     - Icon (📜, 🗺️, 💳, etc.)
+     - Document name
+     - Document type
+     - Upload date
+     - "🔑 Enter Key to View" button
+
+2. If No Documents Show:
+   • Go back to Step 1
+   • Make sure documents were uploaded
+   • Check Property ID is correct
+
+═══════════════════════════════════════════════════════════════
+STEP 4: TEST ACCESS KEY ENTRY
+═══════════════════════════════════════════════════════════════
+
+1. Click "🔑 Enter Key to View" on any document
+
+2. Modal Should Open:
+   ✓ Title: "🔑 Enter Access Key"
+   ✓ Input field for key
+   ✓ Document preview
+   ✓ Cancel button
+   ✓ "✓ Verify & View" button
+
+3. Enter Access Key
+   • Type the access key (from Step 1)
+   • Key should auto-uppercase
+   • Click "✓ Verify & View"
+
+4. Expected Result:
+   ✓ Document opens in new tab
+   ✓ Success message shows
+   ✓ Modal closes
+
+5. Test Wrong Key:
+   • Enter wrong key (e.g., "WRONG123")
+   • Click "✓ Verify & View"
+   • Should show: "Invalid access key"
+
+═══════════════════════════════════════════════════════════════
+STEP 5: TEST APPROVE BUTTON
+═══════════════════════════════════════════════════════════════
+
+1. Click "✅ Approve" button
+
+2. Confirmation Dialog:
+   ✓ Should ask: "Approve this property?"
+   ✓ Click "OK"
+
+3. Expected Result:
+   ✓ Success message: "Property approved successfully!"
+   ✓ Status badge changes to "active"
+   ✓ Property is now active
+
+4. Verify in Database:
+   • Property status should be 'active'
+   • Property verified should be TRUE
+
+═══════════════════════════════════════════════════════════════
+STEP 6: TEST SUSPEND BUTTON
+═══════════════════════════════════════════════════════════════
+
+1. Click "⏸️ Suspend" button
+
+2. Confirmation Dialog:
+   ✓ Should ask: "Suspend this property?"
+   ✓ Click "OK"
+
+3. Expected Result:
+   ✓ Success message: "Property suspended successfully!"
+   ✓ Status badge changes to "suspended"
+   ✓ Property is now suspended
+
+4. Verify:
+   • Property should not show in customer browse
+   • Status should be 'suspended'
+
+═══════════════════════════════════════════════════════════════
+STEP 7: TEST REJECT BUTTON
+═══════════════════════════════════════════════════════════════
+
+1. Click "❌ Reject" button
+
+2. Confirmation Dialog:
+   ✓ Should ask: "Reject this property?"
+   ✓ Click "OK"
+
+3. Expected Result:
+   ✓ Success message: "Property rejected successfully!"
+   ✓ Status badge changes to "inactive"
+   ✓ Property is now inactive
+
+4. Verify:
+   • Property should not show in customer browse
+   • Status should be 'inactive'
+
+═══════════════════════════════════════════════════════════════
+STEP 8: TEST MULTIPLE PROPERTIES
+═══════════════════════════════════════════════════════════════
+
+1. Search for Different Property
+   • Enter another Property ID
+   • Click "🔍 Find Property"
+   • Should load new property
+
+2. Verify:
+   ✓ Previous property data clears
+   ✓ New property data loads
+   ✓ Documents update
+   ✓ Buttons work for new property
+
+═══════════════════════════════════════════════════════════════
+STEP 9: TEST EDGE CASES
+═══════════════════════════════════════════════════════════════
+
+1. Invalid Property ID
+   • Enter: 99999
+   • Click "🔍 Find Property"
+   • Should show: "Property not found"
+
+2. Empty Search
+   • Clear search box
+   • Click "🔍 Find Property"
+   • Should do nothing or show message
+
+3. Property with No Documents
+   • Search for property without documents
+   • Should show: "No documents available"
+   • Should show: "Request access from owner"
+
+4. Locked Document
+   • If document is locked
+   • Should show: "🔒 Locked"
+   • Should not have "Enter Key" button
+
+═══════════════════════════════════════════════════════════════
+✅ EXPECTED RESULTS SUMMARY
+═══════════════════════════════════════════════════════════════
+
+All these should work:
+
+[ ] Property search by ID
+[ ] Property details display
+[ ] Documents list shows
+[ ] Document icons display correctly
+[ ] Access key modal opens
+[ ] Correct key opens document
+[ ] Wrong key shows error
+[ ] Approve button works
+[ ] Suspend button works
+[ ] Reject button works
+[ ] Confirmation dialogs show
+[ ] Success messages display
+[ ] Status updates correctly
+[ ] Can switch between properties
+
+═══════════════════════════════════════════════════════════════
+❌ TROUBLESHOOTING
+═══════════════════════════════════════════════════════════════
+
+Problem: No documents show
+Solution:
+  • Make sure documents were uploaded
+  • Check Property ID is correct
+  • Verify property_documents table has data
+
+Problem: Access key doesn't work
+Solution:
+  • Check key is correct (case-sensitive)
+  • Verify document is not locked
+  • Check document exists in database
+
+Problem: Buttons don't work
+Solution:
+  • Check backend is running
+  • Check browser console for errors
+  • Verify API endpoints are accessible
+
+Problem: Status doesn't update
+Solution:
+  • Refresh the page
+  • Check database connection
+  • Verify user has property_admin role
+
+═══════════════════════════════════════════════════════════════
+📊 TEST CHECKLIST
+═══════════════════════════════════════════════════════════════
+
+Basic Functionality:
+[ ] Can login as Property Admin
+[ ] Document Verification page loads
+[ ] Search box appears
+[ ] Can enter Property ID
+[ ] Can search for property
+
+Property Display:
+[ ] Property title shows
+[ ] Location shows
+[ ] Price shows
+[ ] Status badge shows
+[ ] Verification buttons show
+
+Document Display:
+[ ] Documents list shows
+[ ] Document icons correct
+[ ] Document names show
+[ ] Upload dates show
+[ ] Access key buttons show
+
+Access Key System:
+[ ] Modal opens on click
+[ ] Can enter key
+[ ] Correct key works
+[ ] Wrong key shows error
+[ ] Document opens in new tab
+
+Verification Buttons:
+[ ] Approve button works
+[ ] Suspend button works
+[ ] Reject button works
+[ ] Confirmations show
+[ ] Status updates
+[ ] Messages display
+
+═══════════════════════════════════════════════════════════════
+
+🎯 START TESTING NOW!
+
+1. Login: propertyadmin@ddrems.com / admin123
+2. Click: 📄 Document Verification
+3. Follow steps above
+
+═══════════════════════════════════════════════════════════════

@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DDREMS - Image Display Test</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+        .header {
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            margin-bottom: 30px;
+            text-align: center;
+        }
+        .header h1 {
+            color: #667eea;
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        .header p {
+            color: #666;
+            font-size: 1.1em;
+        }
+        .status {
+            background: #10b981;
+            color: white;
+            padding: 10px 20px;
+            border-radius: 25px;
+            display: inline-block;
+            margin-top: 15px;
+            font-weight: bold;
+        }
+        .properties-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 25px;
+            margin-top: 20px;
+        }
+        .property-card {
+            background: white;
+            border-radius: 15px;
+            overflow: hidden;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            transition: transform 0.3s ease, box-shadow 0.3s ease;
+        }
+        .property-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+        }
+        .property-image {
+            width: 100%;
+            height: 250px;
+            background: #f3f4f6;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            overflow: hidden;
+        }
+        .property-image img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        .no-image {
+            color: #9ca3af;
+            font-size: 3em;
+        }
+        .property-content {
+            padding: 20px;
+        }
+        .property-title {
+            font-size: 1.4em;
+            color: #333;
+            margin-bottom: 10px;
+            font-weight: bold;
+        }
+        .property-details {
+            color: #666;
+            margin-bottom: 15px;
+        }
+        .property-details div {
+            margin: 5px 0;
+        }
+        .badge {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.85em;
+            font-weight: bold;
+            margin-right: 5px;
+        }
+        .badge.active {
+            background: #d1fae5;
+            color: #10b981;
+        }
+        .badge.sale {
+            background: #dbeafe;
+            color: #3b82f6;
+        }
+        .badge.rent {
+            background: #fef3c7;
+            color: #f59e0b;
+        }
+        .loading {
+            text-align: center;
+            padding: 50px;
+            color: white;
+            font-size: 1.5em;
+        }
+        .error {
+            background: #fee2e2;
+            color: #ef4444;
+            padding: 20px;
+            border-radius: 10px;
+            margin: 20px 0;
+        }
+        .image-info {
+            background: #f3f4f6;
+            padding: 10px;
+            border-radius: 5px;
+            margin-top: 10px;
+            font-size: 0.85em;
+            color: #666;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🏠 DDREMS Image Display Test</h1>
+            <p>Testing property images from database</p>
+            <div class="status" id="status">⏳ Loading...</div>
+        </div>
+        
+        <div id="properties" class="properties-grid">
+            <div class="loading">Loading properties from API...</div>
+        </div>
+    </div>
+
+    <script>
+        async function loadProperties() {
+            try {
+                const response = await fetch('http://localhost:5000/api/properties');
+                const properties = await response.json();
+                
+                const container = document.getElementById('properties');
+                const statusEl = document.getElementById('status');
+                
+                if (properties.length === 0) {
+                    container.innerHTML = '<div class="error">No properties found in database</div>';
+                    statusEl.textContent = '❌ No Properties';
+                    statusEl.style.background = '#ef4444';
+                    return;
+                }
+                
+                statusEl.textContent = `✅ ${properties.length} Properties Loaded`;
+                statusEl.style.background = '#10b981';
+                
+                container.innerHTML = properties.map(property => `
+                    <div class="property-card">
+                        <div class="property-image">
+                            ${property.main_image ? 
+                                `<img src="${property.main_image}" alt="${property.title}" 
+                                     onerror="this.parentElement.innerHTML='<div class=\\'no-image\\'>🏠 Image Error</div>'">`
+                                : 
+                                '<div class="no-image">🏠 No Image</div>'
+                            }
+                        </div>
+                        <div class="property-content">
+                            <div class="property-title">${property.title}</div>
+                            <div class="property-details">
+                                <div>
+                                    <span class="badge ${property.status}">${property.status}</span>
+                                    <span class="badge ${property.listing_type}">${property.listing_type}</span>
+                                </div>
+                                <div>💰 ${(property.price / 1000000).toFixed(2)}M ETB</div>
+                                <div>📍 ${property.location}</div>
+                                ${property.bedrooms ? `<div>🛏️ ${property.bedrooms} Bedrooms</div>` : ''}
+                                ${property.bathrooms ? `<div>🚿 ${property.bathrooms} Bathrooms</div>` : ''}
+                                ${property.area ? `<div>📐 ${property.area}m²</div>` : ''}
+                            </div>
+                            <div class="image-info">
+                                📷 Images: ${property.image_count || 0}
+                                ${property.main_image ? 
+                                    `<br>✅ Main image: ${property.main_image.length} chars` 
+                                    : 
+                                    '<br>❌ No main image'
+                                }
+                            </div>
+                        </div>
+                    </div>
+                `).join('');
+                
+            } catch (error) {
+                console.error('Error loading properties:', error);
+                document.getElementById('properties').innerHTML = `
+                    <div class="error">
+                        <strong>Error loading properties:</strong><br>
+                        ${error.message}<br><br>
+                        Make sure the backend server is running on port 5000
+                    </div>
+                `;
+                document.getElementById('status').textContent = '❌ Error';
+                document.getElementById('status').style.background = '#ef4444';
+            }
+        }
+        
+        // Load properties when page loads
+        loadProperties();
+        
+        // Auto-refresh every 5 seconds
+        setInterval(loadProperties, 5000);
+    </script>
+</body>
+</html>

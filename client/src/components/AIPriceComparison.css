@@ -1,0 +1,373 @@
+.ai-price-comparison {
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 24px;
+  margin: 20px 0;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+}
+
+.ai-price-comparison.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 200px;
+  background: linear-gradient(135deg, #f0f9ff 0%, #f0fdf4 100%);
+}
+
+.loading-spinner {
+  font-size: 16px;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.ai-price-comparison.error {
+  background: linear-gradient(135deg, #fef2f2 0%, #fef5f5 100%);
+  border-color: #fecaca;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 16px;
+  min-height: 60px;
+}
+
+.error-icon {
+  font-size: 24px;
+}
+
+.error-text {
+  color: #991b1b;
+  font-weight: 500;
+}
+
+.price-comparison-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.ai-badge {
+  display: inline-block;
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+.price-comparison-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.price-card {
+  background: white;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 20px;
+  text-align: center;
+  transition: all 0.3s ease;
+}
+
+.price-card:hover {
+  border-color: #3b82f6;
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.1);
+}
+
+.price-card.listed {
+  border-left: 4px solid #f59e0b;
+}
+
+.price-card.predicted {
+  border-left: 4px solid #3b82f6;
+}
+
+.price-label {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 8px;
+}
+
+.price-value {
+  font-size: 28px;
+  font-weight: 700;
+  color: #1e293b;
+  margin-bottom: 8px;
+  font-family: 'Courier New', monospace;
+}
+
+.price-note {
+  font-size: 12px;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+.deviation-analysis {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.deviation-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.deviation-label {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 14px;
+}
+
+.deviation-value {
+  font-size: 20px;
+  font-weight: 700;
+  font-family: 'Courier New', monospace;
+}
+
+.deviation-bar {
+  width: 100%;
+  height: 8px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 16px;
+}
+
+.deviation-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.deviation-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  border: 2px solid;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.5);
+  font-weight: 600;
+  font-size: 13px;
+}
+
+.indicator-icon {
+  font-size: 16px;
+}
+
+.indicator-text {
+  color: inherit;
+}
+
+.price-interpretation {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 20px;
+}
+
+.interpretation-item {
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+}
+
+.interpretation-icon {
+  font-size: 28px;
+  flex-shrink: 0;
+}
+
+.interpretation-text {
+  flex: 1;
+}
+
+.interpretation-text strong {
+  display: block;
+  font-size: 16px;
+  color: #1e293b;
+  margin-bottom: 6px;
+}
+
+.interpretation-text p {
+  margin: 0;
+  color: #64748b;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.above-market {
+  border-left: 4px solid #f59e0b;
+  padding-left: 16px;
+}
+
+.below-market {
+  border-left: 4px solid #10b981;
+  padding-left: 16px;
+}
+
+.prediction-confidence {
+  background: linear-gradient(135deg, #f0f9ff 0%, #f0fdf4 100%);
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  padding: 16px;
+  margin-bottom: 20px;
+}
+
+.confidence-label {
+  font-weight: 600;
+  color: #1e293b;
+  font-size: 13px;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.confidence-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #3b82f6;
+  margin-bottom: 8px;
+  display: block;
+}
+
+.confidence-bar {
+  width: 100%;
+  height: 6px;
+  background: #e0e7ff;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.confidence-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #3b82f6 0%, #2563eb 100%);
+  border-radius: 3px;
+  transition: width 0.3s ease;
+}
+
+.market-insights {
+  background: white;
+  border: 1px solid #e2e8f0;
+  border-radius: 10px;
+  padding: 20px;
+}
+
+.market-insights h4 {
+  margin: 0 0 16px 0;
+  font-size: 16px;
+  color: #1e293b;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.insights-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.insight-item {
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 12px;
+  text-align: center;
+}
+
+.insight-label {
+  display: block;
+  font-size: 11px;
+  color: #64748b;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 6px;
+}
+
+.insight-value {
+  display: block;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .ai-price-comparison {
+    padding: 16px;
+  }
+
+  .price-comparison-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .price-value {
+    font-size: 24px;
+  }
+
+  .insights-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .interpretation-item {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+  }
+
+  .interpretation-icon {
+    font-size: 24px;
+  }
+
+  .above-market,
+  .below-market {
+    border-left: none;
+    border-top: 4px solid;
+    padding-left: 0;
+    padding-top: 12px;
+  }
+}
+
+@media (max-width: 480px) {
+  .ai-price-comparison {
+    padding: 12px;
+    margin: 16px 0;
+  }
+
+  .price-card {
+    padding: 16px;
+  }
+
+  .price-value {
+    font-size: 20px;
+  }
+
+  .deviation-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .insights-grid {
+    grid-template-columns: 1fr;
+  }
+}

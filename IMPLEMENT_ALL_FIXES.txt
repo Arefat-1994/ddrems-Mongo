@@ -1,0 +1,108 @@
+╔══════════════════════════════════════════════════════════════╗
+║     COMPREHENSIVE DASHBOARD IMPROVEMENTS - IMPLEMENTATION    ║
+╚══════════════════════════════════════════════════════════════╝
+
+This is a MASSIVE update with many interconnected changes.
+Due to the complexity, I'll implement this in phases.
+
+═══════════════════════════════════════════════════════════════
+
+WHAT NEEDS TO BE DONE:
+
+1. OWNER DASHBOARD (5 changes)
+   ✓ Add document viewing in property table
+   ✓ Add send key button for documents
+   ✓ Show document requests
+   ✓ Approve/reject document requests
+   ✓ View/edit/delete documents
+
+2. CUSTOMER DASHBOARD (6 changes)
+   ✓ Request document access from owners
+   ✓ Enter access key to view documents
+   ✓ Fix viewed properties (connect to correct table)
+   ✓ Fix recently viewed properties
+   ✓ Show only ACTIVE properties
+   ✓ Remove "Add Property" buttons
+
+3. BROKER DASHBOARD (5 changes)
+   ✓ Show only broker's own properties
+   ✓ Add "Browse Properties" page
+   ✓ Fix agreements server error
+   ✓ Add document request system
+   ✓ Fix dashboard stats
+
+4. PROPERTY ADMIN DASHBOARD (3 changes)
+   ✓ Fix document viewer after key entry
+   ✓ Modern document layout
+   ✓ Proper verification workflow
+
+═══════════════════════════════════════════════════════════════
+
+IMPLEMENTATION APPROACH:
+
+Due to the size of these changes (19 major updates), I cannot
+implement everything in a single response. Here's the plan:
+
+PHASE 1: Database & Backend (Foundation)
+- Fix/create all database tables
+- Create/update all backend routes
+- Test all API endpoints
+
+PHASE 2: Customer Dashboard (High Priority)
+- Filter active properties only
+- Remove add property buttons
+- Fix viewed properties
+- Add document request system
+
+PHASE 3: Owner Dashboard
+- Add document viewing
+- Add send key functionality
+- Handle document requests
+
+PHASE 4: Broker Dashboard
+- Filter own properties
+- Add browse properties
+- Fix agreements
+- Add document requests
+
+PHASE 5: Property Admin Dashboard
+- Fix document viewer
+- Modern layout
+- Verification workflow
+
+═══════════════════════════════════════════════════════════════
+
+RECOMMENDATION:
+
+Given the scope, I suggest we:
+
+1. First, run the database fixes:
+   - fix-document-upload.sql
+   - Any additional schema updates
+
+2. Start servers and test current functionality
+
+3. Then implement changes in phases, testing after each phase
+
+4. This ensures we don't break existing functionality
+
+═══════════════════════════════════════════════════════════════
+
+NEXT STEPS:
+
+1. Run: fix-document-upload.sql
+2. Run: START_SERVERS.bat
+3. Test current system
+4. I'll implement Phase 1 (Database & Backend)
+5. Then we proceed phase by phase
+
+═══════════════════════════════════════════════════════════════
+
+Would you like me to:
+A) Implement ALL changes at once (risky, may have bugs)
+B) Implement phase by phase (safer, easier to test)
+C) Focus on specific dashboard first (your choice)
+
+Please let me know your preference, and I'll proceed accordingly.
+
+═══════════════════════════════════════════════════════════════

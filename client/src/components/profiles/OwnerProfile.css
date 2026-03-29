@@ -1,0 +1,24 @@
+/* Import base styles from CustomerProfile.css */
+@import './CustomerProfile.css';
+
+/* Owner-specific overrides */
+.owner-profile {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 30px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.owner-profile .profile-header h2 {
+  color: #2563eb;
+}
+
+.owner-profile .btn-submit {
+  background: linear-gradient(135deg, #2563eb 0%, #7c3aed 100%);
+}
+
+.owner-profile .btn-submit:hover:not(:disabled) {
+  box-shadow: 0 10px 20px rgba(37, 99, 235, 0.3);
+}

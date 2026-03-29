@@ -1,0 +1,145 @@
+.document-uploader {
+  width: 100%;
+}
+
+.form-group {
+  margin-bottom: 20px;
+}
+
+.form-group label {
+  display: block;
+  font-weight: 600;
+  color: #2d3748;
+  margin-bottom: 8px;
+  font-size: 14px;
+}
+
+.form-group input,
+.form-group select {
+  width: 100%;
+  padding: 10px 12px;
+  border: 2px solid #e2e8f0;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: all 0.2s;
+}
+
+.form-group input:focus,
+.form-group select:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.upload-area-doc {
+  border: 2px dashed #cbd5e0;
+  border-radius: 8px;
+  padding: 30px;
+  text-align: center;
+  background: #f7fafc;
+  transition: all 0.3s ease;
+  cursor: pointer;
+  margin-bottom: 15px;
+}
+
+.upload-area-doc:hover {
+  border-color: #667eea;
+  background: #eef2ff;
+}
+
+.upload-label-doc {
+  cursor: pointer;
+  display: block;
+}
+
+.upload-icon-doc {
+  font-size: 48px;
+  margin-bottom: 10px;
+}
+
+.upload-area-doc p {
+  font-size: 16px;
+  font-weight: 600;
+  color: #2d3748;
+  margin: 10px 0 5px 0;
+}
+
+.upload-area-doc span {
+  font-size: 14px;
+  color: #718096;
+}
+
+.file-selected {
+  background: white;
+  padding: 15px;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.file-selected p {
+  color: #2d3748;
+  font-weight: 600;
+  margin: 0 0 5px 0;
+}
+
+.file-selected span {
+  color: #718096;
+  font-size: 13px;
+}
+
+.btn-upload-doc {
+  width: 100%;
+  padding: 12px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  margin-bottom: 15px;
+}
+
+.btn-upload-doc:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+}
+
+.btn-upload-doc:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.info-box {
+  display: flex;
+  gap: 12px;
+  padding: 15px;
+  background: #ebf8ff;
+  border: 1px solid #bee3f8;
+  border-radius: 8px;
+  margin-top: 15px;
+}
+
+.info-icon {
+  font-size: 24px;
+  flex-shrink: 0;
+}
+
+.info-content {
+  flex: 1;
+}
+
+.info-content strong {
+  display: block;
+  color: #2c5282;
+  margin-bottom: 5px;
+  font-size: 14px;
+}
+
+.info-content p {
+  color: #2c5282;
+  font-size: 13px;
+  margin: 0;
+  line-height: 1.5;
+}

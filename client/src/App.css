@@ -1,0 +1,49 @@
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+body {
+  font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+  background: #f5f7fa;
+}
+
+.App {
+  display: flex;
+  min-height: 100vh;
+}
+
+.main-content {
+  flex: 1;
+  margin-left: 260px;
+  padding: 24px;
+  background: #f5f7fa;
+  transition: margin-left 0.3s ease;
+  min-height: 100vh;
+  width: calc(100% - 260px);
+  max-width: 100%;
+  overflow-x: hidden;
+}
+
+.main-content.sidebar-collapsed {
+  margin-left: 70px;
+  width: calc(100% - 70px);
+}
+
+.no-sidebar .main-content {
+  margin-left: 0 !important;
+  padding: 0;
+}
+
+
+@media (max-width: 768px) {
+  .main-content {
+    margin-left: 0;
+    padding: 20px;
+  }
+
+  .main-content.sidebar-collapsed {
+    margin-left: 0;
+  }
+}

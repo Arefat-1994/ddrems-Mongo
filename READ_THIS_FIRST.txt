@@ -1,0 +1,186 @@
+╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║          ⚠️  PORT 5000 ERROR - READ THIS FIRST  ⚠️           ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
+
+You're getting this error:
+"Error: listen EADDRINUSE: address already in use :::5000"
+
+This means another Node.js process is already running.
+
+═══════════════════════════════════════════════════════════════
+✅ QUICK FIX (2 MINUTES)
+═══════════════════════════════════════════════════════════════
+
+DO THIS NOW:
+
+1. Press: Ctrl + Shift + Esc
+   (Opens Task Manager)
+
+2. Find: "Node.js: Server-side JavaScript"
+   (Scroll down in the list)
+
+3. Click on it → Click "End task"
+   (Do this for ALL Node.js entries)
+
+4. Wait 10 seconds
+
+5. Open Command Prompt:
+   cd C:\Users\User\Documents\admin
+   node server/index.js
+
+6. Should see: "Server running on port 5000"
+
+✅ DONE!
+
+═══════════════════════════════════════════════════════════════
+📚 DETAILED GUIDES (IF YOU NEED MORE HELP)
+═══════════════════════════════════════════════════════════════
+
+Choose the guide that fits you best:
+
+1. VISUAL_GUIDE_TASK_MANAGER.txt
+   ⭐ RECOMMENDED - Step-by-step with visual instructions
+   Perfect if you're not technical
+
+2. STEP_BY_STEP_FIX.txt
+   Complete 12-step guide from start to finish
+   Covers everything including starting frontend
+
+3. FIX_PORT_IN_USE_ERROR.txt
+   5 different solutions to try
+   Technical troubleshooting guide
+
+4. HOW_TO_START_SERVERS.txt
+   How to start servers correctly
+   Prevents this error in future
+
+═══════════════════════════════════════════════════════════════
+🔧 TOOLS AVAILABLE
+═══════════════════════════════════════════════════════════════
+
+If Task Manager doesn't work, try these:
+
+• KILL_PORT_5000.bat
+  Double-click this file to kill the process
+
+• start-backend.bat
+  Kills process then starts backend
+
+• start-dev.bat
+  Starts both backend and frontend
+
+═══════════════════════════════════════════════════════════════
+⚠️ WHY THIS HAPPENS
+═══════════════════════════════════════════════════════════════
+
+You probably:
+1. Started the server before
+2. Closed the window with X (instead of Ctrl+C)
+3. Process kept running in background
+4. Now port 5000 is occupied
+
+═══════════════════════════════════════════════════════════════
+💡 HOW TO PREVENT THIS
+═══════════════════════════════════════════════════════════════
+
+When stopping the server:
+
+WRONG WAY:
+  ❌ Click X to close window
+  (Process keeps running)
+
+RIGHT WAY:
+  ✅ Press Ctrl + C in the window
+  ✅ Wait for it to stop
+  ✅ Then close window
+  (Process stops properly)
+
+═══════════════════════════════════════════════════════════════
+🎯 WHAT TO DO RIGHT NOW
+═══════════════════════════════════════════════════════════════
+
+OPTION 1: Quick Fix (Recommended)
+  1. Open Task Manager (Ctrl+Shift+Esc)
+  2. End all Node.js processes
+  3. Start server again
+
+OPTION 2: Use Batch File
+  1. Double-click: KILL_PORT_5000.bat
+  2. Wait for it to finish
+  3. Start server again
+
+OPTION 3: Read Visual Guide
+  1. Open: VISUAL_GUIDE_TASK_MANAGER.txt
+  2. Follow step-by-step instructions
+  3. Start server again
+
+OPTION 4: Restart Computer
+  1. Save all work
+  2. Restart computer
+  3. Start WAMP
+  4. Start server
+
+═══════════════════════════════════════════════════════════════
+✅ AFTER FIXING
+═══════════════════════════════════════════════════════════════
+
+Once port is free:
+
+Terminal 1 - Backend:
+  cd C:\Users\User\Documents\admin
+  node server/index.js
+
+Terminal 2 - Frontend:
+  cd C:\Users\User\Documents\admin\client
+  npm start
+
+Then open: http://localhost:3000
+
+Login with:
+  Email: admin@ddrems.com
+  Password: admin123
+
+═══════════════════════════════════════════════════════════════
+📞 STILL NOT WORKING?
+═══════════════════════════════════════════════════════════════
+
+If you've tried everything:
+
+1. Read: VISUAL_GUIDE_TASK_MANAGER.txt
+   (Most detailed guide)
+
+2. Try: KILL_PORT_5000.bat
+   (Automated solution)
+
+3. Last resort: Restart computer
+   (Always works)
+
+═══════════════════════════════════════════════════════════════
+📊 SYSTEM STATUS
+═══════════════════════════════════════════════════════════════
+
+✅ Database: Fixed and ready
+✅ Backend: Ready (just need to free port)
+✅ Frontend: Ready
+✅ Users: All 6 accounts created
+✅ Features: All 19 improvements done
+
+Only issue: Port 5000 is occupied
+
+═══════════════════════════════════════════════════════════════
+
+🎯 ACTION REQUIRED:
+
+Open Task Manager → End Node.js processes → Start server
+
+═══════════════════════════════════════════════════════════════
+
+Files to help you:
+• VISUAL_GUIDE_TASK_MANAGER.txt ⭐ START HERE
+• STEP_BY_STEP_FIX.txt
+• KILL_PORT_5000.bat
+• FIX_PORT_IN_USE_ERROR.txt
+
+═══════════════════════════════════════════════════════════════

@@ -1,0 +1,145 @@
+DOCUMENT VIEWER - QUICK REFERENCE GUIDE
+======================================
+
+ACCESSING DOCUMENTS:
+====================
+1. Open Agreement Management
+2. Click "View Details" on any agreement
+3. Scroll down to see:
+   - 📄 Property Documents section
+   - 📋 Agreement Documents section
+4. Click 👁️ View button to open document viewer
+
+DOCUMENT TYPES & ICONS:
+======================
+Property Documents:
+- 📜 Title Deed
+- 📐 Survey Plan
+- ✅ Tax Clearance
+- 🏗️ Building Permit
+- 📄 Other
+
+Agreement Documents:
+- 📝 Initial (v1)
+- ✏️ Customer Edited (v2)
+- ✓ Final (v3)
+
+DOCUMENT VIEWER FEATURES:
+========================
+View Images:
+- Shows image preview
+- Full size with scaling
+- Download button available
+
+View PDFs/Documents:
+- Shows file information
+- Provides download link
+- File path displayed
+
+View JSON Content:
+- Shows formatted structure
+- Readable layout
+- Syntax highlighted
+
+DOCUMENT VIEWER MODAL:
+====================
+┌─────────────────────────────────────┐
+│ 👁️ Document Viewer          [✕]    │
+├─────────────────────────────────────┤
+│ Document Name: [name]               │
+│ Type: [type]                        │
+│ Uploaded: [date/time]               │
+│                                     │
+│ [Preview Area]                      │
+│ - Image: Shows image                │
+│ - PDF: File info + download         │
+│ - JSON: Formatted content           │
+│                                     │
+├─────────────────────────────────────┤
+│ [Close]                [📥 Download]│
+└─────────────────────────────────────┘
+
+SUPPORTED FILE TYPES:
+====================
+Images:
+- .jpg, .jpeg, .png, .gif
+- Displays inline preview
+
+Documents:
+- .pdf, .doc, .docx
+- Shows file information
+
+JSON:
+- Agreement documents
+- Formatted display
+
+Other:
+- Any file type
+- Shows file path
+
+API ENDPOINTS:
+==============
+Property Documents:
+GET /api/documents/property/:propertyId
+GET /api/documents/property-doc/:docId
+POST /api/documents/property/:propertyId
+DELETE /api/documents/property-doc/:docId
+
+Agreement Documents:
+GET /api/documents/agreement/:agreementId
+GET /api/documents/agreement-doc/:docId
+POST /api/documents/agreement/:agreementId
+PUT /api/documents/agreement-doc/:docId
+DELETE /api/documents/agreement-doc/:docId
+
+Document Access:
+GET /api/documents/access-requests/:propertyId
+POST /api/documents/request-access
+PUT /api/documents/access-request/:requestId/approve
+PUT /api/documents/access-request/:requestId/reject
+
+DATABASE TABLES:
+================
+property_documents:
+- id, property_id, document_type
+- document_name, document_path
+- uploaded_by, uploaded_at
+
+agreement_documents:
+- id, agreement_request_id, version
+- document_type, document_content
+- generated_by_id, generated_date
+
+document_access:
+- id, property_id, user_id
+- status, requested_at, responded_at
+- response_message
+
+FEATURES:
+=========
+✓ View property documents
+✓ View agreement documents
+✓ Image preview
+✓ PDF/document info
+✓ JSON content display
+✓ Download documents
+✓ Document icons
+✓ Responsive design
+✓ Error handling
+✓ Mobile support
+
+TROUBLESHOOTING:
+================
+Issue: Document not showing
+Solution: Check if document exists in database
+
+Issue: Image not displaying
+Solution: Verify image path is correct
+
+Issue: Download not working
+Solution: Check file path and permissions
+
+Issue: Modal not opening
+Solution: Verify document data is loaded
+
+STATUS: PRODUCTION READY ✓

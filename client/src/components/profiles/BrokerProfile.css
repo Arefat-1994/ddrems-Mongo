@@ -1,0 +1,42 @@
+/* Import base styles from CustomerProfile.css */
+@import './CustomerProfile.css';
+
+/* Broker-specific overrides */
+.broker-profile {
+  max-width: 800px;
+  margin: 0 auto;
+  padding: 30px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.broker-profile .profile-header h2 {
+  color: #059669;
+}
+
+.broker-profile .btn-submit {
+  background: linear-gradient(135deg, #059669 0%, #0891b2 100%);
+}
+
+.broker-profile .btn-submit:hover:not(:disabled) {
+  box-shadow: 0 10px 20px rgba(5, 150, 105, 0.3);
+}
+
+.broker-profile .btn-change {
+  background: #059669;
+}
+
+.broker-profile .btn-change:hover {
+  background: #047857;
+}
+
+.broker-profile .form-group input:focus,
+.broker-profile .form-group textarea:focus {
+  border-color: #059669;
+  box-shadow: 0 0 0 3px rgba(5, 150, 105, 0.1);
+}
+
+.broker-profile .upload-placeholder:hover {
+  border-color: #059669;
+}

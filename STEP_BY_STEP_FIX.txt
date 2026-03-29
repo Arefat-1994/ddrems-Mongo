@@ -1,0 +1,202 @@
+╔══════════════════════════════════════════════════════════════╗
+║          STEP-BY-STEP: FIX PORT 5000 ERROR                   ║
+╚══════════════════════════════════════════════════════════════╝
+
+Follow these steps EXACTLY:
+
+═══════════════════════════════════════════════════════════════
+STEP 1: CLOSE ALL COMMAND PROMPT WINDOWS
+═══════════════════════════════════════════════════════════════
+
+Close every Command Prompt or PowerShell window you have open.
+Click the X on each window.
+
+═══════════════════════════════════════════════════════════════
+STEP 2: OPEN TASK MANAGER
+═══════════════════════════════════════════════════════════════
+
+Press: Ctrl + Shift + Esc
+
+This opens Task Manager.
+
+═══════════════════════════════════════════════════════════════
+STEP 3: FIND NODE.JS PROCESSES
+═══════════════════════════════════════════════════════════════
+
+In Task Manager:
+1. Click on "Processes" tab
+2. Scroll down to find "Node.js: Server-side JavaScript"
+3. You might see multiple Node.js processes
+
+═══════════════════════════════════════════════════════════════
+STEP 4: END ALL NODE.JS PROCESSES
+═══════════════════════════════════════════════════════════════
+
+For EACH Node.js process:
+1. Click on it
+2. Click "End Task" button at bottom
+3. Repeat for ALL Node.js processes
+
+═══════════════════════════════════════════════════════════════
+STEP 5: WAIT 10 SECONDS
+═══════════════════════════════════════════════════════════════
+
+Count to 10 slowly.
+This ensures all processes are fully terminated.
+
+═══════════════════════════════════════════════════════════════
+STEP 6: VERIFY NO NODE.JS PROCESSES
+═══════════════════════════════════════════════════════════════
+
+In Task Manager:
+- Look again for "Node.js"
+- Should see NONE
+- If you still see any, end them again
+
+═══════════════════════════════════════════════════════════════
+STEP 7: OPEN NEW COMMAND PROMPT
+═══════════════════════════════════════════════════════════════
+
+1. Press Windows key
+2. Type: cmd
+3. Press Enter
+
+A new Command Prompt window opens.
+
+═══════════════════════════════════════════════════════════════
+STEP 8: NAVIGATE TO PROJECT
+═══════════════════════════════════════════════════════════════
+
+In the Command Prompt, type:
+
+cd C:\Users\User\Documents\admin
+
+Press Enter.
+
+═══════════════════════════════════════════════════════════════
+STEP 9: START BACKEND SERVER
+═══════════════════════════════════════════════════════════════
+
+Type:
+
+node server/index.js
+
+Press Enter.
+
+You should see:
+"Server running on port 5000"
+
+If you see the error again, go back to STEP 2.
+
+═══════════════════════════════════════════════════════════════
+STEP 10: OPEN SECOND COMMAND PROMPT
+═══════════════════════════════════════════════════════════════
+
+Keep the first Command Prompt open!
+
+1. Press Windows key
+2. Type: cmd
+3. Press Enter
+
+A SECOND Command Prompt window opens.
+
+═══════════════════════════════════════════════════════════════
+STEP 11: START FRONTEND SERVER
+═══════════════════════════════════════════════════════════════
+
+In the SECOND Command Prompt, type:
+
+cd C:\Users\User\Documents\admin\client
+
+Press Enter.
+
+Then type:
+
+npm start
+
+Press Enter.
+
+Wait 30 seconds. Browser should open automatically.
+
+═══════════════════════════════════════════════════════════════
+STEP 12: TEST THE SYSTEM
+═══════════════════════════════════════════════════════════════
+
+Browser should open to: http://localhost:3000
+
+You should see the login page.
+
+Login with:
+Email: admin@ddrems.com
+Password: admin123
+
+═══════════════════════════════════════════════════════════════
+✅ SUCCESS!
+═══════════════════════════════════════════════════════════════
+
+If you can login, the system is working!
+
+Keep both Command Prompt windows open while using the system.
+
+═══════════════════════════════════════════════════════════════
+⚠️ IF STEP 9 STILL SHOWS ERROR
+═══════════════════════════════════════════════════════════════
+
+If you still get "port already in use" error:
+
+OPTION A: Use the batch file
+1. Double-click: KILL_PORT_5000.bat
+2. Wait for it to finish
+3. Go back to STEP 7
+
+OPTION B: Restart computer
+1. Save all work
+2. Restart computer
+3. Start WAMP server
+4. Go back to STEP 7
+
+OPTION C: Use different port
+1. Open file: .env
+2. Find line: PORT=5000
+3. Change to: PORT=5001
+4. Save file
+5. Open file: client/src/config/api.js
+6. Find: http://localhost:5000
+7. Change to: http://localhost:5001
+8. Save file
+9. Go back to STEP 7
+
+═══════════════════════════════════════════════════════════════
+📋 QUICK CHECKLIST
+═══════════════════════════════════════════════════════════════
+
+Before starting:
+[ ] All Command Prompt windows closed
+[ ] All Node.js processes ended in Task Manager
+[ ] Waited 10 seconds
+[ ] WAMP server is running (green icon)
+
+After starting:
+[ ] Backend shows "Server running on port 5000"
+[ ] Frontend opens in browser
+[ ] Can see login page
+[ ] Can login with admin@ddrems.com / admin123
+
+═══════════════════════════════════════════════════════════════
+🎯 REMEMBER
+═══════════════════════════════════════════════════════════════
+
+To stop servers properly:
+1. Go to each Command Prompt window
+2. Press: Ctrl + C
+3. Wait for it to stop
+4. Then close the window
+
+DON'T just close the window with X!
+This leaves the process running.
+
+═══════════════════════════════════════════════════════════════
+
+🎉 FOLLOW THESE STEPS AND IT WILL WORK!
+
+═══════════════════════════════════════════════════════════════

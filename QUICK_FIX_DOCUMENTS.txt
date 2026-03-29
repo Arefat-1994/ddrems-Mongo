@@ -1,0 +1,83 @@
+╔══════════════════════════════════════════════════════════════╗
+║         FIX DOCUMENT UPLOAD SERVER ERROR - QUICK GUIDE       ║
+╚══════════════════════════════════════════════════════════════╝
+
+PROBLEM: "Server error" when uploading documents in Owner Dashboard
+
+CAUSE: Database table has wrong column names
+       - Has: document_path (VARCHAR)
+       - Needs: document_url (LONGTEXT)
+       - Missing: access_key, is_locked
+
+═══════════════════════════════════════════════════════════════
+
+SOLUTION (Choose ONE method):
+
+METHOD 1: Using Batch File (EASIEST)
+────────────────────────────────────
+1. Make sure WAMP is running (green icon)
+2. Double-click: fix-documents.bat
+3. Press any key when prompted
+4. Wait for "SUCCESS!" message
+5. Restart servers: restart-servers.bat
+
+METHOD 2: Using phpMyAdmin
+──────────────────────────
+1. Open: http://localhost/phpmyadmin
+2. Select database: ddrems
+3. Click "SQL" tab
+4. Open file: fix-document-upload.sql
+5. Copy ALL contents
+6. Paste in SQL box
+7. Click "Go"
+8. Restart servers: restart-servers.bat
+
+METHOD 3: Using MySQL Command Line
+───────────────────────────────────
+mysql -u root -p -P 3307 ddrems < fix-document-upload.sql
+
+═══════════════════════════════════════════════════════════════
+
+AFTER FIXING:
+
+1. Kill Node processes:
+   taskkill /F /IM node.exe
+
+2. Start servers:
+   restart-servers.bat
+
+3. Test document upload:
+   - Login as owner@ddrems.com / admin123
+   - Add Property → Upload Documents
+   - Should work without errors!
+
+═══════════════════════════════════════════════════════════════
+
+VERIFY FIX WORKED:
+
+Run: node check-setup.js
+
+Should show:
+✅ document_url is LONGTEXT
+✅ access_key column exists
+✅ is_locked column exists
+
+═══════════════════════════════════════════════════════════════
+
+STILL NOT WORKING?
+
+1. Check WAMP is running (green icon)
+2. Verify database 'ddrems' exists
+3. Make sure backend is running on port 5000
+4. Check browser console (F12) for errors
+5. Read: FIX_DOCUMENT_UPLOAD.md for detailed help
+
+═══════════════════════════════════════════════════════════════
+
+FILES CREATED:
+✓ fix-document-upload.sql      - Database fix script
+✓ fix-documents.bat            - Easy fix batch file
+✓ FIX_DOCUMENT_UPLOAD.md       - Detailed documentation
+✓ check-setup.js (updated)     - Verify setup
+
+═══════════════════════════════════════════════════════════════

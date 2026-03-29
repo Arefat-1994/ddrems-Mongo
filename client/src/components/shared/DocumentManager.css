@@ -1,0 +1,269 @@
+.document-manager {
+  width: 100%;
+}
+
+.doc-manager-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.doc-manager-header h3 {
+  margin: 0;
+  color: #2d3748;
+  font-size: 20px;
+}
+
+.doc-count {
+  padding: 6px 12px;
+  background: #edf2f7;
+  color: #4a5568;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.doc-manager-loading,
+.doc-manager-empty {
+  text-align: center;
+  padding: 60px 20px;
+  color: #718096;
+}
+
+.doc-manager-empty .empty-icon {
+  font-size: 64px;
+  margin-bottom: 15px;
+}
+
+.doc-manager-empty p {
+  font-size: 18px;
+  font-weight: 600;
+  color: #2d3748;
+  margin: 10px 0 5px 0;
+}
+
+.doc-manager-empty span {
+  font-size: 14px;
+  color: #a0aec0;
+}
+
+.doc-manager-list {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+}
+
+.doc-manager-card {
+  background: white;
+  border: 2px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 20px;
+  transition: all 0.3s;
+}
+
+.doc-manager-card:hover {
+  border-color: #cbd5e0;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.doc-card-header {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-bottom: 15px;
+}
+
+.doc-icon-type {
+  font-size: 40px;
+  flex-shrink: 0;
+}
+
+.doc-card-info {
+  flex: 1;
+}
+
+.doc-card-info h4 {
+  margin: 0 0 5px 0;
+  color: #2d3748;
+  font-size: 16px;
+}
+
+.doc-card-info p {
+  margin: 0;
+  color: #718096;
+  font-size: 13px;
+  text-transform: capitalize;
+}
+
+.doc-status {
+  flex-shrink: 0;
+}
+
+.status-locked,
+.status-unlocked {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.status-locked {
+  background: #fed7d7;
+  color: #c53030;
+}
+
+.status-unlocked {
+  background: #c6f6d5;
+  color: #2f855a;
+}
+
+.doc-card-body {
+  margin-bottom: 15px;
+}
+
+.doc-meta {
+  display: flex;
+  gap: 20px;
+  font-size: 13px;
+  color: #718096;
+}
+
+.doc-card-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn-doc-action {
+  padding: 8px 16px;
+  border: none;
+  border-radius: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-doc-action.view {
+  background: #bee3f8;
+  color: #2c5282;
+}
+
+.btn-doc-action.view:hover {
+  background: #90cdf4;
+}
+
+.btn-doc-action.key {
+  background: #faf089;
+  color: #744210;
+}
+
+.btn-doc-action.key:hover {
+  background: #f6e05e;
+}
+
+.btn-doc-action.lock {
+  background: #fed7d7;
+  color: #c53030;
+}
+
+.btn-doc-action.lock:hover {
+  background: #fc8181;
+}
+
+.btn-doc-action.unlock {
+  background: #c6f6d5;
+  color: #2f855a;
+}
+
+.btn-doc-action.unlock:hover {
+  background: #9ae6b4;
+}
+
+.btn-doc-action.delete {
+  background: #feb2b2;
+  color: #9b2c2c;
+}
+
+.btn-doc-action.delete:hover {
+  background: #fc8181;
+}
+
+.key-modal .modal-content {
+  max-width: 500px;
+}
+
+.key-display-card {
+  text-align: center;
+  padding: 20px;
+}
+
+.key-icon {
+  font-size: 64px;
+  margin-bottom: 15px;
+}
+
+.key-display-card h3 {
+  color: #2d3748;
+  margin: 0 0 20px 0;
+  font-size: 18px;
+}
+
+.access-key-display {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  padding: 20px;
+  border-radius: 12px;
+  font-size: 32px;
+  font-weight: 700;
+  letter-spacing: 4px;
+  font-family: 'Courier New', monospace;
+  margin-bottom: 20px;
+  box-shadow: 0 10px 30px rgba(102, 126, 234, 0.3);
+}
+
+.btn-copy-key {
+  width: 100%;
+  padding: 12px;
+  background: #48bb78;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s;
+  margin-bottom: 20px;
+}
+
+.btn-copy-key:hover {
+  background: #38a169;
+  transform: translateY(-2px);
+  box-shadow: 0 10px 20px rgba(72, 187, 120, 0.3);
+}
+
+.key-info {
+  text-align: left;
+  padding: 15px;
+  background: #f7fafc;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.key-info p {
+  margin: 0 0 10px 0;
+  color: #4a5568;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.key-info p:last-child {
+  margin-bottom: 0;
+}
+
+.key-warning {
+  color: #c53030 !important;
+  font-weight: 600;
+}

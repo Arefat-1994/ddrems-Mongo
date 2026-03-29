@@ -1,0 +1,105 @@
+╔══════════════════════════════════════════════════════════════╗
+║     FIX "SERVER ERROR" - FOLLOW THESE 4 STEPS EXACTLY        ║
+╚══════════════════════════════════════════════════════════════╝
+
+STEP 1: KILL ALL NODE PROCESSES
+═══════════════════════════════════════════════════════════════
+Open Command Prompt (cmd) and run:
+
+    taskkill /F /IM node.exe
+
+Press Enter. You should see: "SUCCESS: The process "node.exe" ... terminated."
+
+═══════════════════════════════════════════════════════════════
+
+STEP 2: FIX DATABASE
+═══════════════════════════════════════════════════════════════
+Option A (Easiest):
+    1. Double-click: fix-documents.bat
+    2. Press any key
+    3. Wait for "SUCCESS!" message
+
+Option B (Manual):
+    1. Open: http://localhost/phpmyadmin
+    2. Click database: ddrems
+    3. Click "SQL" tab
+    4. Open file: fix-document-upload.sql
+    5. Copy ALL text
+    6. Paste in SQL box
+    7. Click "Go"
+
+═══════════════════════════════════════════════════════════════
+
+STEP 3: START SERVERS
+═══════════════════════════════════════════════════════════════
+Double-click: kill-and-restart.bat
+
+Two new windows will open:
+    - Window 1: Backend (should show "Server running on port 5000")
+    - Window 2: Frontend (will open browser automatically)
+
+IMPORTANT: Wait 30 seconds for both to start!
+
+═══════════════════════════════════════════════════════════════
+
+STEP 4: TEST DOCUMENT UPLOAD
+═══════════════════════════════════════════════════════════════
+1. Browser should open to: http://localhost:3000
+2. Login: owner@ddrems.com / admin123
+3. Click "Add Property" button
+4. Fill in property details
+5. Click "Next: Upload Images" (can skip)
+6. Click "Next: Upload Documents"
+7. Select document type (e.g., Title Deed)
+8. Enter document name
+9. Click to select a PDF or DOC file
+10. Click "Upload & Generate Access Key"
+11. Should see: "Document uploaded successfully!" with access key
+
+═══════════════════════════════════════════════════════════════
+
+TROUBLESHOOTING:
+═══════════════════════════════════════════════════════════════
+
+Problem: Still see "Server error"
+Solution: 
+    - Check backend window shows "Server running on port 5000"
+    - If not, close all windows and repeat STEP 1-3
+
+Problem: Backend window shows error
+Solution:
+    - Read the error message
+    - If "EADDRINUSE", repeat STEP 1
+    - If "ECONNREFUSED", start WAMP server
+    - If "ER_NO_SUCH_TABLE", repeat STEP 2
+
+Problem: Can't login
+Solution:
+    - Make sure WAMP is running (green icon)
+    - Check backend window for errors
+
+═══════════════════════════════════════════════════════════════
+
+VERIFY EVERYTHING IS WORKING:
+═══════════════════════════════════════════════════════════════
+Run this command:
+
+    node check-setup.js
+
+Should show all ✅ green checkmarks.
+
+═══════════════════════════════════════════════════════════════
+
+QUICK REFERENCE:
+═══════════════════════════════════════════════════════════════
+Backend URL:  http://localhost:5000
+Frontend URL: http://localhost:3000
+Owner Login:  owner@ddrems.com / admin123
+
+Files to run:
+    1. kill-and-restart.bat  - Start servers
+    2. fix-documents.bat     - Fix database
+    3. check-ports.bat       - Check what's running
+    4. check-setup.js        - Verify setup
+
+═══════════════════════════════════════════════════════════════

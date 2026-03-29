@@ -1,0 +1,83 @@
+================================================================================
+                    QUICK FIX GUIDE - AGREEMENT WORKFLOW
+================================================================================
+
+Two errors found and fixed. Follow these steps to apply the fixes:
+
+================================================================================
+                         STEP 1: UPDATE DATABASE VIEW
+================================================================================
+
+Run this command in your MySQL client:
+
+  mysql -u root -p < database/AGREEMENT_WORKFLOW_SCHEMA_FIXED.sql
+
+Or manually execute:
+
+  DROP VIEW IF EXISTS v_agreement_status;
+  CREATE VIEW v_agreement_status AS
+  SELECT 
+    ar.id, ar.customer_id, ar.owner_id, ar.property_id,
+    ar.status, ar.current_step, ar.request_date, ar.created_at,
+    ar.completed_date, p.title as property_title, p.price as property_price,
+    c.name as customer_name, o.name as owner_name, pa.name as admin_name,
+    ar.total_commission
+  FROM agreement_requests ar
+  LEFT JOIN properties p ON ar.property_id = p.id
+  LEFT JOIN users c ON ar.customer_id = c.id
+  LEFT JOIN users o ON ar.owner_id = o.id
+  LEFT JOIN users pa ON ar.property_admin_id = pa.id;
+
+================================================================================
+                         STEP 2: RESTART BACKEND SERVER
+================================================================================
+
+Stop the current server and restart:
+
+  npm start
+
+================================================================================
+                         STEP 3: ASSIGN OWNER TO PROPERTY
+================================================================================
+
+Before creating an agreement, ensure property has an owner:
+
+  UPDATE properties SET owner_id = 2 WHERE id = 18;
+
+Replace:
+  - 2 with the actual owner user ID
+  - 18 with the actual property ID
+
+================================================================================
+                         STEP 4: TEST
+================================================================================
+
+1. Login as customer
+2. Click "🤝 Agreements" button
+3. Click "➕ New Agreement Request"
+4. Select property (with owner assigned)
+5. Enter notes
+6. Click submit
+7. Should work without errors
+
+================================================================================
+                         WHAT WAS FIXED
+================================================================================
+
+ERROR 1: Unknown column 'created_at' in 'order clause'
+  FIXED: Changed ORDER BY created_at to ORDER BY request_date
+  FILE: server/routes/agreement-workflow.js
+
+ERROR 2: Column 'owner_id' cannot be null
+  FIXED: Added validation to check if property has owner
+  FILE: server/routes/agreement-workflow.js
+
+ERROR 3: View missing created_at column
+  FIXED: Added ar.created_at to view SELECT clause
+  FILE: database/AGREEMENT_WORKFLOW_SCHEMA_FIXED.sql
+
+================================================================================
+
+Status: ✅ READY TO TEST
+
+================================================================================

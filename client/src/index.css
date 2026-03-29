@@ -1,0 +1,56 @@
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+/* Global Visibility Fix for Inputs */
+input, 
+select, 
+textarea {
+  color: #1f2937 !important; /* Dark gray for maximum visibility */
+  background-color: #ffffff !important; /* Ensure white background */
+}
+
+/* Ensure placeholder text is also visible but distinct */
+::placeholder {
+  color: #9ca3af !important;
+  opacity: 1; /* Firefox fix */
+}
+
+/* Specific fix for Autofill (Chrome/Safari) */
+input:-webkit-autofill,
+input:-webkit-autofill:hover, 
+input:-webkit-autofill:focus {
+  -webkit-text-fill-color: #1f2937 !important;
+  transition: background-color 5000s ease-in-out 0s;
+}
+
+/* Universal Label Visibility - Reinforced for maximum contrast */
+label, 
+.form-group label,
+.modal-content label,
+.form-grid label {
+  color: #000000 !important; /* Pure black for maximum contrast on white modals */
+  font-weight: 700 !important;
+  display: block !important;
+  margin-bottom: 8px !important;
+  font-size: 14px !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+  text-shadow: none !important;
+  -webkit-text-fill-color: #000000 !important;
+}
+
+.label {
+  color: #111827 !important;
+  font-weight: 600 !important;
+}

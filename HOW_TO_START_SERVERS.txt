@@ -1,0 +1,175 @@
+╔══════════════════════════════════════════════════════════════╗
+║          HOW TO START DDREMS SERVERS                         ║
+╚══════════════════════════════════════════════════════════════╝
+
+═══════════════════════════════════════════════════════════════
+🚀 OPTION 1: AUTOMATIC START (RECOMMENDED)
+═══════════════════════════════════════════════════════════════
+
+Double-click: start-dev.bat
+
+This will:
+  1. Kill any existing Node processes on port 5000
+  2. Start backend server (port 5000)
+  3. Start frontend server (port 3000)
+  4. Open two separate windows
+
+Wait 30 seconds, then open: http://localhost:3000
+
+═══════════════════════════════════════════════════════════════
+🚀 OPTION 2: MANUAL START (TWO TERMINALS)
+═══════════════════════════════════════════════════════════════
+
+Terminal 1 - Backend:
+  Double-click: start-backend.bat
+  
+  Or manually:
+  node kill-node-processes.js
+  node server/index.js
+
+Terminal 2 - Frontend:
+  Double-click: start-frontend.bat
+  
+  Or manually:
+  cd client
+  npm start
+
+═══════════════════════════════════════════════════════════════
+⚠️ IF YOU GET "PORT ALREADY IN USE" ERROR
+═══════════════════════════════════════════════════════════════
+
+This means port 5000 is already being used by another process.
+
+SOLUTION 1: Kill the process
+  node kill-node-processes.js
+  
+Then start again:
+  node server/index.js
+
+SOLUTION 2: Find and kill manually
+  1. Open Task Manager (Ctrl+Shift+Esc)
+  2. Find "Node.js" processes
+  3. Right-click → End Task
+  4. Try starting again
+
+SOLUTION 3: Use different port
+  1. Edit .env file
+  2. Change PORT=5000 to PORT=5001
+  3. Edit client/src/config/api.js
+  4. Change baseURL to http://localhost:5001
+  5. Start servers
+
+═══════════════════════════════════════════════════════════════
+✅ HOW TO KNOW SERVERS ARE RUNNING
+═══════════════════════════════════════════════════════════════
+
+Backend (port 5000):
+  You should see: "Server running on port 5000"
+  Test: http://localhost:5000 (should show "Cannot GET /")
+
+Frontend (port 3000):
+  Browser should open automatically
+  Or manually open: http://localhost:3000
+  You should see the login page
+
+═══════════════════════════════════════════════════════════════
+🔧 TROUBLESHOOTING
+═══════════════════════════════════════════════════════════════
+
+Problem: Backend won't start
+Solution:
+  1. Check WAMP is running (green icon)
+  2. Run: node kill-node-processes.js
+  3. Check .env file exists
+  4. Try: node server/index.js
+
+Problem: Frontend won't start
+Solution:
+  1. Make sure backend is running first
+  2. Check if port 3000 is free
+  3. Try: cd client && npm start
+
+Problem: "Cannot connect to database"
+Solution:
+  1. Start WAMP server
+  2. Check database 'ddrems' exists
+  3. Verify .env settings:
+     DB_HOST=localhost
+     DB_PORT=3307
+     DB_NAME=ddrems
+     DB_USER=root
+     DB_PASSWORD=
+
+Problem: "Module not found"
+Solution:
+  1. Install backend: npm install
+  2. Install frontend: cd client && npm install
+  3. Try starting again
+
+═══════════════════════════════════════════════════════════════
+📋 STARTUP CHECKLIST
+═══════════════════════════════════════════════════════════════
+
+Before starting:
+  [ ] WAMP server is running (green icon)
+  [ ] Database 'ddrems' exists
+  [ ] npm packages installed (npm install)
+  [ ] Client packages installed (cd client && npm install)
+  [ ] No other apps using port 5000 or 3000
+
+After starting:
+  [ ] Backend shows "Server running on port 5000"
+  [ ] Frontend opens in browser
+  [ ] Can access http://localhost:3000
+  [ ] Login page displays
+  [ ] No errors in console
+
+═══════════════════════════════════════════════════════════════
+🎯 QUICK COMMANDS
+═══════════════════════════════════════════════════════════════
+
+Kill processes:
+  node kill-node-processes.js
+
+Start backend only:
+  node server/index.js
+
+Start frontend only:
+  cd client && npm start
+
+Start both (automatic):
+  start-dev.bat
+
+Check if servers are running:
+  Backend: http://localhost:5000
+  Frontend: http://localhost:3000
+
+═══════════════════════════════════════════════════════════════
+🔑 TEST ACCOUNTS
+═══════════════════════════════════════════════════════════════
+
+All passwords: admin123
+
+• admin@ddrems.com          (Admin)
+• owner@ddrems.com          (Owner)
+• customer@ddrems.com       (Customer)
+• broker@ddrems.com         (Broker)
+• propertyadmin@ddrems.com  (Property Admin)
+• systemadmin@ddrems.com    (System Admin)
+
+═══════════════════════════════════════════════════════════════
+📁 BATCH FILES AVAILABLE
+═══════════════════════════════════════════════════════════════
+
+• start-dev.bat - Start both servers automatically
+• start-backend.bat - Start backend only
+• start-frontend.bat - Start frontend only
+• APPLY_ALL_FIXES.bat - Apply all database fixes
+
+═══════════════════════════════════════════════════════════════
+
+🎉 READY TO START!
+
+Recommended: Double-click start-dev.bat
+
+═══════════════════════════════════════════════════════════════

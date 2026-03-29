@@ -1,0 +1,145 @@
+.page-header-container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+  padding: 20px;
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+}
+
+.page-header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex: 1;
+}
+
+.page-header-text h1 {
+  font-size: 28px;
+  color: #1f2937;
+  margin-bottom: 5px;
+}
+
+.page-header-text p {
+  color: #6b7280;
+  font-size: 14px;
+}
+
+.page-header-actions {
+  display: flex;
+  gap: 10px;
+}
+
+.page-header-user {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  margin-left: 30px;
+  padding-left: 30px;
+  border-left: 2px solid #e5e7eb;
+}
+
+.user-info-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.user-avatar-header {
+  width: 45px;
+  height: 45px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  font-weight: bold;
+  color: white;
+  overflow: hidden;
+}
+
+.user-avatar-image {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 50%;
+}
+
+.user-details-header {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.user-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.user-role-badge {
+  font-size: 11px;
+  color: #6b7280;
+  text-transform: uppercase;
+  background: #f3f4f6;
+  padding: 2px 8px;
+  border-radius: 10px;
+  width: fit-content;
+}
+
+.logout-btn-header {
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 600;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 6px rgba(239, 68, 68, 0.3);
+}
+
+.logout-btn-header:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(239, 68, 68, 0.4);
+}
+
+@media (max-width: 1024px) {
+  .page-header-container {
+    flex-direction: column;
+    gap: 20px;
+  }
+  
+  .page-header-user {
+    margin-left: 0;
+    padding-left: 0;
+    border-left: none;
+    border-top: 2px solid #e5e7eb;
+    padding-top: 20px;
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+@media (max-width: 768px) {
+  .page-header-content {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 15px;
+  }
+  
+  .page-header-text h1 {
+    font-size: 24px;
+  }
+  
+  .user-details-header {
+    display: none;
+  }
+}

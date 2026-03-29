@@ -1,0 +1,175 @@
+╔══════════════════════════════════════════════════════════════╗
+║          TEST: CUSTOMER CANNOT ADD PROPERTIES                ║
+╚══════════════════════════════════════════════════════════════╝
+
+Quick test to verify customers cannot add properties:
+
+═══════════════════════════════════════════════════════════════
+🧪 TEST 1: CUSTOMER CANNOT SEE BUTTON
+═══════════════════════════════════════════════════════════════
+
+1. Login as Customer
+   Email: customer@ddrems.com
+   Password: admin123
+
+2. Click "Browse Properties" in sidebar
+
+3. Look at page header (top right area)
+
+4. Expected Result:
+   ✅ Should see page title "Properties Management"
+   ✅ Should see search box
+   ✅ Should see filter dropdown
+   ✅ Should NOT see "Add New Property" button ← KEY TEST!
+
+5. If you see "Add New Property" button:
+   ❌ TEST FAILED - Button should be hidden
+
+6. If you don't see "Add New Property" button:
+   ✅ TEST PASSED - Button is correctly hidden
+
+═══════════════════════════════════════════════════════════════
+🧪 TEST 2: OWNER CAN SEE BUTTON
+═══════════════════════════════════════════════════════════════
+
+1. Logout from customer account
+
+2. Login as Owner
+   Email: owner@ddrems.com
+   Password: admin123
+
+3. Click "My Properties" in sidebar
+
+4. Look at page header (top right area)
+
+5. Expected Result:
+   ✅ Should see "Add New Property" button ← Should be visible!
+
+6. If you see "Add New Property" button:
+   ✅ TEST PASSED - Button correctly shows for owner
+
+7. If you don't see button:
+   ❌ TEST FAILED - Button should be visible for owner
+
+═══════════════════════════════════════════════════════════════
+🧪 TEST 3: BROKER CAN SEE BUTTON
+═══════════════════════════════════════════════════════════════
+
+1. Logout from owner account
+
+2. Login as Broker
+   Email: broker@ddrems.com
+   Password: admin123
+
+3. Click "My Properties" in sidebar
+
+4. Expected Result:
+   ✅ Should see "Add New Property" button
+
+═══════════════════════════════════════════════════════════════
+🧪 TEST 4: ADMIN CAN SEE BUTTON
+═══════════════════════════════════════════════════════════════
+
+1. Logout from broker account
+
+2. Login as Admin
+   Email: admin@ddrems.com
+   Password: admin123
+
+3. Click "Properties" in sidebar
+
+4. Expected Result:
+   ✅ Should see "Add New Property" button
+
+═══════════════════════════════════════════════════════════════
+✅ QUICK VISUAL TEST
+═══════════════════════════════════════════════════════════════
+
+CUSTOMER VIEW (customer@ddrems.com):
+┌─────────────────────────────────────────────────────────────┐
+│ Properties Management                                       │
+│ Manage all real estate listings and property details       │
+│                                                             │
+│ [NO BUTTON HERE] ← Should be empty!                        │
+└─────────────────────────────────────────────────────────────┘
+
+OWNER VIEW (owner@ddrems.com):
+┌─────────────────────────────────────────────────────────────┐
+│ Properties Management                                       │
+│ Manage all real estate listings and property details       │
+│                                                             │
+│                              [➕ Add New Property] ← Here!  │
+└─────────────────────────────────────────────────────────────┘
+
+═══════════════════════════════════════════════════════════════
+📋 CHECKLIST
+═══════════════════════════════════════════════════════════════
+
+Customer Account:
+  [ ] Login successful
+  [ ] Can access "Browse Properties"
+  [ ] Page loads correctly
+  [ ] NO "Add New Property" button visible
+  [ ] Can see property list
+  [ ] Can search properties
+  [ ] Can view property details
+
+Owner Account:
+  [ ] Login successful
+  [ ] Can access "My Properties"
+  [ ] "Add New Property" button IS visible
+  [ ] Can click button
+  [ ] Add property modal opens
+
+Broker Account:
+  [ ] Login successful
+  [ ] Can access "My Properties"
+  [ ] "Add New Property" button IS visible
+
+Admin Account:
+  [ ] Login successful
+  [ ] Can access "Properties"
+  [ ] "Add New Property" button IS visible
+
+═══════════════════════════════════════════════════════════════
+⚠️ TROUBLESHOOTING
+═══════════════════════════════════════════════════════════════
+
+Problem: Customer still sees "Add New Property" button
+Solution:
+  1. Clear browser cache (Ctrl+Shift+Delete)
+  2. Refresh page (Ctrl+F5)
+  3. Logout and login again
+  4. Check you're logged in as customer@ddrems.com
+  5. Verify user role is 'user' not 'owner' or 'broker'
+
+Problem: Owner doesn't see button
+Solution:
+  1. Check you're logged in as owner@ddrems.com
+  2. Verify user role is 'owner'
+  3. Refresh page
+  4. Check browser console for errors
+
+═══════════════════════════════════════════════════════════════
+✅ SUCCESS CRITERIA
+═══════════════════════════════════════════════════════════════
+
+Test is successful when:
+
+✅ Customer (user role) does NOT see "Add New Property" button
+✅ Owner (owner role) DOES see "Add New Property" button
+✅ Broker (broker role) DOES see "Add New Property" button
+✅ Admin (admin role) DOES see "Add New Property" button
+
+All 4 conditions must be true!
+
+═══════════════════════════════════════════════════════════════
+
+🎯 START TESTING NOW!
+
+1. Login: customer@ddrems.com / admin123
+2. Click: Browse Properties
+3. Check: NO "Add New Property" button
+4. Result: ✅ PASS or ❌ FAIL
+
+═══════════════════════════════════════════════════════════════

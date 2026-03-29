@@ -1,0 +1,275 @@
+.property-approval {
+  padding: 20px;
+}
+
+.approval-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #e2e8f0;
+}
+
+.approval-header h2 {
+  color: #2d3748;
+  font-size: 24px;
+  margin: 0;
+}
+
+.pending-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  gap: 20px;
+}
+
+.pending-card {
+  background: white;
+  border-radius: 12px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+  overflow: hidden;
+  transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.pending-card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+}
+
+.property-image {
+  position: relative;
+  height: 200px;
+  background: #f7fafc;
+}
+
+.property-image img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.property-image .no-image {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  font-size: 48px;
+  color: #cbd5e0;
+}
+
+.image-count {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: rgba(0,0,0,0.7);
+  color: white;
+  padding: 5px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+}
+
+.property-details {
+  padding: 15px;
+}
+
+.property-details h3 {
+  margin: 0 0 10px 0;
+  color: #2d3748;
+  font-size: 18px;
+}
+
+.property-type, .property-price, .property-location,
+.property-specs, .property-owner, .property-date {
+  margin: 5px 0;
+  font-size: 14px;
+  color: #4a5568;
+}
+
+.property-price {
+  color: #2b6cb0;
+  font-weight: 600;
+  font-size: 16px;
+}
+
+.property-actions {
+  padding: 15px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.btn-view {
+  width: 100%;
+  padding: 10px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 600;
+  transition: opacity 0.2s;
+}
+
+.btn-view:hover {
+  opacity: 0.9;
+}
+
+.no-pending {
+  text-align: center;
+  padding: 60px 20px;
+}
+
+.empty-icon {
+  font-size: 64px;
+  margin-bottom: 20px;
+}
+
+.no-pending p {
+  font-size: 20px;
+  color: #2d3748;
+  margin: 10px 0;
+}
+
+.no-pending span {
+  color: #718096;
+}
+
+/* Modal Styles */
+.property-review-grid {
+  display: grid;
+  gap: 20px;
+}
+
+.review-section {
+  background: #f7fafc;
+  padding: 20px;
+  border-radius: 8px;
+}
+
+.review-section.full-width {
+  grid-column: 1 / -1;
+}
+
+.review-section h3 {
+  margin: 0 0 15px 0;
+  color: #2d3748;
+  font-size: 18px;
+}
+
+.images-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 10px;
+}
+
+.images-grid img {
+  width: 100%;
+  height: 150px;
+  object-fit: cover;
+  border-radius: 8px;
+}
+
+.info-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+}
+
+.info-grid div {
+  padding: 10px;
+  background: white;
+  border-radius: 6px;
+}
+
+.description-box {
+  margin-top: 15px;
+  padding: 15px;
+  background: white;
+  border-radius: 6px;
+}
+
+.description-box p {
+  margin: 10px 0 0 0;
+  color: #4a5568;
+  line-height: 1.6;
+}
+
+.submitter-info {
+  background: white;
+  padding: 15px;
+  border-radius: 6px;
+}
+
+.submitter-info p {
+  margin: 8px 0;
+  color: #4a5568;
+}
+
+.review-section textarea {
+  width: 100%;
+  padding: 12px;
+  border: 1px solid #cbd5e0;
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 14px;
+  resize: vertical;
+}
+
+.modal-actions {
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
+  padding: 20px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.btn-success {
+  padding: 10px 20px;
+  background: #48bb78;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.btn-warning {
+  padding: 10px 20px;
+  background: #ed8936;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.btn-danger {
+  padding: 10px 20px;
+  background: #f56565;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.btn-secondary {
+  padding: 10px 20px;
+  background: #718096;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.btn-success:hover, .btn-warning:hover, 
+.btn-danger:hover, .btn-secondary:hover {
+  opacity: 0.9;
+}
+
+.loading {
+  text-align: center;
+  padding: 40px;
+  font-size: 18px;
+  color: #718096;
+}
