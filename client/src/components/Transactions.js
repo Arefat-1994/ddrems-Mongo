@@ -3,7 +3,7 @@ import './Transactions.css';
 import PageHeader from './PageHeader';
 import axios from 'axios';
 
-const Transactions = ({ user, onLogout }) => {
+const Transactions = ({ user, onLogout, onSettingsClick }) => {
   const [transactions, setTransactions] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
 
@@ -32,6 +32,7 @@ const Transactions = ({ user, onLogout }) => {
         subtitle="View and manage all property transactions"
         user={user}
         onLogout={onLogout}
+        onSettingsClick={onSettingsClick}
       />
 
       <div className="filters-bar">

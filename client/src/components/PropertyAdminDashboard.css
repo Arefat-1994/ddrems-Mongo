@@ -1,5 +1,11 @@
 .property-admin-dashboard {
-  max-width: 1400px;
+  max-width: 100%;
+  width: 100%;
+  padding: 24px;
+  background: var(--fg-color);
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
 }
 
 .verification-list {
@@ -208,6 +214,10 @@
 }
 
 @media (max-width: 1024px) {
+  .property-admin-dashboard {
+    padding: 18px;
+  }
+
   .verification-item {
     grid-template-columns: 1fr;
   }
@@ -215,9 +225,56 @@
   .verification-actions {
     flex-direction: row;
   }
+
+  .chart-item {
+    grid-template-columns: 100px 1fr 50px;
+    gap: 12px;
+  }
+
+  .property-row-card {
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .property-row-image {
+    width: 60px;
+    height: 60px;
+  }
+
+  .property-row-info h4 {
+    font-size: 14px;
+  }
+
+  .property-row-info p {
+    font-size: 12px;
+  }
+
+  .property-row-actions {
+    gap: 4px;
+  }
+
+  .quick-stats-list {
+    gap: 12px;
+  }
+
+  .quick-stat-item {
+    padding: 10px 12px;
+  }
+
+  .quick-stat-item span {
+    font-size: 13px;
+  }
+
+  .quick-stat-item strong {
+    font-size: 16px;
+  }
 }
 
 @media (max-width: 768px) {
+  .property-admin-dashboard {
+    padding: 16px;
+  }
+
   .chart-item {
     grid-template-columns: 1fr;
     gap: 8px;
@@ -225,6 +282,320 @@
 
   .chart-value {
     text-align: left;
+  }
+
+  .verification-item {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .verification-image img {
+    height: 80px;
+  }
+
+  .verification-info h4 {
+    font-size: 15px;
+  }
+
+  .verification-info p {
+    font-size: 12px;
+  }
+
+  .verification-documents h5 {
+    font-size: 13px;
+  }
+
+  .document-badge {
+    font-size: 11px;
+    padding: 3px 8px;
+  }
+
+  .verification-actions {
+    flex-direction: row;
+    gap: 6px;
+  }
+
+  .btn-success,
+  .btn-danger {
+    padding: 6px 12px;
+    font-size: 12px;
+    flex: 1;
+  }
+
+  .report-item {
+    gap: 12px;
+    padding: 12px;
+  }
+
+  .report-icon {
+    font-size: 28px;
+    width: 45px;
+    height: 45px;
+  }
+
+  .report-info h4 {
+    font-size: 14px;
+  }
+
+  .report-info p {
+    font-size: 12px;
+  }
+
+  .report-date {
+    font-size: 10px;
+  }
+
+  .stats-chart {
+    gap: 14px;
+  }
+
+  .chart-label {
+    font-size: 13px;
+  }
+
+  .chart-bar {
+    height: 24px;
+  }
+
+  .chart-value {
+    font-size: 16px;
+  }
+
+  .property-row-card {
+    gap: 10px;
+    padding: 10px;
+    flex-wrap: wrap;
+  }
+
+  .property-row-image {
+    width: 50px;
+    height: 50px;
+  }
+
+  .no-image-small {
+    font-size: 24px;
+  }
+
+  .property-row-info {
+    flex: 1;
+    min-width: 150px;
+  }
+
+  .property-row-info h4 {
+    font-size: 13px;
+  }
+
+  .property-row-info p {
+    font-size: 11px;
+  }
+
+  .property-row-status {
+    min-width: 80px;
+  }
+
+  .property-row-actions {
+    width: 100%;
+    gap: 4px;
+    flex-wrap: wrap;
+  }
+
+  .btn-icon {
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+
+  .quick-stats-list {
+    gap: 10px;
+  }
+
+  .quick-stat-item {
+    padding: 10px;
+    font-size: 13px;
+  }
+
+  .quick-stat-item span {
+    font-size: 12px;
+  }
+
+  .quick-stat-item strong {
+    font-size: 15px;
+  }
+
+  .verification-summary {
+    padding: 14px;
+  }
+
+  .verification-summary p {
+    font-size: 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .property-admin-dashboard {
+    padding: 12px;
+  }
+
+  .chart-item {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .chart-label {
+    font-size: 12px;
+  }
+
+  .chart-bar {
+    height: 20px;
+  }
+
+  .chart-value {
+    font-size: 14px;
+  }
+
+  .verification-item {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .verification-image img {
+    height: 70px;
+  }
+
+  .verification-info h4 {
+    font-size: 14px;
+  }
+
+  .verification-info p {
+    font-size: 11px;
+  }
+
+  .verification-documents h5 {
+    font-size: 12px;
+  }
+
+  .document-badge {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+
+  .verification-actions {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .btn-success,
+  .btn-danger {
+    padding: 6px 10px;
+    font-size: 11px;
+    width: 100%;
+  }
+
+  .report-item {
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .report-icon {
+    font-size: 24px;
+    width: 40px;
+    height: 40px;
+  }
+
+  .report-info h4 {
+    font-size: 13px;
+  }
+
+  .report-info p {
+    font-size: 11px;
+  }
+
+  .report-date {
+    font-size: 9px;
+  }
+
+  .stats-chart {
+    gap: 12px;
+  }
+
+  .property-row-card {
+    gap: 8px;
+    padding: 8px;
+    flex-direction: column;
+  }
+
+  .property-row-image {
+    width: 100%;
+    height: 120px;
+  }
+
+  .no-image-small {
+    font-size: 32px;
+  }
+
+  .property-row-info {
+    width: 100%;
+  }
+
+  .property-row-info h4 {
+    font-size: 13px;
+  }
+
+  .property-row-info p {
+    font-size: 11px;
+  }
+
+  .property-row-status {
+    width: 100%;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+    min-width: auto;
+  }
+
+  .property-row-actions {
+    width: 100%;
+    gap: 4px;
+  }
+
+  .btn-icon {
+    padding: 5px 6px;
+    font-size: 11px;
+    flex: 1;
+  }
+
+  .quick-stats-list {
+    gap: 8px;
+  }
+
+  .quick-stat-item {
+    padding: 8px;
+    font-size: 12px;
+  }
+
+  .quick-stat-item span {
+    font-size: 11px;
+  }
+
+  .quick-stat-item strong {
+    font-size: 14px;
+  }
+
+  .verification-summary {
+    padding: 12px;
+  }
+
+  .verification-summary p {
+    font-size: 13px;
+  }
+
+  .verification-list {
+    gap: 12px;
+  }
+
+  .reports-list {
+    gap: 10px;
   }
 }
 

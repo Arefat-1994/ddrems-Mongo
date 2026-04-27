@@ -1,5 +1,11 @@
 .system-admin-dashboard {
-  max-width: 1400px;
+  max-width: 100%;
+  width: 100%;
+  padding: 24px;
+  background: var(--fg-color);
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
 }
 
 .time-range-select,
@@ -257,6 +263,10 @@
 }
 
 @media (max-width: 1024px) {
+  .system-admin-dashboard {
+    padding: 18px;
+  }
+
   .metric-item,
   .config-item {
     grid-template-columns: 1fr;
@@ -266,9 +276,23 @@
   .metric-value {
     text-align: left;
   }
+
+  .security-grid {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  }
+
+  .time-range-select,
+  .log-filter {
+    padding: 6px 12px;
+    font-size: 12px;
+  }
 }
 
 @media (max-width: 768px) {
+  .system-admin-dashboard {
+    padding: 16px;
+  }
+
   .log-item {
     grid-template-columns: 1fr;
     gap: 6px;
@@ -276,5 +300,223 @@
   
   .security-grid {
     grid-template-columns: 1fr;
+  }
+
+  .metric-item {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .metric-label {
+    font-size: 13px;
+  }
+
+  .metric-bar {
+    height: 24px;
+  }
+
+  .metric-value {
+    font-size: 14px;
+  }
+
+  .activity-item {
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .activity-avatar {
+    width: 35px;
+    height: 35px;
+    font-size: 14px;
+  }
+
+  .activity-info h4 {
+    font-size: 13px;
+  }
+
+  .activity-info p {
+    font-size: 12px;
+  }
+
+  .activity-time {
+    font-size: 10px;
+  }
+
+  .log-item {
+    grid-template-columns: 1fr;
+    padding: 8px 10px;
+    font-size: 12px;
+  }
+
+  .log-time {
+    font-size: 11px;
+  }
+
+  .log-level {
+    font-size: 10px;
+    padding: 2px 6px;
+  }
+
+  .log-message {
+    font-size: 12px;
+  }
+
+  .config-item {
+    grid-template-columns: 1fr;
+    gap: 8px;
+    padding: 10px;
+  }
+
+  .config-key {
+    font-size: 13px;
+  }
+
+  .config-value {
+    font-size: 12px;
+  }
+
+  .security-item {
+    gap: 12px;
+    padding: 14px;
+  }
+
+  .security-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 20px;
+  }
+
+  .security-info h4 {
+    font-size: 14px;
+  }
+
+  .security-info p {
+    font-size: 12px;
+  }
+
+  .performance-metrics {
+    gap: 14px;
+  }
+
+  .logs-list {
+    max-height: 300px;
+  }
+}
+
+@media (max-width: 480px) {
+  .system-admin-dashboard {
+    padding: 12px;
+  }
+
+  .metric-item {
+    grid-template-columns: 1fr;
+    gap: 6px;
+  }
+
+  .metric-label {
+    font-size: 12px;
+  }
+
+  .metric-bar {
+    height: 20px;
+  }
+
+  .metric-value {
+    font-size: 13px;
+  }
+
+  .activity-item {
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .activity-avatar {
+    width: 32px;
+    height: 32px;
+    font-size: 12px;
+  }
+
+  .activity-info h4 {
+    font-size: 12px;
+  }
+
+  .activity-info p {
+    font-size: 11px;
+  }
+
+  .activity-time {
+    font-size: 9px;
+  }
+
+  .log-item {
+    grid-template-columns: 1fr;
+    padding: 6px 8px;
+    font-size: 11px;
+  }
+
+  .log-time {
+    font-size: 10px;
+  }
+
+  .log-level {
+    font-size: 9px;
+    padding: 1px 4px;
+  }
+
+  .log-message {
+    font-size: 11px;
+  }
+
+  .config-item {
+    grid-template-columns: 1fr;
+    gap: 6px;
+    padding: 8px;
+  }
+
+  .config-key {
+    font-size: 12px;
+  }
+
+  .config-value {
+    font-size: 11px;
+  }
+
+  .security-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .security-item {
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .security-icon {
+    width: 36px;
+    height: 36px;
+    font-size: 18px;
+  }
+
+  .security-info h4 {
+    font-size: 13px;
+  }
+
+  .security-info p {
+    font-size: 11px;
+  }
+
+  .time-range-select,
+  .log-filter {
+    padding: 5px 10px;
+    font-size: 11px;
+    width: 100%;
+  }
+
+  .performance-metrics {
+    gap: 12px;
+  }
+
+  .logs-list {
+    max-height: 250px;
   }
 }

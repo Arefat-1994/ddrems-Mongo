@@ -1,21 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const mysql = require('mysql2/promise');
-const dotenv = require('dotenv');
-
-dotenv.config();
-
-// Database connection pool
-const pool = mysql.createPool({
-  host: process.env.DB_HOST,
-  user: process.env.DB_USER,
-  password: process.env.DB_PASSWORD,
-  database: process.env.DB_NAME,
-  port: process.env.DB_PORT,
-  waitForConnections: true,
-  connectionLimit: 10,
-  queueLimit: 0
-});
+const db = require('../config/db');
 
 // ============================================================================
 // CUSTOMER ENDPOINTS
@@ -31,28 +16,24 @@ router.post('/request', async (req, res) => {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
-    const conn = await pool.getConnection();
-
     // Get property details
-    const [property] = await conn.execute(
+    const [property] = await db.query(
       'SELECT * FROM properties WHERE id = ?',
       [property_id]
     );
 
     if (!property || property.length === 0) {
-      conn.release();
       return res.status(404).json({ message: 'Property not found' });
     }
 
     const prop = property[0];
 
     // Get property admin (static single admin)
-    const [admins] = await conn.execute(
-      'SELECT id FROM users WHERE role = "property_admin" LIMIT 1'
+    const [admins] = await db.query(
+      "SELECT id FROM users WHERE role = 'property_admin' LIMIT 1"
     );
 
     if (!admins || admins.length === 0) {
-      conn.release();
       return res.status(400).json({ message: 'No property admin available' });
     }
 
@@ -62,7 +43,7 @@ router.post('/request', async (req, res) => {
     const owner_id = prop.owner_id || prop.broker_id || property_admin_id;
 
     // Create agreement request
-    const [result] = await conn.execute(
+    const [result] = await db.query(
       `INSERT INTO agreement_requests 
        (property_id, customer_id, owner_id, property_admin_id, customer_notes, status, request_date)
        VALUES (?, ?, ?, ?, ?, 'pending_admin_review', NOW())`,
@@ -70,7 +51,7 @@ router.post('/request', async (req, res) => {
     );
 
     // Create notification for admin
-    await conn.execute(
+    await db.query(
       `INSERT INTO agreement_notifications 
        (agreement_request_id, recipient_id, notification_type, notification_title, notification_message, sent_date)
        VALUES (?, ?, 'request_received', 'New Agreement Request', ?, NOW())`,
@@ -78,14 +59,12 @@ router.post('/request', async (req, res) => {
     );
 
     // Log audit
-    await conn.execute(
+    await db.query(
       `INSERT INTO agreement_audit_log 
        (agreement_request_id, action_type, action_description, performed_by_id, new_status, created_at)
        VALUES (?, 'REQUEST_CREATED', 'Customer requested agreement', ?, 'pending_admin_review', NOW())`,
       [result.insertId, customer_id]
     );
-
-    conn.release();
 
     res.json({
       message: 'Agreement request created successfully',
@@ -102,9 +81,7 @@ router.get('/customer/:customerId', async (req, res) => {
   try {
     const { customerId } = req.params;
 
-    const conn = await pool.getConnection();
-
-    const [agreements] = await conn.execute(
+    const [agreements] = await db.query(
       `SELECT ar.*, p.title as property_title, p.location as property_location, 
               p.price as property_price, p.type as property_type,
               u_cust.name as customer_name, u_owner.name as owner_name
@@ -116,8 +93,6 @@ router.get('/customer/:customerId', async (req, res) => {
        ORDER BY ar.request_date DESC`,
       [customerId]
     );
-
-    conn.release();
 
     res.json(agreements || []);
   } catch (error) {
@@ -133,10 +108,8 @@ router.post('/:agreementId/submit-payment', async (req, res) => {
     const { payment_method, payment_amount, receipt_file_path } = req.body;
     const customer_id = req.user?.id || req.body.customer_id;
 
-    const conn = await pool.getConnection();
-
     // Create payment receipt
-    const [result] = await conn.execute(
+    const [result] = await db.query(
       `INSERT INTO payment_receipts 
        (agreement_request_id, payment_method, payment_amount, receipt_file_path, verification_status, created_at)
        VALUES (?, ?, ?, ?, 'pending', NOW())`,
@@ -144,19 +117,19 @@ router.post('/:agreementId/submit-payment', async (req, res) => {
     );
 
     // Update agreement status
-    await conn.execute(
-      `UPDATE agreement_requests SET status = 'payment_submitted', updated_at = NOW() WHERE id = ?`,
+    await db.query(
+      "UPDATE agreement_requests SET status = 'payment_submitted', updated_at = NOW() WHERE id = ?",
       [agreementId]
     );
 
     // Create notification
-    const [agreement] = await conn.execute(
+    const [agreement] = await db.query(
       'SELECT property_admin_id FROM agreement_requests WHERE id = ?',
       [agreementId]
     );
 
     if (agreement && agreement.length > 0) {
-      await conn.execute(
+      await db.query(
         `INSERT INTO agreement_notifications 
          (agreement_request_id, recipient_id, notification_type, notification_title, notification_message, sent_date)
          VALUES (?, ?, 'payment_submitted', 'Payment Submitted', 'Customer submitted payment for agreement', NOW())`,
@@ -165,14 +138,12 @@ router.post('/:agreementId/submit-payment', async (req, res) => {
     }
 
     // Log audit
-    await conn.execute(
+    await db.query(
       `INSERT INTO agreement_audit_log 
        (agreement_request_id, action_type, action_description, performed_by_id, new_status, created_at)
        VALUES (?, 'PAYMENT_SUBMITTED', 'Customer submitted payment', ?, 'payment_submitted', NOW())`,
       [agreementId, customer_id]
     );
-
-    conn.release();
 
     res.json({
       message: 'Payment submitted successfully',
@@ -193,9 +164,7 @@ router.get('/admin/pending', async (req, res) => {
   try {
     const admin_id = req.user?.id || req.query.admin_id;
 
-    const conn = await pool.getConnection();
-
-    const [agreements] = await conn.execute(
+    const [agreements] = await db.query(
       `SELECT ar.*, p.title as property_title, p.location as property_location, 
               p.price as property_price, p.type as property_type,
               u_cust.name as customer_name, u_owner.name as owner_name
@@ -207,8 +176,6 @@ router.get('/admin/pending', async (req, res) => {
        ORDER BY ar.request_date ASC`,
       [admin_id]
     );
-
-    conn.release();
 
     res.json(agreements || []);
   } catch (error) {
@@ -223,11 +190,10 @@ router.post('/:agreementId/generate', async (req, res) => {
     const { agreementId } = req.params;
     const admin_id = req.user?.id || req.body.admin_id;
 
-    const conn = await pool.getConnection();
-
     // Get agreement details
-    const [agreements] = await conn.execute(
-      `SELECT ar.*, p.*, u_cust.name as customer_name, u_owner.name as owner_name
+    const [agreements] = await db.query(
+      `SELECT ar.*, p.title, p.location, p.price, p.type, p.area, p.description,
+              u_cust.name as customer_name, u_owner.name as owner_name
        FROM agreement_requests ar
        JOIN properties p ON ar.property_id = p.id
        JOIN users u_cust ON ar.customer_id = u_cust.id
@@ -237,7 +203,6 @@ router.post('/:agreementId/generate', async (req, res) => {
     );
 
     if (!agreements || agreements.length === 0) {
-      conn.release();
       return res.status(404).json({ message: 'Agreement not found' });
     }
 
@@ -247,21 +212,21 @@ router.post('/:agreementId/generate', async (req, res) => {
     const documentHTML = generateAgreementHTML(agreement);
 
     // Store document
-    const [result] = await conn.execute(
+    const [result] = await db.query(
       `INSERT INTO agreement_documents 
-       (agreement_request_id, version, document_type, document_html, generated_by_id, generated_date)
+       (agreement_request_id, version, document_type, document_content, generated_by_id, generated_date)
        VALUES (?, 1, 'initial', ?, ?, NOW())`,
       [agreementId, documentHTML, admin_id]
     );
 
     // Update agreement status
-    await conn.execute(
-      `UPDATE agreement_requests SET status = 'forwarded_to_owner', forwarded_to_owner_date = NOW(), updated_at = NOW() WHERE id = ?`,
+    await db.query(
+      "UPDATE agreement_requests SET status = 'forwarded_to_owner', forwarded_to_owner_date = NOW(), updated_at = NOW() WHERE id = ?",
       [agreementId]
     );
 
     // Create notification for owner
-    await conn.execute(
+    await db.query(
       `INSERT INTO agreement_notifications 
        (agreement_request_id, recipient_id, notification_type, notification_title, notification_message, sent_date)
        VALUES (?, ?, 'agreement_forwarded', 'Agreement Forwarded', 'Agreement has been forwarded for your review', NOW())`,
@@ -269,14 +234,12 @@ router.post('/:agreementId/generate', async (req, res) => {
     );
 
     // Log audit
-    await conn.execute(
+    await db.query(
       `INSERT INTO agreement_audit_log 
        (agreement_request_id, action_type, action_description, performed_by_id, old_status, new_status, created_at)
        VALUES (?, 'AGREEMENT_GENERATED', 'Admin generated agreement document', ?, 'pending_admin_review', 'forwarded_to_owner', NOW())`,
       [agreementId, admin_id]
     );
-
-    conn.release();
 
     res.json({
       message: 'Agreement generated successfully',
@@ -294,29 +257,26 @@ router.post('/:agreementId/forward-to-owner', async (req, res) => {
     const { agreementId } = req.params;
     const admin_id = req.user?.id || req.body.admin_id;
 
-    const conn = await pool.getConnection();
-
     // Get agreement
-    const [agreements] = await conn.execute(
+    const [agreements] = await db.query(
       'SELECT * FROM agreement_requests WHERE id = ?',
       [agreementId]
     );
 
     if (!agreements || agreements.length === 0) {
-      conn.release();
       return res.status(404).json({ message: 'Agreement not found' });
     }
 
     const agreement = agreements[0];
 
     // Update status
-    await conn.execute(
-      `UPDATE agreement_requests SET status = 'forwarded_to_owner', forwarded_to_owner_date = NOW(), updated_at = NOW() WHERE id = ?`,
+    await db.query(
+      "UPDATE agreement_requests SET status = 'forwarded_to_owner', forwarded_to_owner_date = NOW(), updated_at = NOW() WHERE id = ?",
       [agreementId]
     );
 
     // Create notification
-    await conn.execute(
+    await db.query(
       `INSERT INTO agreement_notifications 
        (agreement_request_id, recipient_id, notification_type, notification_title, notification_message, sent_date)
        VALUES (?, ?, 'agreement_forwarded', 'Agreement Forwarded', 'Agreement forwarded for your review', NOW())`,
@@ -324,14 +284,12 @@ router.post('/:agreementId/forward-to-owner', async (req, res) => {
     );
 
     // Log audit
-    await conn.execute(
+    await db.query(
       `INSERT INTO agreement_audit_log 
        (agreement_request_id, action_type, action_description, performed_by_id, old_status, new_status, created_at)
        VALUES (?, 'FORWARDED_TO_OWNER', 'Admin forwarded agreement to owner', ?, 'pending_admin_review', 'forwarded_to_owner', NOW())`,
       [agreementId, admin_id]
     );
-
-    conn.release();
 
     res.json({ message: 'Agreement forwarded to owner successfully' });
   } catch (error) {
@@ -347,10 +305,8 @@ router.post('/:agreementId/verify-payment', async (req, res) => {
     const { verification_status, verification_notes } = req.body;
     const admin_id = req.user?.id || req.body.admin_id;
 
-    const conn = await pool.getConnection();
-
     // Update payment receipt
-    await conn.execute(
+    await db.query(
       `UPDATE payment_receipts SET verification_status = ?, verification_notes = ?, verified_by_id = ?, verification_date = NOW()
        WHERE agreement_request_id = ?`,
       [verification_status, verification_notes, admin_id, agreementId]
@@ -358,14 +314,14 @@ router.post('/:agreementId/verify-payment', async (req, res) => {
 
     // If verified, calculate commission
     if (verification_status === 'verified') {
-      const [agreements] = await conn.execute(
+      const [agreements] = await db.query(
         'SELECT * FROM agreement_requests WHERE id = ?',
         [agreementId]
       );
 
       if (agreements && agreements.length > 0) {
         const agreement = agreements[0];
-        const [properties] = await conn.execute(
+        const [properties] = await db.query(
           'SELECT price FROM properties WHERE id = ?',
           [agreement.property_id]
         );
@@ -376,38 +332,34 @@ router.post('/:agreementId/verify-payment', async (req, res) => {
           const owner_commission = (price * 5) / 100;
           const total_commission = customer_commission + owner_commission;
 
-          // Store commission
-          await conn.execute(
-            `INSERT INTO commission_tracking 
-             (agreement_request_id, agreement_amount, customer_commission_percentage, owner_commission_percentage, 
-              customer_commission, owner_commission, total_commission, calculated_at)
-             VALUES (?, ?, 5, 5, ?, ?, ?, NOW())`,
-            [agreementId, price, customer_commission, owner_commission, total_commission]
+          // Store commission in agreement_commissions
+          await db.query(
+            `INSERT INTO agreement_commissions 
+             (agreement_request_id, commission_type, property_price, commission_percentage, commission_amount, payment_status, calculated_by_id)
+             VALUES (?, 'platform', ?, 5, ?, 'recorded', ?)`,
+            [agreementId, price, total_commission, admin_id]
           );
 
           // Update agreement status
-          await conn.execute(
-            `UPDATE agreement_requests SET status = 'completed', completion_date = NOW(), updated_at = NOW() WHERE id = ?`,
+          await db.query(
+            "UPDATE agreement_requests SET status = 'completed', completed_date = NOW(), updated_at = NOW() WHERE id = ?",
             [agreementId]
           );
 
           // Create notifications
-          const [agreement_data] = await conn.execute(
-            'SELECT customer_id, owner_id FROM agreement_requests WHERE id = ?',
-            [agreementId]
-          );
+          const { customer_id, owner_id } = agreement;
 
-          if (agreement_data && agreement_data.length > 0) {
-            const { customer_id, owner_id } = agreement_data[0];
-
-            await conn.execute(
+          if (customer_id) {
+            await db.query(
               `INSERT INTO agreement_notifications 
                (agreement_request_id, recipient_id, notification_type, notification_title, notification_message, sent_date)
                VALUES (?, ?, 'payment_verified', 'Payment Verified', 'Your payment has been verified', NOW())`,
               [agreementId, customer_id]
             );
+          }
 
-            await conn.execute(
+          if (owner_id) {
+            await db.query(
               `INSERT INTO agreement_notifications 
                (agreement_request_id, recipient_id, notification_type, notification_title, notification_message, sent_date)
                VALUES (?, ?, 'agreement_completed', 'Agreement Completed', 'Agreement has been completed', NOW())`,
@@ -419,14 +371,12 @@ router.post('/:agreementId/verify-payment', async (req, res) => {
     }
 
     // Log audit
-    await conn.execute(
+    await db.query(
       `INSERT INTO agreement_audit_log 
        (agreement_request_id, action_type, action_description, performed_by_id, new_status, created_at)
        VALUES (?, 'PAYMENT_VERIFIED', ?, ?, 'payment_submitted', NOW())`,
       [agreementId, `Payment verification: ${verification_status}`, admin_id]
     );
-
-    conn.release();
 
     res.json({ message: 'Payment verified successfully' });
   } catch (error) {
@@ -444,9 +394,7 @@ router.get('/owner/:ownerId', async (req, res) => {
   try {
     const { ownerId } = req.params;
 
-    const conn = await pool.getConnection();
-
-    const [agreements] = await conn.execute(
+    const [agreements] = await db.query(
       `SELECT ar.*, p.title as property_title, p.location as property_location, 
               p.price as property_price, p.type as property_type,
               u_cust.name as customer_name, u_owner.name as owner_name
@@ -458,8 +406,6 @@ router.get('/owner/:ownerId', async (req, res) => {
        ORDER BY ar.request_date DESC`,
       [ownerId]
     );
-
-    conn.release();
 
     res.json(agreements || []);
   } catch (error) {
@@ -475,18 +421,16 @@ router.post('/:agreementId/owner-response', async (req, res) => {
     const { response_status, response_message } = req.body;
     const owner_id = req.user?.id || req.body.owner_id;
 
-    const conn = await pool.getConnection();
-
     const newStatus = response_status === 'accepted' ? 'owner_approved' : 'owner_rejected';
 
     // Update agreement
-    await conn.execute(
-      `UPDATE agreement_requests SET status = ?, response_message = ?, owner_response_date = NOW(), updated_at = NOW() WHERE id = ?`,
+    await db.query(
+      "UPDATE agreement_requests SET status = ?, response_message = ?, owner_response_date = NOW(), updated_at = NOW() WHERE id = ?",
       [newStatus, response_message, agreementId]
     );
 
     // Get agreement details
-    const [agreements] = await conn.execute(
+    const [agreements] = await db.query(
       'SELECT customer_id, property_admin_id FROM agreement_requests WHERE id = ?',
       [agreementId]
     );
@@ -494,37 +438,38 @@ router.post('/:agreementId/owner-response', async (req, res) => {
     if (agreements && agreements.length > 0) {
       const { customer_id, property_admin_id } = agreements[0];
 
-      // Create notifications
-      await conn.execute(
-        `INSERT INTO agreement_notifications 
-         (agreement_request_id, recipient_id, notification_type, notification_title, notification_message, sent_date)
-         VALUES (?, ?, ?, ?, ?, NOW())`,
-        [agreementId, customer_id, 
-         response_status === 'accepted' ? 'owner_approved' : 'owner_rejected',
-         response_status === 'accepted' ? 'Owner Approved' : 'Owner Rejected',
-         response_status === 'accepted' ? 'Owner has approved the agreement' : 'Owner has rejected the agreement']
-      );
+      const notifType = response_status === 'accepted' ? 'owner_approved' : 'owner_rejected';
+      const notifTitle = response_status === 'accepted' ? 'Owner Approved' : 'Owner Rejected';
+      const notifMessage = response_status === 'accepted' ? 'Owner has approved the agreement' : 'Owner has rejected the agreement';
 
-      await conn.execute(
-        `INSERT INTO agreement_notifications 
-         (agreement_request_id, recipient_id, notification_type, notification_title, notification_message, sent_date)
-         VALUES (?, ?, ?, ?, ?, NOW())`,
-        [agreementId, property_admin_id,
-         response_status === 'accepted' ? 'owner_approved' : 'owner_rejected',
-         response_status === 'accepted' ? 'Owner Approved' : 'Owner Rejected',
-         response_status === 'accepted' ? 'Owner has approved the agreement' : 'Owner has rejected the agreement']
-      );
+      // Notify customer
+      if (customer_id) {
+        await db.query(
+          `INSERT INTO agreement_notifications 
+           (agreement_request_id, recipient_id, notification_type, notification_title, notification_message, sent_date)
+           VALUES (?, ?, ?, ?, ?, NOW())`,
+          [agreementId, customer_id, notifType, notifTitle, notifMessage]
+        );
+      }
+
+      // Notify admin
+      if (property_admin_id) {
+        await db.query(
+          `INSERT INTO agreement_notifications 
+           (agreement_request_id, recipient_id, notification_type, notification_title, notification_message, sent_date)
+           VALUES (?, ?, ?, ?, ?, NOW())`,
+          [agreementId, property_admin_id, notifType, notifTitle, notifMessage]
+        );
+      }
     }
 
     // Log audit
-    await conn.execute(
+    await db.query(
       `INSERT INTO agreement_audit_log 
        (agreement_request_id, action_type, action_description, performed_by_id, old_status, new_status, created_at)
        VALUES (?, 'OWNER_RESPONSE', ?, ?, 'forwarded_to_owner', ?, NOW())`,
       [agreementId, `Owner ${response_status} agreement`, owner_id, newStatus]
     );
-
-    conn.release();
 
     res.json({ message: `Agreement ${response_status} successfully` });
   } catch (error) {
@@ -564,19 +509,19 @@ function generateAgreementHTML(agreement) {
       <div class="section">
         <div class="section-title">PROPERTY DETAILS</div>
         <table>
-          <tr><td><strong>Property Title:</strong></td><td>${agreement.title}</td></tr>
-          <tr><td><strong>Location:</strong></td><td>${agreement.location}</td></tr>
-          <tr><td><strong>Type:</strong></td><td>${agreement.type}</td></tr>
-          <tr><td><strong>Price:</strong></td><td>${agreement.price} ETB</td></tr>
-          <tr><td><strong>Area:</strong></td><td>${agreement.area} sq.m</td></tr>
-          <tr><td><strong>Description:</strong></td><td>${agreement.description}</td></tr>
+          <tr><td><strong>Property Title:</strong></td><td>${agreement.title || 'N/A'}</td></tr>
+          <tr><td><strong>Location:</strong></td><td>${agreement.location || 'N/A'}</td></tr>
+          <tr><td><strong>Type:</strong></td><td>${agreement.type || 'N/A'}</td></tr>
+          <tr><td><strong>Price:</strong></td><td>${agreement.price || 0} ETB</td></tr>
+          <tr><td><strong>Area:</strong></td><td>${agreement.area || 'N/A'} sq.m</td></tr>
+          <tr><td><strong>Description:</strong></td><td>${agreement.description || 'N/A'}</td></tr>
         </table>
       </div>
 
       <div class="section">
         <div class="section-title">BUYER INFORMATION</div>
         <table>
-          <tr><td><strong>Name:</strong></td><td>${agreement.customer_name}</td></tr>
+          <tr><td><strong>Name:</strong></td><td>${agreement.customer_name || 'N/A'}</td></tr>
           <tr><td><strong>ID:</strong></td><td>${agreement.customer_id}</td></tr>
         </table>
       </div>
@@ -584,7 +529,7 @@ function generateAgreementHTML(agreement) {
       <div class="section">
         <div class="section-title">SELLER INFORMATION</div>
         <table>
-          <tr><td><strong>Name:</strong></td><td>${agreement.owner_name}</td></tr>
+          <tr><td><strong>Name:</strong></td><td>${agreement.owner_name || 'N/A'}</td></tr>
           <tr><td><strong>ID:</strong></td><td>${agreement.owner_id}</td></tr>
         </table>
       </div>
@@ -592,9 +537,9 @@ function generateAgreementHTML(agreement) {
       <div class="section">
         <div class="section-title">FINANCIAL TERMS</div>
         <table>
-          <tr><td><strong>Agreement Amount:</strong></td><td>${agreement.price} ETB</td></tr>
-          <tr><td><strong>Commission (5% Customer):</strong></td><td>${(agreement.price * 0.05).toFixed(2)} ETB</td></tr>
-          <tr><td><strong>Commission (5% Owner):</strong></td><td>${(agreement.price * 0.05).toFixed(2)} ETB</td></tr>
+          <tr><td><strong>Agreement Amount:</strong></td><td>${agreement.price || 0} ETB</td></tr>
+          <tr><td><strong>Commission (5% Customer):</strong></td><td>${((agreement.price || 0) * 0.05).toFixed(2)} ETB</td></tr>
+          <tr><td><strong>Commission (5% Owner):</strong></td><td>${((agreement.price || 0) * 0.05).toFixed(2)} ETB</td></tr>
         </table>
       </div>
 
@@ -609,12 +554,12 @@ function generateAgreementHTML(agreement) {
           <div style="display: inline-block; width: 45%;">
             <p><strong>Buyer Signature:</strong></p>
             <div class="signature-line"></div>
-            <p>${agreement.customer_name}</p>
+            <p>${agreement.customer_name || 'N/A'}</p>
           </div>
           <div style="display: inline-block; width: 45%; margin-left: 10%;">
             <p><strong>Seller Signature:</strong></p>
             <div class="signature-line"></div>
-            <p>${agreement.owner_name}</p>
+            <p>${agreement.owner_name || 'N/A'}</p>
           </div>
         </div>
       </div>

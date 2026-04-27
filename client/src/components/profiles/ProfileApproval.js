@@ -9,12 +9,19 @@ const ProfileApproval = () => {
   const [selectedProfile, setSelectedProfile] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
   const [searchTerm, setSearchTerm] = useState('');
+  const [notification, setNotification] = useState(null); // { message, type }
 
   const API_BASE = `http://${window.location.hostname}:5000/api`;
+  const adminUser = JSON.parse(localStorage.getItem('user'));
 
   useEffect(() => {
     fetchProfiles();
   }, [filter]);
+
+  const showNotification = (message, type = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 5000);
+  };
 
   const fetchProfiles = async () => {
     setLoading(true);
@@ -57,62 +64,58 @@ const ProfileApproval = () => {
   };
 
   const handleApprove = async (profile) => {
-    if (!window.confirm(`Approve ${profile.full_name}'s profile?`)) return;
-
     try {
-      const adminUser = JSON.parse(localStorage.getItem('user'));
       await axios.post(`${API_BASE}/profiles/approve/${profile.type}/${profile.id}`, {
         adminId: adminUser?.id
       });
-      alert('✅ Profile approved successfully!');
+      showNotification(`✅ Profile for ${profile.full_name} approved successfully!`, 'success');
       fetchProfiles();
       setSelectedProfile(null);
     } catch (error) {
       console.error('Error approving profile:', error);
-      alert('❌ Failed to approve profile: ' + (error.response?.data?.message || error.message));
+      showNotification('❌ Failed to approve profile: ' + (error.response?.data?.message || error.message), 'error');
     }
   };
 
   const handleReject = async (profile) => {
     if (!rejectionReason.trim()) {
-      alert('Please provide a rejection reason');
+      showNotification('⚠️ Please provide a rejection reason in the text area below.', 'error');
       return;
     }
 
-    if (!window.confirm(`Reject ${profile.full_name}'s profile?`)) return;
-
     try {
-      const adminUser = JSON.parse(localStorage.getItem('user'));
       await axios.post(`${API_BASE}/profiles/reject/${profile.type}/${profile.id}`, {
         adminId: adminUser?.id,
         rejectionReason: rejectionReason
       });
-      alert('✅ Profile rejected');
+      showNotification(`✅ Profile for ${profile.full_name} has been rejected.`, 'success');
       fetchProfiles();
       setSelectedProfile(null);
       setRejectionReason('');
     } catch (error) {
       console.error('Error rejecting profile:', error);
-      alert('❌ Failed to reject profile: ' + (error.response?.data?.message || error.message));
+      showNotification('❌ Failed to reject profile: ' + (error.response?.data?.message || error.message), 'error');
     }
   };
 
   const handleSuspend = async (profile) => {
-    const reason = window.prompt(`Reason for suspending ${profile.full_name}'s profile:`);
-    if (reason === null) return; // Cancelled
+    if (!rejectionReason.trim()) {
+      showNotification('⚠️ Please provide a reason for suspension in the text area below.', 'error');
+      return;
+    }
 
     try {
-      const adminUser = JSON.parse(localStorage.getItem('user'));
       await axios.post(`${API_BASE}/profiles/suspend/${profile.type}/${profile.id}`, {
         adminId: adminUser?.id,
-        reason: reason || 'Suspended by admin'
+        reason: rejectionReason
       });
-      alert('✅ Profile suspended');
+      showNotification(`⏸️ Profile for ${profile.full_name} suspended.`, 'warning');
       fetchProfiles();
       setSelectedProfile(null);
+      setRejectionReason('');
     } catch (error) {
       console.error('Error suspending profile:', error);
-      alert('❌ Failed to suspend profile: ' + (error.response?.data?.message || error.message));
+      showNotification('❌ Failed to suspend profile: ' + (error.response?.data?.message || error.message), 'error');
     }
   };
 
@@ -135,6 +138,38 @@ const ProfileApproval = () => {
 
   return (
     <div className="profile-approval">
+      {/* Notification Banner */}
+      {notification && (
+        <div className={`top-notification ${notification.type}`} style={{
+          position: 'fixed',
+          top: '20px',
+          left: '50%',
+          transform: 'translateX(-50%)',
+          zIndex: 9999,
+          padding: '15px 30px',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+          backgroundColor: notification.type === 'success' ? '#dcfce7' : notification.type === 'error' ? '#fee2e2' : '#fef3c7',
+          color: notification.type === 'success' ? '#166534' : notification.type === 'error' ? '#991b1b' : '#92400e',
+          border: `1px solid ${notification.type === 'success' ? '#bbf7d0' : notification.type === 'error' ? '#fecaca' : '#fde68a'}`,
+          fontWeight: '600',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '10px',
+          animation: 'slideDown 0.3s ease-out'
+        }}>
+          <span>{notification.message}</span>
+          <button onClick={() => setNotification(null)} style={{
+            background: 'none',
+            border: 'none',
+            cursor: 'pointer',
+            fontSize: '18px',
+            color: 'inherit',
+            padding: '0'
+          }}>✕</button>
+        </div>
+      )}
+
       <div className="approval-header">
         <h2>👥 Profile Approval Management</h2>
         <p>Review, approve, and manage user access</p>
@@ -290,15 +325,21 @@ const ProfileApproval = () => {
                         ) : <p className="no-img">No document</p>}
                       </div>
                       {selectedProfile.type === 'owner' && selectedProfile.business_license && (
-                        <div>
+                        <div className="doc-item">
                           <p><strong>Business License</strong></p>
-                          <img src={selectedProfile.business_license} alt="License" className="preview-img" />
+                          <img src={selectedProfile.business_license} alt="Business License" className="preview-img" />
+                          <div className="doc-overlay">
+                            <a href={selectedProfile.business_license} target="_blank" rel="noreferrer">🔍 View Full</a>
+                          </div>
                         </div>
                       )}
                       {selectedProfile.type === 'broker' && selectedProfile.broker_license && (
-                        <div>
-                          <p><strong>Broker License</strong></p>
-                          <img src={selectedProfile.broker_license} alt="License" className="preview-img" />
+                        <div className="doc-item">
+                          <p><strong>Broker License Doc</strong></p>
+                          <img src={selectedProfile.broker_license} alt="Broker License" className="preview-img" />
+                          <div className="doc-overlay">
+                            <a href={selectedProfile.broker_license} target="_blank" rel="noreferrer">🔍 View Full</a>
+                          </div>
                         </div>
                       )}
                     </div>

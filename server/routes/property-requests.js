@@ -67,7 +67,7 @@ router.post('/', async (req, res) => {
 
     // Check if request already exists
     const [existing] = await db.query(
-      'SELECT * FROM property_requests WHERE property_id = ? AND broker_id = ? AND status = "pending"',
+      'SELECT * FROM property_requests WHERE property_id = ? AND broker_id = ? AND status = \'pending\'',
       [property_id, broker_id]
     );
 

@@ -49,7 +49,7 @@ router.post('/create-account', async (req, res) => {
     console.log('[BROKER-CREATE] Creating user account...');
     const [userResult] = await db.query(`
       INSERT INTO users (name, email, password, phone, role, status, profile_approved, profile_completed)
-      VALUES (?, ?, ?, ?, 'broker', 'active', 0, 0)
+      VALUES (?, ?, ?, ?, 'broker', 'active', FALSE, FALSE)
     `, [name, email, hashedPassword, phone]);
 
     const userId = userResult.insertId;

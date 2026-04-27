@@ -8,7 +8,12 @@ const crypto = require('crypto');
 // Create a new key request
 router.post('/', async (req, res) => {
   try {
-    const { property_id, customer_id, request_message } = req.body;
+    const { property_id, customer_id, broker_id, request_message } = req.body;
+    const userId = customer_id || broker_id;
+
+    if (!userId || !property_id) {
+      return res.status(400).json({ message: 'customer_id/broker_id and property_id are required' });
+    }
 
     // Get owner_id from property
     const [properties] = await db.query('SELECT owner_id, title FROM properties WHERE id = ?', [property_id]);
@@ -18,8 +23,8 @@ router.post('/', async (req, res) => {
 
     // Check for existing pending request
     const [existing] = await db.query(
-      'SELECT id FROM request_key WHERE property_id = ? AND customer_id = ? AND status = "pending"',
-      [property_id, customer_id]
+      'SELECT id FROM request_key WHERE property_id = ? AND customer_id = ? AND status = \'pending\'',
+      [property_id, userId]
     );
 
     if (existing.length > 0) {
@@ -28,11 +33,11 @@ router.post('/', async (req, res) => {
 
     const [result] = await db.query(
       'INSERT INTO request_key (property_id, customer_id, owner_id, request_message) VALUES (?, ?, ?, ?)',
-      [property_id, customer_id, owner_id, request_message]
+      [property_id, userId, owner_id, request_message]
     );
 
     // Notify Admins
-    const [admins] = await db.query('SELECT id FROM users WHERE role = "property_admin"');
+    const [admins] = await db.query('SELECT id FROM users WHERE role = \'property_admin\'');
     for (const admin of admins) {
       await db.query(
         'INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)',
@@ -88,7 +93,7 @@ router.get('/admin/pending', async (req, res) => {
     
     // If property_admin_id is provided, filter by it
     if (propertyAdminId) {
-      query += ` AND p.property_admin_id = ?`;
+      query += ` AND (p.property_admin_id = ? OR p.property_admin_id IS NULL)`;
       params.push(propertyAdminId);
     }
     
@@ -142,8 +147,8 @@ router.put('/:id/respond-key', async (req, res) => {
     await db.query(
       'INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)',
       [request.customer_id, `Key Request ${status === 'accepted' ? 'Approved' : 'Rejected'}`, 
-       status === 'accepted' ? `Your key is: ${final_key}` : response_message,
-       status === 'accepted' ? 'success' : 'error', 'request']
+       status === 'accepted' ? `Your access key is: ${final_key}. Use this key to view property documents.` : response_message,
+       status === 'accepted' ? 'success' : 'error']
     );
 
     res.json({ message: 'Key request processed', key_code: final_key });
@@ -175,7 +180,7 @@ router.get('/admin/history', async (req, res) => {
     
     // If property_admin_id is provided, filter by it
     if (propertyAdminId) {
-      query += ` AND p.property_admin_id = ?`;
+      query += ` AND (p.property_admin_id = ? OR p.property_admin_id IS NULL)`;
       params.push(propertyAdminId);
     }
     

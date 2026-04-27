@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import './DocumentManager.css';
 import axios from 'axios';
 
+const API_BASE = `http://${window.location.hostname}:5000/api`;
+
 const DocumentManager = ({ propertyId, uploadedBy }) => {
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -15,7 +17,7 @@ const DocumentManager = ({ propertyId, uploadedBy }) => {
 
   const fetchDocuments = async () => {
     try {
-      const response = await axios.get(`http://localhost:5000/api/property-documents/property/${propertyId}`);
+      const response = await axios.get(`${API_BASE}/property-documents/property/${propertyId}`);
       setDocuments(response.data);
     } catch (error) {
       console.error('Error fetching documents:', error);
@@ -26,7 +28,7 @@ const DocumentManager = ({ propertyId, uploadedBy }) => {
 
   const toggleLock = async (docId, currentLockStatus) => {
     try {
-      await axios.put(`http://localhost:5000/api/property-documents/${docId}/lock`, {
+      await axios.put(`${API_BASE}/property-documents/${docId}/lock`, {
         is_locked: !currentLockStatus
       });
       fetchDocuments();
@@ -43,7 +45,7 @@ const DocumentManager = ({ propertyId, uploadedBy }) => {
     }
 
     try {
-      await axios.delete(`http://localhost:5000/api/property-documents/${docId}`);
+      await axios.delete(`${API_BASE}/property-documents/${docId}`);
       fetchDocuments();
       alert('Document deleted successfully');
     } catch (error) {
@@ -67,7 +69,7 @@ const DocumentManager = ({ propertyId, uploadedBy }) => {
       return;
     }
     try {
-      const response = await axios.put(`http://localhost:5000/api/property-documents/${docId}/regenerate-key`);
+      const response = await axios.put(`${API_BASE}/property-documents/${docId}/regenerate-key`);
       fetchDocuments();
       alert(`New access key: ${response.data.access_key}`);
     } catch (error) {
@@ -85,7 +87,7 @@ const DocumentManager = ({ propertyId, uploadedBy }) => {
     setShowSendModal(true);
     // Fetch users (customers) to send the key to
     try {
-      const response = await axios.get('http://localhost:5000/api/users');
+      const response = await axios.get(`${API_BASE}/users`);
       setUsers(response.data.filter(u => u.role === 'user'));
     } catch (error) {
       console.error('Error fetching users:', error);
@@ -98,7 +100,7 @@ const DocumentManager = ({ propertyId, uploadedBy }) => {
       return;
     }
     try {
-      await axios.post('http://localhost:5000/api/messages', {
+      await axios.post(`${API_BASE}/messages`, {
         sender_id: uploadedBy,
         receiver_id: recipientId,
         subject: `Access Key for ${selectedDoc.document_name}`,
@@ -111,6 +113,47 @@ const DocumentManager = ({ propertyId, uploadedBy }) => {
     } catch (error) {
       console.error('Error sending key:', error);
       alert('Failed to send key');
+    }
+  };
+
+  const handleView = (doc) => {
+    try {
+      if (!doc.document_url) {
+        alert('Document URL not found');
+        return;
+      }
+
+      if (doc.document_url.startsWith('data:')) {
+        // Handle data URL (base64)
+        const parts = doc.document_url.split(',');
+        const mime = parts[0].match(/:(.*?);/)[1];
+        const b64Data = parts[1];
+        
+        const byteCharacters = atob(b64Data);
+        const byteArrays = [];
+        
+        for (let offset = 0; offset < byteCharacters.length; offset += 512) {
+          const slice = byteCharacters.slice(offset, offset + 512);
+          const byteNumbers = new Array(slice.length);
+          for (let i = 0; i < slice.length; i++) {
+            byteNumbers[i] = slice.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          byteArrays.push(byteArray);
+        }
+        
+        const blob = new Blob(byteArrays, { type: mime });
+        const blobUrl = URL.createObjectURL(blob);
+        window.open(blobUrl, '_blank');
+        
+        // Note: We should ideally revoke the URL later, but for simple viewing this is fine
+      } else {
+        // Handle direct URL
+        window.open(doc.document_url, '_blank');
+      }
+    } catch (error) {
+      console.error('Error opening document:', error);
+      alert('Failed to open document. The file might be corrupted or too large.');
     }
   };
 
@@ -167,7 +210,7 @@ const DocumentManager = ({ propertyId, uploadedBy }) => {
               <div className="doc-card-actions">
                 <button
                   className="btn-doc-action view"
-                  onClick={() => window.open(doc.document_url, '_blank')}
+                  onClick={() => handleView(doc)}
                   title="View Document"
                 >
                   👁️ View

@@ -1,6 +1,53 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
+const emailService = require('../services/emailService');
+const multer = require('multer');
+const path = require('path');
+const fs = require('fs');
+
+// Multer config for property videos (max 10MB)
+const videoStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    const dir = path.join(__dirname, '..', 'uploads', 'videos');
+    if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+    cb(null, dir);
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname) || '.mp4';
+    cb(null, `property_${req.params.id}_${Date.now()}${ext}`);
+  }
+});
+const uploadVideo = multer({
+  storage: videoStorage,
+  limits: { fileSize: 10 * 1024 * 1024 },
+  fileFilter: (req, file, cb) => {
+    if (file.mimetype.startsWith('video/')) cb(null, true);
+    else cb(new Error('Only video files are allowed'));
+  }
+});
+
+// Get only ACTIVE properties (for customers) - MUST be before /:id routes
+router.get('/active', async (req, res) => {
+  try {
+    const [properties] = await db.query(`
+      SELECT p.*, b.name as broker_name, u.name as owner_name,
+        (SELECT COUNT(*) FROM property_images WHERE property_id = p.id) as image_count,
+        (SELECT image_url FROM property_images WHERE property_id = p.id AND image_type = 'main' LIMIT 1) as main_image,
+        COALESCE(p.views, 0) as views
+      FROM properties p 
+      LEFT JOIN users b ON p.broker_id = b.id AND b.role = 'broker'
+      LEFT JOIN users u ON p.owner_id = u.id
+      WHERE p.status = 'active' AND p.verified = TRUE
+      ORDER BY p.views DESC, p.created_at DESC
+    `);
+    console.log('Active properties returned:', properties.length);
+    res.json(properties);
+  } catch (error) {
+    console.error('Get active properties error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
 
 // Get all properties (with main image from property_images table)
 router.get('/', async (req, res) => {
@@ -20,46 +67,35 @@ router.get('/', async (req, res) => {
   }
 });
 
-// Get only ACTIVE properties (for customers)
-router.get('/active', async (req, res) => {
-  try {
-    const [properties] = await db.query(`
-      SELECT p.*, b.name as broker_name, u.name as owner_name,
-        (SELECT COUNT(*) FROM property_images WHERE property_id = p.id) as image_count,
-        (SELECT image_url FROM property_images WHERE property_id = p.id AND image_type = 'main' LIMIT 1) as main_image,
-        COALESCE(p.views, 0) as views
-      FROM properties p 
-      LEFT JOIN users b ON p.broker_id = b.id AND b.role = 'broker'
-      LEFT JOIN users u ON p.owner_id = u.id
-      WHERE p.status = 'active'
-      ORDER BY p.views DESC, p.created_at DESC
-    `);
-    res.json(properties);
-  } catch (error) {
-    console.error('Get active properties error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-
 // Get property stats for admin dashboard
 router.get('/stats', async (req, res) => {
   try {
-    const [total] = await db.query('SELECT COUNT(*) as count FROM properties');
-    const [active] = await db.query("SELECT COUNT(*) as count FROM properties WHERE status = 'active'");
-    const [pending] = await db.query("SELECT COUNT(*) as count FROM properties WHERE status = 'pending'");
-    const [sold] = await db.query("SELECT COUNT(*) as count FROM properties WHERE status = 'sold'");
-    const [rented] = await db.query("SELECT COUNT(*) as count FROM properties WHERE status = 'rented'");
-    const [inactive] = await db.query("SELECT COUNT(*) as count FROM properties WHERE status = 'inactive'");
-    const [suspended] = await db.query("SELECT COUNT(*) as count FROM properties WHERE status = 'suspended'");
-    const [verified] = await db.query("SELECT COUNT(*) as count FROM properties WHERE verified = TRUE");
-    const [unverified] = await db.query("SELECT COUNT(*) as count FROM properties WHERE verified = FALSE");
+    const { admin_id } = req.query;
+    let whereClause = '';
+    const params = [];
+
+    if (admin_id && admin_id !== 'undefined' && admin_id !== 'null') {
+      whereClause = ' WHERE (property_admin_id = ? OR property_admin_id IS NULL)';
+      params.push(admin_id);
+    }
+
+    const [total] = await db.query(`SELECT COUNT(*) as count FROM properties${whereClause}`, params);
+    const [active] = await db.query(`SELECT COUNT(*) as count FROM properties WHERE status = 'active'${admin_id ? ' AND (property_admin_id = ? OR property_admin_id IS NULL)' : ''}`, admin_id ? [admin_id] : []);
+    const [pending] = await db.query(`SELECT COUNT(*) as count FROM properties WHERE status = 'pending'${admin_id ? ' AND (property_admin_id = ? OR property_admin_id IS NULL)' : ''}`, admin_id ? [admin_id] : []);
+    const [sold] = await db.query(`SELECT COUNT(*) as count FROM properties WHERE status = 'sold'${admin_id ? ' AND (property_admin_id = ? OR property_admin_id IS NULL)' : ''}`, admin_id ? [admin_id] : []);
+    const [rented] = await db.query(`SELECT COUNT(*) as count FROM properties WHERE status = 'rented'${admin_id ? ' AND (property_admin_id = ? OR property_admin_id IS NULL)' : ''}`, admin_id ? [admin_id] : []);
+    const [inactive] = await db.query(`SELECT COUNT(*) as count FROM properties WHERE status = 'inactive'${admin_id ? ' AND (property_admin_id = ? OR property_admin_id IS NULL)' : ''}`, admin_id ? [admin_id] : []);
+    const [suspended] = await db.query(`SELECT COUNT(*) as count FROM properties WHERE status = 'suspended'${admin_id ? ' AND (property_admin_id = ? OR property_admin_id IS NULL)' : ''}`, admin_id ? [admin_id] : []);
+    const [verified] = await db.query(`SELECT COUNT(*) as count FROM properties WHERE verified = TRUE${admin_id ? ' AND (property_admin_id = ? OR property_admin_id IS NULL)' : ''}`, admin_id ? [admin_id] : []);
+    const [unverified] = await db.query(`SELECT COUNT(*) as count FROM properties WHERE verified = FALSE${admin_id ? ' AND (property_admin_id = ? OR property_admin_id IS NULL)' : ''}`, admin_id ? [admin_id] : []);
 
     // Type distribution
     const [types] = await db.query(`
       SELECT type, COUNT(*) as count 
       FROM properties 
+      ${whereClause}
       GROUP BY type
-    `);
+    `, params);
 
     // Listing type distribution
     const [listings] = await db.query(`
@@ -71,12 +107,12 @@ router.get('/stats', async (req, res) => {
     // Monthly Revenue (from agreements)
     const [revenue] = await db.query(`
       SELECT 
-        DATE_FORMAT(created_at, '%b') as month,
+        TO_CHAR(created_at, 'Mon') as month,
         SUM(amount) / 1000000 as amount
       FROM agreements
       WHERE status = 'active' OR status = 'completed'
-      GROUP BY DATE_FORMAT(created_at, '%b'), MONTH(created_at)
-      ORDER BY MONTH(created_at)
+      GROUP BY TO_CHAR(created_at, 'Mon'), EXTRACT(MONTH FROM created_at)
+      ORDER BY EXTRACT(MONTH FROM created_at)
     `);
 
     // Broker Performance (from integrated users table)
@@ -95,6 +131,13 @@ router.get('/stats', async (req, res) => {
       SELECT SUM(amount) as total FROM agreements WHERE status IN ('active', 'completed')
     `);
 
+    // User Distribution by Role
+    const [userDist] = await db.query(`
+      SELECT role, COUNT(*) as count 
+      FROM users 
+      GROUP BY role
+    `);
+
     res.json({
       total: total[0].count,
       active: active[0].count,
@@ -109,7 +152,8 @@ router.get('/stats', async (req, res) => {
       typeDistribution: types,
       listingDistribution: listings,
       monthlyRevenue: revenue,
-      brokerPerformance: performance
+      brokerPerformance: performance,
+      userDistribution: userDist
     });
 
   } catch (error) {
@@ -198,7 +242,7 @@ router.get('/recommendations/:userId', async (req, res) => {
 // Verify property (Approve / Reject / Suspend)
 router.put('/:id/verify', async (req, res) => {
   try {
-    const { status, verified_by, notes } = req.body;
+    const { status, verified_by, notes, site_checked, site_inspection_notes } = req.body;
     let propertyStatus = 'active';
     let verified = true;
 
@@ -229,26 +273,256 @@ router.put('/:id/verify', async (req, res) => {
       // Update existing verification record
       await db.query(
         `UPDATE property_verification 
-         SET verification_status = ?, verification_notes = ?, verified_by = ?, verified_at = NOW()
+         SET verification_status = ?, verification_notes = ?, verified_by = ?, verified_at = NOW(),
+             site_checked = ?, site_inspection_notes = ?
          WHERE property_id = ?`,
-        [status, notes, verified_by, req.params.id]
+        [status, notes, verified_by, site_checked || false, site_inspection_notes || null, req.params.id]
       );
     } else {
       // Create new verification record
       await db.query(
-        `INSERT INTO property_verification (property_id, verification_status, verification_notes, verified_by, verified_at)
-         VALUES (?, ?, ?, ?, NOW())`,
-        [req.params.id, status, notes, verified_by]
+        `INSERT INTO property_verification (property_id, verification_status, verification_notes, verified_by, verified_at, site_checked, site_inspection_notes)
+         VALUES (?, ?, ?, ?, NOW(), ?, ?)`,
+        [req.params.id, status, notes, verified_by, site_checked || false, site_inspection_notes || null]
       );
     }
 
     res.json({ message: `Property ${status} successfully`, status: propertyStatus });
+
+    // Send email notification to owner or broker
+    try {
+      const [property] = await db.query('SELECT title, owner_id, broker_id FROM properties WHERE id = ?', [req.params.id]);
+      if (property.length > 0) {
+        const userId = property[0].owner_id || property[0].broker_id;
+        if (userId) {
+          const [user] = await db.query('SELECT name, email FROM users WHERE id = ?', [userId]);
+          if (user.length > 0 && user[0].email) {
+            const subject = `Property Verification Update: ${property[0].title}`;
+            const html = `
+              <h2>Property Verification Update</h2>
+              <p>Hello ${user[0].name},</p>
+              <p>The verification process for your property <strong>"${property[0].title}"</strong> has been completed.</p>
+              <p><strong>Status:</strong> <span style="color: ${status === 'approved' ? '#10b981' : '#ef4444'}; font-weight: bold;">${status.toUpperCase()}</span></p>
+              ${notes ? `<p><strong>Notes from Admin:</strong> ${notes}</p>` : ''}
+              <p>You can view your property status in your dashboard.</p>
+            `;
+            await emailService.sendEmail(user[0].email, subject, html);
+          }
+
+          // Also create an in-app notification
+          await db.query(
+            'INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)',
+            [userId, 'Property Verification', `Your property "${property[0].title}" has been ${status}.`, status === 'approved' ? 'success' : 'error']
+          );
+        }
+      }
+    } catch (emailErr) {
+      console.error('Notification failed for property verification:', emailErr);
+    }
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// Get property by ID (with images)
+// Create property
+router.post('/', async (req, res) => {
+  try {
+    const {
+      title, description, price, location, type, status, broker_id, owner_id,
+      bedrooms, bathrooms, area, listing_type, address, city, state, zip_code, features,
+      latitude, longitude, model_3d_path
+    } = req.body;
+
+    // Validate required fields
+    if (!title || !price || !location || !type) {
+      return res.status(400).json({ message: 'Missing required fields: title, price, location, type' });
+    }
+
+    // Helper to handle numeric inputs safely preventing PostgreSQL 22P02 NaN crashes
+    const parseNum = (val) => {
+      if (val === '' || val === undefined || val === null || val === 'undefined' || val === 'null') return null;
+      const parsed = parseFloat(val);
+      return isNaN(parsed) ? null : parsed;
+    };
+
+    const [result] = await db.query(
+      `INSERT INTO properties (
+        title, description, price, location, type, status, broker_id, owner_id, 
+        bedrooms, bathrooms, area, listing_type, address, city, state, zip_code, features, 
+        latitude, longitude, model_3d_path, created_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
+      [
+        title, description, parseNum(price), location, type, status || 'pending', 
+        parseNum(broker_id) || null, parseNum(owner_id) || null,
+        parseNum(bedrooms) || null, parseNum(bathrooms) || null, parseNum(area) || null, 
+        listing_type || 'sale',
+        address || null, city || null, state || null, zip_code || null,
+        features ? (typeof features === 'string' ? features : JSON.stringify(features)) : null,
+        parseNum(latitude) || null, parseNum(longitude) || null, model_3d_path || null
+      ]
+    );
+
+    // Create a verification record for the new property (only if it doesn't exist)
+    try {
+      await db.query(
+        'INSERT INTO property_verification (property_id, verification_status, created_at) VALUES (?, ?, NOW())',
+        [result.insertId, 'pending']
+      );
+    } catch (verifyError) {
+      // If verification record already exists, that's okay
+      console.log('Verification record already exists or error:', verifyError.message);
+    }
+
+    res.status(201).json({ id: result.insertId, message: 'Property created successfully' });
+  } catch (error) {
+    console.error('Error creating property:', error);
+    res.status(500).json({ 
+      message: `Server error: ${error.message}`, 
+      error: error.message,
+      code: error.code
+    });
+  }
+});
+
+// Update property
+router.put('/:id', async (req, res) => {
+  try {
+    const { title, description, price, location, type, status, broker_id, bedrooms, bathrooms, area, listing_type, latitude, longitude, model_3d_path } = req.body;
+    await db.query(
+      `UPDATE properties SET title = ?, description = ?, price = ?, location = ?, type = ?, 
+       status = ?, broker_id = ?, bedrooms = ?, bathrooms = ?, area = ?, listing_type = ?, latitude = ?, longitude = ?, model_3d_path = ? WHERE id = ?`,
+      [title, description, price, location, type, status, broker_id, bedrooms, bathrooms, area, listing_type || 'sale', latitude || null, longitude || null, model_3d_path || null, req.params.id]
+    );
+    res.json({ message: 'Property updated successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Delete property
+router.delete('/:id', async (req, res) => {
+  try {
+    await db.query('DELETE FROM properties WHERE id = ?', [req.params.id]);
+    res.json({ message: 'Property deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Get only APPROVED properties (for Browse Properties - all users)
+// MUST be before /:id routes to avoid matching as ID
+// NOTE: This is an alias for /active - both return active properties
+router.get('/approved', async (req, res) => {
+  try {
+    const [properties] = await db.query(`
+      SELECT p.*, b.name as broker_name, u.name as owner_name,
+        (SELECT COUNT(*) FROM property_images WHERE property_id = p.id) as image_count,
+        (SELECT image_url FROM property_images WHERE property_id = p.id AND image_type = 'main' LIMIT 1) as main_image
+      FROM properties p 
+      LEFT JOIN users b ON p.broker_id = b.id AND b.role = 'broker'
+      LEFT JOIN users u ON p.owner_id = u.id
+      WHERE p.status = 'active' AND p.verified = TRUE
+      ORDER BY p.created_at DESC
+    `);
+    res.json(properties);
+  } catch (error) {
+    console.error('Get approved properties error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Get broker's own properties (My Properties)
+// MUST be before /:id routes to avoid matching as ID
+router.get('/broker/:brokerId', async (req, res) => {
+  try {
+    const [properties] = await db.query(`
+      SELECT p.*, b.name as broker_name, u.name as owner_name,
+        (SELECT COUNT(*) FROM property_images WHERE property_id = p.id) as image_count,
+        (SELECT image_url FROM property_images WHERE property_id = p.id AND image_type = 'main' LIMIT 1) as main_image
+      FROM properties p 
+      LEFT JOIN users b ON p.broker_id = b.id
+      LEFT JOIN users u ON p.owner_id = u.id
+      WHERE p.broker_id = ?
+      ORDER BY p.created_at DESC
+    `, [req.params.brokerId]);
+    res.json(properties);
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Upload property video link - owners only
+router.put('/:id/video-link', async (req, res) => {
+  try {
+    const { video_url } = req.body;
+    if (!video_url) {
+      return res.status(400).json({ message: 'No video link provided' });
+    }
+
+    await db.query('UPDATE properties SET video_url = ? WHERE id = ?', [video_url, req.params.id]);
+
+    res.json({ message: 'Video link updated successfully', video_url });
+  } catch (error) {
+    console.error('Video link update error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Upload property video (max 10MB) - owners only
+router.put('/:id/video', (req, res, next) => {
+  uploadVideo.single('video')(req, res, (err) => {
+    if (err instanceof multer.MulterError) {
+      if (err.code === 'LIMIT_FILE_SIZE') {
+        return res.status(400).json({ message: 'Video file is too large. Maximum size is 10MB.' });
+      }
+      return res.status(400).json({ message: err.message });
+    } else if (err) {
+      return res.status(400).json({ message: err.message });
+    }
+    next();
+  });
+}, async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'No video file provided' });
+    }
+
+    const videoUrl = `/uploads/videos/${req.file.filename}`;
+
+    // Delete old video file if exists
+    try {
+      const [existing] = await db.query('SELECT video_url FROM properties WHERE id = ?', [req.params.id]);
+      if (existing.length > 0 && existing[0].video_url && existing[0].video_url.startsWith('/uploads/')) {
+        const oldPath = path.join(__dirname, '..', existing[0].video_url);
+        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+      }
+    } catch (e) { /* ignore cleanup errors */ }
+
+    await db.query('UPDATE properties SET video_url = ? WHERE id = ?', [videoUrl, req.params.id]);
+
+    res.json({ message: 'Video uploaded successfully', video_url: `http://${req.headers.host}${videoUrl}` });
+  } catch (error) {
+    console.error('Video upload error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Delete property video
+router.delete('/:id/video', async (req, res) => {
+  try {
+    const [existing] = await db.query('SELECT video_url FROM properties WHERE id = ?', [req.params.id]);
+    if (existing.length > 0 && existing[0].video_url && existing[0].video_url.startsWith('/uploads/')) {
+      const oldPath = path.join(__dirname, '..', existing[0].video_url);
+      if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+    }
+    await db.query('UPDATE properties SET video_url = NULL WHERE id = ?', [req.params.id]);
+    res.json({ message: 'Video deleted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Get property by ID (with images) - MUST be last
 router.get('/:id', async (req, res) => {
   try {
     const [property] = await db.query(`
@@ -281,64 +555,6 @@ router.get('/:id', async (req, res) => {
       images: images,
       verification: verification[0] || null
     });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-
-// Create property
-router.post('/', async (req, res) => {
-  try {
-    const {
-      title, description, price, location, type, status, broker_id, owner_id,
-      bedrooms, bathrooms, area, listing_type, address, city, state, zip_code, features
-    } = req.body;
-
-    const [result] = await db.query(
-      `INSERT INTO properties (
-        title, description, price, location, type, status, broker_id, owner_id, 
-        bedrooms, bathrooms, area, listing_type, address, city, state, zip_code, features
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-      [
-        title, description, price, location, type, status || 'pending', broker_id || null, owner_id || null,
-        bedrooms || null, bathrooms || null, area || null, listing_type || 'sale',
-        address || null, city || null, state || null, zip_code || null,
-        features ? JSON.stringify(features) : null
-      ]
-    );
-
-    // Create a verification record for the new property
-    await db.query(
-      'INSERT INTO property_verification (property_id, verification_status) VALUES (?, ?)',
-      [result.insertId, 'pending']
-    );
-
-    res.status(201).json({ id: result.insertId, message: 'Property created successfully' });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-
-// Update property
-router.put('/:id', async (req, res) => {
-  try {
-    const { title, description, price, location, type, status, broker_id, bedrooms, bathrooms, area, listing_type } = req.body;
-    await db.query(
-      `UPDATE properties SET title = ?, description = ?, price = ?, location = ?, type = ?, 
-       status = ?, broker_id = ?, bedrooms = ?, bathrooms = ?, area = ?, listing_type = ? WHERE id = ?`,
-      [title, description, price, location, type, status, broker_id, bedrooms, bathrooms, area, listing_type || 'sale', req.params.id]
-    );
-    res.json({ message: 'Property updated successfully' });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-
-// Delete property
-router.delete('/:id', async (req, res) => {
-  try {
-    await db.query('DELETE FROM properties WHERE id = ?', [req.params.id]);
-    res.json({ message: 'Property deleted successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }

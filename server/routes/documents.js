@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
+const socket = require('../socket');
 
 // ============================================================================
 // PROPERTY DOCUMENTS ENDPOINTS
@@ -56,6 +57,14 @@ router.post('/property/:propertyId', async (req, res) => {
        VALUES (?, ?, ?, ?, ?)`,
       [req.params.propertyId, document_type, document_name, document_path, uploaded_by]
     );
+
+    // Emit socket event for real-time update
+    socket.broadcast('document_uploaded', {
+      propertyId: req.params.propertyId,
+      documentId: result.insertId,
+      documentType: document_type,
+      uploadedBy: uploaded_by
+    });
 
     res.status(201).json({
       id: result.insertId,
@@ -133,6 +142,13 @@ router.post('/agreement/:agreementId', async (req, res) => {
       [req.params.agreementId, version || 1, document_type, document_content, generated_by_id]
     );
 
+    // Emit socket event
+    socket.broadcast('agreement_document_uploaded', {
+      agreementId: req.params.agreementId,
+      documentId: result.insertId,
+      documentType: document_type
+    });
+
     res.status(201).json({
       id: result.insertId,
       message: 'Agreement document created successfully'
@@ -202,7 +218,7 @@ router.post('/request-access', async (req, res) => {
 
     // Check if request already exists
     const [existing] = await db.query(
-      'SELECT id FROM document_access WHERE property_id = ? AND user_id = ? AND status = "pending"',
+      'SELECT id FROM document_access WHERE property_id = ? AND user_id = ? AND status = \'pending\'',
       [property_id, user_id]
     );
 
@@ -211,7 +227,7 @@ router.post('/request-access', async (req, res) => {
     }
 
     const [result] = await db.query(
-      'INSERT INTO document_access (property_id, user_id, status) VALUES (?, ?, "pending")',
+      'INSERT INTO document_access (property_id, user_id, status) VALUES (?, ?, \'pending\')',
       [property_id, user_id]
     );
 
@@ -236,6 +252,16 @@ router.put('/access-request/:requestId/approve', async (req, res) => {
        WHERE id = ?`,
       [response_message || 'Access approved', req.params.requestId]
     );
+
+    // Emit event to the specific user who requested access
+    const [requestInfo] = await db.query('SELECT user_id, property_id FROM document_access WHERE id = ?', [req.params.requestId]);
+    if (requestInfo.length > 0) {
+      socket.emitToUser(requestInfo[0].user_id, 'document_access_updated', {
+        requestId: req.params.requestId,
+        propertyId: requestInfo[0].property_id,
+        status: 'approved'
+      });
+    }
 
     res.json({ message: 'Access approved' });
   } catch (error) {

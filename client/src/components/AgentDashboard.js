@@ -6,9 +6,10 @@ import Messages from './Messages';
 import Announcements from './Announcements';
 import Agreements from './Agreements';
 import BrokerProfile from './profiles/BrokerProfile';
+import TopBar from './TopBar';
 import axios from 'axios';
 
-const AgentDashboard = ({ user, onLogout }) => {
+const AgentDashboard = ({ user, onLogout, setCurrentPage: setGlobalPage, setViewMapPropertyId }) => {
   const [currentPage, setCurrentPage] = useState('properties');
   const [profileStatus, setProfileStatus] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -40,7 +41,7 @@ const AgentDashboard = ({ user, onLogout }) => {
 
   const sidebarItems = [
     { id: 'properties', label: 'My Properties', icon: '🏠', enabled: profileStatus === 'approved' },
-    { id: 'browse', label: 'Browse Properties', icon: '🔍', enabled: profileStatus === 'approved' },
+
     { id: 'profile', label: 'My Profile', icon: '👤', enabled: true },
     { id: 'requests', label: 'Requests', icon: '📋', enabled: profileStatus === 'approved' },
     { id: 'agreements', label: 'Agreements', icon: '📄', enabled: profileStatus === 'approved' },
@@ -66,9 +67,8 @@ const AgentDashboard = ({ user, onLogout }) => {
 
     switch (currentPage) {
       case 'properties':
-        return <Properties user={user} brokerView={true} />;
-      case 'browse':
-        return <Properties user={user} browseMode={true} />;
+        return <Properties user={user} viewMode="my" setCurrentPage={setGlobalPage} setViewMapPropertyId={setViewMapPropertyId} />;
+
       case 'profile':
         return <BrokerProfile user={user} onComplete={checkProfileStatus} />;
       case 'requests':
@@ -78,7 +78,7 @@ const AgentDashboard = ({ user, onLogout }) => {
       case 'messages':
         return <Messages user={user} />;
       default:
-        return <Properties user={user} brokerView={true} />;
+        return <Properties user={user} viewMode="my" setCurrentPage={setGlobalPage} setViewMapPropertyId={setViewMapPropertyId} />;
     }
   };
 
@@ -96,6 +96,7 @@ const AgentDashboard = ({ user, onLogout }) => {
         onLogout={onLogout}
       />
       <div className="dashboard-main">
+        <TopBar user={user} onSettingsClick={() => setCurrentPage('profile')} />
         {profileStatus === 'not_created' && currentPage !== 'profile' && (
           <div className="alert alert-warning">
             ⚠️ Please complete your broker profile to access all features. 

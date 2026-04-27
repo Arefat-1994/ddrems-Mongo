@@ -4,10 +4,11 @@ import PageHeader from './PageHeader';
 import axios from 'axios';
 import AddUserModal from './AddUserModal';
 
-const Users = ({ user, onLogout, initialRole }) => {
+const Users = ({ user, onLogout, initialRole, onSettingsClick }) => {
   const [users, setUsers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState(initialRole || 'all');
+  const [viewMode, setViewMode] = useState('all'); // 'all' or 'banned'
 
   // Update filter if initialRole changes (e.g. navigation from sidebar)
   useEffect(() => {
@@ -121,22 +122,61 @@ const Users = ({ user, onLogout, initialRole }) => {
     }
   };
 
-  const handleToggleApproval = async (u) => {
-    const newStatus = u.profile_approved ? false : true;
-    const action = newStatus ? 'approve' : 'unapprove';
-    if (!window.confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} ${u.name}'s profile?`)) return;
+  const handleToggleAccountApproval = async (u) => {
+    const newStatus = u.status === 'active' ? 'inactive' : 'active';
+    const action = newStatus === 'active' ? 'activate' : 'deactivate';
+    if (!window.confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} ${u.name}'s account?`)) return;
 
     try {
-      console.log(`[Users] Toggling approval for ${u.id} to ${newStatus}`);
+      console.log(`[Users] Toggling account status for ${u.id} to ${newStatus}`);
+      await axios.put(`${API_BASE}/users/update/${u.id}`, {
+        status: newStatus
+      });
+      alert(`✅ User account ${action}d successfully! They can now ${newStatus === 'active' ? 'login' : 'no longer login'}.`);
+      fetchUsers();
+    } catch (error) {
+      console.error('Error toggling account status:', error);
+      const msg = error.response?.data?.message || error.message;
+      alert(`❌ Failed to update account: ${msg}`);
+    }
+  };
+
+  const handleToggleProfileApproval = async (u) => {
+    const newStatus = u.profile_approved ? false : true;
+    const action = newStatus ? 'approve' : 'unapprove';
+    if (!window.confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} ${u.name}'s detailed profile? This will grant them FULL system access.`)) return;
+
+    try {
+      console.log(`[Users] Toggling profile approval for ${u.id} to ${newStatus}`);
       await axios.put(`${API_BASE}/users/update/${u.id}`, {
         profile_approved: newStatus
       });
-      alert(`✅ User ${action}d successfully!`);
+      
+      // Also update the role-specific profile status if it exists
+      const role = (u.role || '').toLowerCase();
+      let profileType = role;
+      if (role === 'user' || role === 'customer') profileType = 'customer';
+      else if (role === 'owner') profileType = 'owner';
+      else if (role === 'broker') profileType = 'broker';
+      
+      if (profileType && newStatus) {
+        try {
+          // Find profile ID first
+          const profileRes = await axios.get(`${API_BASE}/profiles/${profileType}/${u.id}`);
+          if (profileRes.data && profileRes.data.id) {
+            await axios.post(`${API_BASE}/profiles/approve/${profileType}/${profileRes.data.id}`, { adminId: user.id });
+          }
+        } catch (err) {
+          console.warn('Could not sync profile table status:', err.message);
+        }
+      }
+
+      alert(`✅ Profile ${action}d successfully!`);
       fetchUsers();
     } catch (error) {
-      console.error('Error toggling approval:', error);
+      console.error('Error toggling profile approval:', error);
       const msg = error.response?.data?.message || error.message;
-      alert(`❌ Failed to update user: ${msg}\n(Target: ${API_BASE}/users/update/${u.id})`);
+      alert(`❌ Failed to update profile: ${msg}`);
     }
   };
 
@@ -161,7 +201,12 @@ const Users = ({ user, onLogout, initialRole }) => {
     const matchesSearch = u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
       u.email.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesRole = roleFilter === 'all' || u.role === roleFilter;
-    return matchesSearch && matchesRole;
+    const isBanned = u.status === 'suspended' || u.status === 'banned';
+    
+    if (viewMode === 'banned') {
+      return matchesSearch && matchesRole && isBanned;
+    }
+    return matchesSearch && matchesRole && !isBanned;
   });
 
   const getRoleBadgeColor = (role) => {
@@ -188,15 +233,25 @@ const Users = ({ user, onLogout, initialRole }) => {
         subtitle={`Manage system users and their access (${users.length} total)`}
         user={user}
         onLogout={onLogout}
+        onSettingsClick={onSettingsClick}
         actions={
           (user?.role === 'admin' || user?.role === 'system_admin') && (
-            <button 
-              className="btn-primary" 
-              onClick={() => setShowAddModal(true)}
-              style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '10px', fontWeight: '600' }}
-            >
-              <span>👤+</span> Add New User
-            </button>
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button 
+                className="btn-primary" 
+                onClick={() => { setRoleFilter('broker'); setShowAddModal(true); }}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '10px', fontWeight: '600' }}
+              >
+                <span>🤝+</span> Add Broker
+              </button>
+              <button 
+                className="btn-primary" 
+                onClick={() => { setRoleFilter('property_admin'); setShowAddModal(true); }}
+                style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 20px', borderRadius: '10px', fontWeight: '600', background: '#8b5cf6' }}
+              >
+                <span>🛡️+</span> Add PropertyAdmin
+              </button>
+            </div>
           )
         }
       />
@@ -225,14 +280,29 @@ const Users = ({ user, onLogout, initialRole }) => {
           <option value="property_admin">Property Admins</option>
           <option value="system_admin">System Admins</option>
         </select>
+        <div style={{ display: 'flex', gap: '10px', marginLeft: 'auto' }}>
+          <button 
+            onClick={() => setViewMode('all')}
+            style={{ padding: '10px 20px', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', border: 'none', background: viewMode === 'all' ? '#e2e8f0' : 'transparent', color: viewMode === 'all' ? '#0f172a' : '#64748b' }}
+          >
+            Active Users
+          </button>
+          <button 
+            onClick={() => setViewMode('banned')}
+            style={{ padding: '10px 20px', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', border: 'none', background: viewMode === 'banned' ? '#fee2e2' : 'transparent', color: viewMode === 'banned' ? '#991b1b' : '#64748b' }}
+          >
+            Banned Accounts
+          </button>
+        </div>
       </div>
 
+      {/* ORIGINAL TABLE VIEW */}
       <div className="table-container" style={{ background: 'white', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.08)', overflow: 'hidden', border: '1px solid #e5e7eb' }}>
         <table className="data-table" style={{ width: '100%', borderCollapse: 'collapse' }}>
           <thead>
             <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e5e7eb' }}>
               <th style={{ padding: '16px', textAlign: 'left', fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>User</th>
-              <th style={{ padding: '16px', textAlign: 'left', fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Role/Auth</th>
+              <th style={{ padding: '16px', textAlign: 'left', fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Role</th>
               <th style={{ padding: '16px', textAlign: 'left', fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Status</th>
               <th style={{ padding: '16px', textAlign: 'left', fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Profile</th>
               <th style={{ padding: '16px', textAlign: 'left', fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Joined</th>
@@ -250,7 +320,7 @@ const Users = ({ user, onLogout, initialRole }) => {
                       width: '40px', height: '40px', borderRadius: '50%',
                       background: `linear-gradient(135deg, ${getRoleBadgeColor(u.role)}, ${getRoleBadgeColor(u.role)}cc)`,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontWeight: '700', color: 'white', fontSize: '15px'
+                      fontWeight: '700', color: 'white', fontSize: '15px', flexShrink: 0
                     }}>
                       {u.name.charAt(0).toUpperCase()}
                     </div>
@@ -269,40 +339,51 @@ const Users = ({ user, onLogout, initialRole }) => {
                     {u.role === 'user' ? 'CUSTOMER' : u.role.replace('_', ' ')}
                   </span>
                 </td>
-                <td style={{ padding: '16px' }}>{getStatusBadge(u.status)}</td>
                 <td style={{ padding: '16px' }}>
-                  <span style={{
-                    padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: 'bold',
-                    background: u.profile_approved ? '#dcfce7' : '#fef9c3',
-                    color: u.profile_approved ? '#166534' : '#854d0e'
-                  }}>
-                    {u.profile_approved ? '✅ APPROVED' : '⏳ PENDING'}
-                  </span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold' }}>ACC:</span>
+                      {getStatusBadge(u.status)}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <span style={{ fontSize: '10px', color: '#64748b', fontWeight: 'bold' }}>PRO:</span>
+                      <span style={{
+                        padding: '2px 8px', borderRadius: '10px', fontSize: '10px', fontWeight: 'bold',
+                        background: u.profile_approved ? '#dcfce7' : '#fef9c3',
+                        color: u.profile_approved ? '#166534' : '#854d0e'
+                      }}>
+                        {u.profile_approved ? 'APPROVED' : 'PENDING'}
+                      </span>
+                    </div>
+                  </div>
                 </td>
                 <td style={{ padding: '16px', color: '#64748b', fontSize: '13px' }}>
                   {new Date(u.created_at).toLocaleDateString()}
                 </td>
                 <td style={{ padding: '16px' }}>
-                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
-                    <button onClick={() => handleView(u)} title="Full Info"
-                      style={{ padding: '7px 11px', background: '#ebf5ff', border: '1px solid #bfdbfe', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', color: '#1d4ed8' }}>👁️ View</button>
-                    {u.role === 'user' && (
-                      <button onClick={() => handleView(u)} title="Key Access"
-                        style={{ padding: '7px 11px', background: '#e0f2fe', border: '1px solid #93c5fd', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', color: '#0369a1' }}>🔑 Keys</button>
-                    )}
-                    <button onClick={() => handleEdit(u)} title="Edit User"
-                      style={{ padding: '7px 11px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', color: '#92400e' }}>✏️ Edit</button>
-
-                    {u.status === 'suspended' ? (
-                      <button onClick={() => handleStatusChange(u, 'active')} title="Reactivate"
-                        style={{ padding: '7px 11px', background: '#ecfdf5', border: '1px solid #6ee7b7', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', color: '#047857' }}>▶️ Reactivate</button>
+                  <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+                    <button onClick={() => handleView(u)}
+                      style={{ padding: '7px 11px', background: '#ebf5ff', border: '1px solid #bfdbfe', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', color: '#1d4ed8', fontWeight: '600' }}>👁️ View</button>
+                    
+                    {u.status !== 'active' ? (
+                      <button onClick={() => handleToggleAccountApproval(u)}
+                        style={{ padding: '7px 11px', background: '#ecfdf5', border: '1px solid #6ee7b7', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', color: '#047857', fontWeight: '600' }}>✅ Activate Account</button>
                     ) : (
-                      <button onClick={() => handleStatusChange(u, 'suspended')} title="Suspend"
-                        style={{ padding: '7px 11px', background: '#fff7ed', border: '1px solid #fdba74', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', color: '#c2410c' }}>⏸️ Suspend</button>
+                      !u.profile_approved && (
+                        <button onClick={() => handleToggleProfileApproval(u)}
+                          style={{ padding: '7px 11px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', color: '#166534', fontWeight: '600' }}>📄 Approve Profile</button>
+                      )
                     )}
 
-                    <button onClick={() => handleDelete(u)} title="Delete Permanently"
-                      style={{ padding: '7px 11px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', cursor: 'pointer', fontSize: '14px', color: '#dc2626' }}>🗑️ Delete</button>
+                    <button onClick={() => handleEdit(u)}
+                      style={{ padding: '7px 11px', background: '#fffbeb', border: '1px solid #fde68a', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', color: '#92400e', fontWeight: '600' }}>✏️ Edit</button>
+                    
+                    {u.status === 'active' && (
+                      <button onClick={() => handleStatusChange(u, 'suspended')}
+                        style={{ padding: '7px 11px', background: '#fff7ed', border: '1px solid #fdba74', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', color: '#c2410c', fontWeight: '600' }}>⏸️ Suspend</button>
+                    )}
+                    <button onClick={() => handleDelete(u)}
+                      style={{ padding: '7px 11px', background: '#fef2f2', border: '1px solid #fecaca', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', color: '#dc2626', fontWeight: '600' }}>🗑️ Delete</button>
                   </div>
                 </td>
               </tr>
@@ -350,23 +431,23 @@ const Users = ({ user, onLogout, initialRole }) => {
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
                     <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
                       <label style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Account Name</label>
-                      <div style={{ fontWeight: '600', color: '#1e293b' }}>{selectedUser.name}</div>
+                      <div style={{ fontWeight: '600', color: '#1e293b' }}>{selectedUser?.name || 'N/A'}</div>
                     </div>
                     <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
                       <label style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>System ID</label>
-                      <div style={{ fontWeight: '600', color: '#1e293b' }}>#{selectedUser.id}</div>
+                      <div style={{ fontWeight: '600', color: '#1e293b' }}>#{selectedUser?.id || 'N/A'}</div>
                     </div>
                     <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px solid #f1f5f9', gridColumn: 'span 2' }}>
                       <label style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Primary Email</label>
-                      <div style={{ fontWeight: '600', color: '#1e293b' }}>{selectedUser.email}</div>
+                      <div style={{ fontWeight: '600', color: '#1e293b' }}>{selectedUser?.email || 'N/A'}</div>
                     </div>
                     <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
                       <label style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>User Role</label>
-                      <span style={{ fontWeight: '700', color: getRoleBadgeColor(selectedUser.role), fontSize: '13px' }}>{selectedUser.role.toUpperCase()}</span>
+                      <span style={{ fontWeight: '700', color: getRoleBadgeColor(selectedUser?.role || ''), fontSize: '13px' }}>{(selectedUser?.role || '').toUpperCase()}</span>
                     </div>
                     <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '12px', border: '1px solid #f1f5f9' }}>
                       <label style={{ fontSize: '11px', color: '#64748b', fontWeight: '700', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>Account Status</label>
-                      <div style={{ fontWeight: '600' }}>{getStatusBadge(selectedUser.status)}</div>
+                      <div style={{ fontWeight: '600' }}>{getStatusBadge(selectedUser?.status || 'active')}</div>
                     </div>
                   </div>
                 </div>
@@ -387,8 +468,8 @@ const Users = ({ user, onLogout, initialRole }) => {
                         </div>
                         <div>
                           <label style={{ fontSize: '11px', color: '#166534', fontWeight: '700', display: 'block', marginBottom: '4px' }}>PROFILE STATUS</label>
-                          <div style={{ fontWeight: '700', color: userProfile.profile_status === 'approved' ? '#166534' : '#854d0e' }}>
-                            {userProfile.profile_status.toUpperCase()}
+                          <div style={{ fontWeight: '700', color: (userProfile?.profile_status || '').toLowerCase() === 'approved' ? '#166534' : '#854d0e' }}>
+                            {(userProfile?.profile_status || '').toUpperCase()}
                           </div>
                         </div>
                         <div style={{ gridColumn: 'span 2' }}>
@@ -399,6 +480,21 @@ const Users = ({ user, onLogout, initialRole }) => {
                           <div style={{ gridColumn: 'span 2' }}>
                             <label style={{ fontSize: '11px', color: '#166534', fontWeight: '700', display: 'block', marginBottom: '4px' }}>LICENSE / CREDENTIALS</label>
                             <div style={{ fontWeight: '600', color: '#1e40af' }}>{userProfile.license_number}</div>
+                          </div>
+                        )}
+                        {(userProfile.business_license || userProfile.broker_license) && (
+                          <div style={{ gridColumn: 'span 2' }}>
+                            <label style={{ fontSize: '11px', color: '#166534', fontWeight: '700', display: 'block', marginBottom: '4px' }}>PROFESSIONAL LICENSE DOCUMENT</label>
+                            <div style={{ marginTop: '5px' }}>
+                              <a 
+                                href={userProfile.business_license || userProfile.broker_license} 
+                                target="_blank" 
+                                rel="noreferrer"
+                                style={{ color: '#2563eb', fontSize: '13px', textDecoration: 'underline', fontWeight: '600' }}
+                              >
+                                🔍 Click to View License Document
+                              </a>
+                            </div>
                           </div>
                         )}
                       </div>
@@ -473,9 +569,9 @@ const Users = ({ user, onLogout, initialRole }) => {
                 style={{ padding: '10px 25px', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '10px', fontSize: '14px', fontWeight: '600', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(245, 158, 11, 0.4)' }}
               >✏️ Edit Account Info</button>
 
-              {!selectedUser.profile_approved && userProfile && (
+              {!selectedUser?.profile_approved && userProfile && (
                 <button
-                  onClick={() => { handleToggleApproval(selectedUser); setShowViewModal(false); }}
+                  onClick={() => { handleToggleProfileApproval(selectedUser); setShowViewModal(false); }}
                   style={{ padding: '10px 25px', background: '#10b981', color: 'white', border: 'none', borderRadius: '10px', fontSize: '14px', fontWeight: '600', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(16, 185, 129, 0.4)' }}
                 >✅ Approve Profile Now</button>
               )}

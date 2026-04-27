@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS properties (
   location VARCHAR(255) NOT NULL,
   latitude DECIMAL(10,8),
   longitude DECIMAL(11,8),
-  type ENUM('house', 'apartment', 'land', 'commercial', 'villa') NOT NULL,
+  type ENUM('house', 'apartment', 'land', 'commercial', 'villa', 'shop', 'office', 'warehouse') NOT NULL,
   bedrooms INT,
   bathrooms INT,
   area DECIMAL(10,2),

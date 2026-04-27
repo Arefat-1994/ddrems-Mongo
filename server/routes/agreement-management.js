@@ -23,14 +23,14 @@ router.post('/:agreementId/generate', async (req, res) => {
 
     // Update status
     await db.query(
-      'UPDATE agreement_requests SET status = "generated", updated_at = NOW() WHERE id = ?',
+      "UPDATE agreement_requests SET status = 'generated', updated_at = NOW() WHERE id = ?",
       [agreementId]
     );
 
     // Send notification to customer
     await db.query(`
       INSERT INTO agreement_notifications (
-        agreement_id, recipient_id, notification_type,
+        agreement_request_id, recipient_id, notification_type,
         notification_title, notification_message
       ) VALUES (?, ?, 'agreement_generated', 
         'Agreement Generated', 
@@ -70,26 +70,26 @@ router.post('/:agreementId/submit-payment', async (req, res) => {
     // Record payment
     await db.query(`
       INSERT INTO agreement_payments (
-        agreement_id, payment_method, payment_amount,
+        agreement_request_id, payment_method, payment_amount,
         receipt_file_path, payment_date
       ) VALUES (?, ?, ?, ?, NOW())
     `, [agreementId, payment_method, payment_amount, receipt_file_path]);
 
     // Update agreement status
     await db.query(
-      'UPDATE agreement_requests SET status = "payment_submitted", updated_at = NOW() WHERE id = ?',
+      "UPDATE agreement_requests SET status = 'payment_submitted', updated_at = NOW() WHERE id = ?",
       [agreementId]
     );
 
     // Notify admin
+    const notifMsg = 'Customer has submitted payment for agreement #' + agreementId;
     await db.query(`
       INSERT INTO agreement_notifications (
-        agreement_id, recipient_id, notification_type,
+        agreement_request_id, recipient_id, notification_type,
         notification_title, notification_message
       ) VALUES (?, ?, 'payment_submitted', 
-        'Payment Submitted', 
-        'Customer has submitted payment for agreement #' || ?)
-    `, [agreementId, agreement[0].owner_id, agreementId]);
+        'Payment Submitted', ?)
+    `, [agreementId, agreement[0].owner_id, notifMsg]);
 
     res.json({
       success: true,
@@ -121,25 +121,28 @@ router.post('/:agreementId/upload-receipt', async (req, res) => {
       return res.status(404).json({ message: 'Agreement not found', success: false });
     }
 
-    // Update receipt in payments table
+    // Update receipt in payments table — use subquery for LIMIT workaround in PG
     await db.query(`
       UPDATE agreement_payments SET
         receipt_file_path = ?,
         receipt_file_name = ?,
         receipt_uploaded_date = NOW()
-      WHERE agreement_id = ?
-      ORDER BY payment_date DESC LIMIT 1
+      WHERE id = (
+        SELECT id FROM agreement_payments 
+        WHERE agreement_request_id = ? 
+        ORDER BY payment_date DESC LIMIT 1
+      )
     `, [receipt_file_path, receipt_file_name, agreementId]);
 
     // Notify admin
+    const notifMsg = 'Customer has uploaded receipt for agreement #' + agreementId;
     await db.query(`
       INSERT INTO agreement_notifications (
-        agreement_id, recipient_id, notification_type,
+        agreement_request_id, recipient_id, notification_type,
         notification_title, notification_message
       ) VALUES (?, ?, 'receipt_uploaded', 
-        'Receipt Uploaded', 
-        'Customer has uploaded receipt for agreement #' || ?)
-    `, [agreementId, agreement[0].owner_id, agreementId]);
+        'Receipt Uploaded', ?)
+    `, [agreementId, agreement[0].owner_id, notifMsg]);
 
     res.json({
       success: true,
@@ -179,7 +182,7 @@ router.post('/:agreementId/send-agreement', async (req, res) => {
     // Send notification
     await db.query(`
       INSERT INTO agreement_notifications (
-        agreement_id, recipient_id, notification_type,
+        agreement_request_id, recipient_id, notification_type,
         notification_title, notification_message
       ) VALUES (?, ?, 'agreement_sent', 
         'Agreement Sent', 
@@ -216,12 +219,12 @@ router.post('/:agreementId/notify', async (req, res) => {
     }
 
     // Send notification to all parties
-    const recipients = [agreement[0].customer_id, agreement[0].owner_id];
+    const recipients = [agreement[0].customer_id, agreement[0].owner_id].filter(Boolean);
 
     for (const recipient_id of recipients) {
       await db.query(`
         INSERT INTO agreement_notifications (
-          agreement_id, recipient_id, notification_type,
+          agreement_request_id, recipient_id, notification_type,
           notification_title, notification_message
         ) VALUES (?, ?, 'custom_notification', 
           'Agreement Update', ?)
@@ -248,7 +251,7 @@ router.get('/:agreementId/notifications', async (req, res) => {
 
     const [notifications] = await db.query(`
       SELECT * FROM agreement_notifications
-      WHERE agreement_id = ?
+      WHERE agreement_request_id = ?
       ORDER BY created_at DESC
     `, [agreementId]);
 

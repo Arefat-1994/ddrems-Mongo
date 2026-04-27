@@ -7,7 +7,7 @@ const crypto = require('crypto');
 router.get('/property/:propertyId', async (req, res) => {
   try {
     const [documents] = await db.query(
-      'SELECT * FROM property_documents WHERE property_id = ? ORDER BY created_at DESC',
+      'SELECT id, property_id, document_type, document_name, document_path as document_url, access_key, uploaded_by, uploaded_at as created_at, is_locked FROM property_documents WHERE property_id = ? ORDER BY uploaded_at DESC',
       [req.params.propertyId]
     );
     res.json(documents);
@@ -41,29 +41,73 @@ router.post('/', async (req, res) => {
     // Generate access key
     const access_key = crypto.randomBytes(4).toString('hex').toUpperCase();
 
-    const [result] = await db.query(
-      'INSERT INTO property_documents (property_id, document_name, document_url, document_type, access_key, uploaded_by) VALUES (?, ?, ?, ?, ?, ?)',
-      [property_id, document_name, document_url, document_type || 'other', access_key, uploaded_by]
-    );
+    // Parse uploaded_by and property_id to valid integers or null/throw
+    const parsedUploadedBy = (uploaded_by && uploaded_by !== 'undefined' && uploaded_by !== 'null') ? parseInt(uploaded_by, 10) : null;
+    const uploadedById = isNaN(parsedUploadedBy) ? null : parsedUploadedBy;
 
-    res.json({
-      id: result.insertId,
-      access_key,
-      message: 'Document uploaded successfully'
-    });
+    const parsedPropertyId = parseInt(property_id, 10);
+    if (isNaN(parsedPropertyId)) {
+      return res.status(400).json({ message: 'Invalid property ID provided.' });
+    }
+
+    try {
+      const [result] = await db.query(
+        'INSERT INTO property_documents (property_id, document_name, document_path, document_type, access_key, uploaded_by) VALUES (?, ?, ?, ?, ?, ?)',
+        [parsedPropertyId, document_name, document_url, document_type || 'other', access_key, uploadedById]
+      );
+
+      return res.json({
+        id: result.insertId,
+        access_key,
+        message: 'Document uploaded successfully'
+      });
+    } catch (insertError) {
+      console.error('Document INSERT error:', insertError.message, '| Code:', insertError.code);
+
+      // Handle FK constraint violation on uploaded_by - retry without it
+      if (insertError.code === '23503' && insertError.detail && insertError.detail.includes('uploaded_by')) {
+        console.log('Retrying document insert without uploaded_by (user FK issue)...');
+        const [result] = await db.query(
+          'INSERT INTO property_documents (property_id, document_name, document_path, document_type, access_key, uploaded_by) VALUES (?, ?, ?, ?, ?, ?)',
+          [parsedPropertyId, document_name, document_url, document_type || 'other', access_key, null]
+        );
+
+        return res.json({
+          id: result.insertId,
+          access_key,
+          message: 'Document uploaded successfully'
+        });
+      }
+
+      // Handle FK constraint violation on property_id
+      if (insertError.code === '23503' && insertError.detail && insertError.detail.includes('property_id')) {
+        return res.status(400).json({ 
+          message: `Property with ID ${property_id} does not exist. Please save the property first before uploading documents.` 
+        });
+      }
+
+      // Re-throw other errors
+      throw insertError;
+    }
   } catch (error) {
     console.error('Document upload error:', error);
     
-    // Check for specific MySQL errors
-    if (error.code === 'ER_NO_SUCH_TABLE') {
+    // Check for specific PostgreSQL errors
+    if (error.code === '42P01') {
       return res.status(500).json({ 
-        message: 'Database table not found. Please run fix-document-upload.sql script.' 
+        message: 'Database table not found. Please ensure the property_documents table exists.' 
       });
     }
     
-    if (error.code === 'ER_BAD_FIELD_ERROR') {
+    if (error.code === '42703') {
       return res.status(500).json({ 
-        message: 'Database schema mismatch. Please run fix-document-upload.sql script.' 
+        message: 'Database schema mismatch. A required column is missing from the property_documents table.' 
+      });
+    }
+
+    if (error.code === '23514') {
+      return res.status(400).json({ 
+        message: 'Invalid document type. Must be one of the permitted types.' 
       });
     }
     
@@ -94,7 +138,7 @@ router.post('/verify-access', async (req, res) => {
   try {
     const { document_id, access_key } = req.body;
     const [documents] = await db.query(
-      'SELECT * FROM property_documents WHERE id = ? AND access_key = ?',
+      'SELECT id, property_id, document_type, document_name, document_path as document_url, access_key, uploaded_by, uploaded_at as created_at, is_locked FROM property_documents WHERE id = ? AND access_key = ?',
       [document_id, access_key]
     );
 

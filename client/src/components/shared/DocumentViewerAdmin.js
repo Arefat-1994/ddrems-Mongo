@@ -2,7 +2,9 @@ import React, { useState, useEffect } from 'react';
 import './DocumentViewer.css';
 import axios from 'axios';
 
-const DocumentViewerAdmin = ({ propertyId, property, userId, onVerificationAction }) => {
+const API_BASE = `http://${window.location.hostname}:5000/api`;
+
+const DocumentViewerAdmin = ({ propertyId, property, userId, userRole, onVerificationAction }) => {
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(false);
   const [showKeyModal, setShowKeyModal] = useState(false);
@@ -11,11 +13,14 @@ const DocumentViewerAdmin = ({ propertyId, property, userId, onVerificationActio
   const [verifying, setVerifying] = useState(false);
   const [viewedDocument, setViewedDocument] = useState(null);
   const [showDocumentModal, setShowDocumentModal] = useState(false);
+  const [isAccordionOpen, setIsAccordionOpen] = useState(false);
+  const [showAccessKeyForDoc, setShowAccessKeyForDoc] = useState(null);
+  const [isRedeciding, setIsRedeciding] = useState(false);
 
   const fetchDocuments = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`http://localhost:5000/api/property-documents/property/${propertyId}`);
+      const response = await axios.get(`${API_BASE}/property-documents/property/${propertyId}`);
       setDocuments(response.data);
     } catch (error) {
       console.error('Error fetching documents:', error);
@@ -28,6 +33,7 @@ const DocumentViewerAdmin = ({ propertyId, property, userId, onVerificationActio
     if (propertyId) {
       fetchDocuments();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [propertyId]);
 
   const verifyAndView = async () => {
@@ -38,7 +44,7 @@ const DocumentViewerAdmin = ({ propertyId, property, userId, onVerificationActio
 
     setVerifying(true);
     try {
-      const response = await axios.post('http://localhost:5000/api/property-documents/verify-access', {
+      const response = await axios.post(`${API_BASE}/property-documents/verify-access`, {
         document_id: selectedDoc.id,
         access_key: accessKey.trim().toUpperCase()
       });
@@ -67,33 +73,13 @@ const DocumentViewerAdmin = ({ propertyId, property, userId, onVerificationActio
     setAccessKey('');
   };
 
-  const handleSendKey = async (doc) => {
-    if (!property) {
-      alert('Property information not available');
-      return;
-    }
-
-    const ownerName = property.owner_name || property.broker_name || 'Property Owner';
-    const confirmMessage = `Send the access key for "${doc.document_name}" to ${ownerName}?\n\nAccess Key: ${doc.access_key}\n\nThis will help the owner share the document with customers.`;
-
-    if (!window.confirm(confirmMessage)) return;
-
-    try {
-      // For now, we'll just show the key in an alert
-      // In a real implementation, this could send an email or notification
-      alert(`✅ Access key sent to ${ownerName}!\n\nDocument: ${doc.document_name}\nAccess Key: ${doc.access_key}\n\nThe owner can now share this key with customers who request document access.`);
-    } catch (error) {
-      console.error('Error sending key:', error);
-      alert('Failed to send access key');
-    }
-  };
 
   const handleToggleLock = async (doc) => {
     const action = doc.is_locked ? 'unlock' : 'lock';
     if (!window.confirm(`Are you sure you want to ${action} this document?`)) return;
 
     try {
-      await axios.put(`http://localhost:5000/api/property-documents/${doc.id}/lock`, {
+      await axios.put(`${API_BASE}/property-documents/${doc.id}/lock`, {
         is_locked: !doc.is_locked
       });
       alert(`Document ${action}ed successfully!`);
@@ -108,7 +94,7 @@ const DocumentViewerAdmin = ({ propertyId, property, userId, onVerificationActio
     if (!window.confirm('Regenerate access key? The old key will no longer work.')) return;
 
     try {
-      const response = await axios.put(`http://localhost:5000/api/property-documents/${doc.id}/regenerate-key`);
+      const response = await axios.put(`${API_BASE}/property-documents/${doc.id}/regenerate-key`);
       alert(`✅ Access key regenerated!\n\nNew Key: ${response.data.access_key}\n\nMake sure to send this new key to the property owner.`);
       fetchDocuments(); // Refresh the documents list
     } catch (error) {
@@ -121,7 +107,7 @@ const DocumentViewerAdmin = ({ propertyId, property, userId, onVerificationActio
     if (!window.confirm('PERMANENTLY DELETE this document? This action cannot be undone!')) return;
 
     try {
-      await axios.delete(`http://localhost:5000/api/property-documents/${doc.id}`);
+      await axios.delete(`${API_BASE}/property-documents/${doc.id}`);
       alert('Document deleted successfully!');
       fetchDocuments(); // Refresh the documents list
     } catch (error) {
@@ -140,7 +126,7 @@ const DocumentViewerAdmin = ({ propertyId, property, userId, onVerificationActio
     if (!window.confirm(confirmMessages[action])) return;
 
     try {
-      await axios.put(`http://localhost:5000/api/properties/${propertyId}/verify`, {
+      await axios.put(`${API_BASE}/properties/${propertyId}/verify`, {
         status: action,
         verified_by: userId,
         notes: `${action} after document review by admin`
@@ -162,7 +148,7 @@ const DocumentViewerAdmin = ({ propertyId, property, userId, onVerificationActio
     if (!window.confirm('PERMANENTLY DELETE this property? This action cannot be undone!')) return;
 
     try {
-      await axios.delete(`http://localhost:5000/api/properties/${propertyId}`);
+      await axios.delete(`${API_BASE}/properties/${propertyId}`);
       alert('Property deleted permanently.');
       setShowDocumentModal(false);
       
@@ -188,80 +174,107 @@ const DocumentViewerAdmin = ({ propertyId, property, userId, onVerificationActio
   };
 
   if (loading) {
-    return <div className="doc-viewer-loading">Loading documents...</div>;
+    return <div className="doc-viewer-loading" style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>Loading documents...</div>;
   }
 
   return (
-    <div className="document-viewer">
-      <div className="doc-viewer-header">
-        <h3>📄 Property Documents ({documents.length})</h3>
+    <div className="document-accordion" style={{ margin: '20px 0', border: '1px solid #e2e8f0', borderRadius: '8px', overflow: 'hidden' }}>
+      <div 
+        className="accordion-header" 
+        onClick={() => setIsAccordionOpen(!isAccordionOpen)}
+        style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '15px 20px',
+          background: '#f8fafc',
+          cursor: 'pointer',
+          borderBottom: isAccordionOpen ? '1px solid #e2e8f0' : 'none'
+        }}
+      >
+        <h3 style={{ margin: 0, fontSize: '15px', color: '#64748b', display: 'flex', alignItems: 'center', gap: '10px' }}>
+          📄 PROPERTY DOCUMENTS
+        </h3>
+        <button 
+          className="btn-primary" 
+          style={{ padding: '6px 16px', borderRadius: '20px', fontSize: '13px' }}
+          onClick={(e) => { e.stopPropagation(); setIsAccordionOpen(!isAccordionOpen); }}
+        >
+          {isAccordionOpen ? '▲ Hide' : '▼ Docs'}
+        </button>
       </div>
 
-      {documents.length === 0 ? (
-        <div className="doc-viewer-empty">
-          <div className="empty-icon">📄</div>
-          <p>No documents uploaded for this property</p>
-          <span>Owner needs to upload documents for verification</span>
-        </div>
-      ) : (
-        <div className="documents-list">
-          {documents.map(doc => (
-            <div key={doc.id} className="document-card">
-              <div className="doc-icon">
-                {getDocumentIcon(doc.document_type)}
-              </div>
-              <div className="doc-info">
-                <h4>{doc.document_name}</h4>
-                <p>{doc.document_type.replace('_', ' ').toUpperCase()}</p>
-                <span>Uploaded: {new Date(doc.created_at).toLocaleDateString()}</span>
-                {doc.is_locked && <span className="doc-locked-badge">🔒 Locked</span>}
-              </div>
-              <div className="doc-actions">
-                {doc.is_locked ? (
-                  <span className="doc-locked">🔒 Locked by Owner</span>
-                ) : (
-                  <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+      {isAccordionOpen && (
+        <div className="accordion-content" style={{ padding: '20px', background: '#fff' }}>
+          <h4 style={{ margin: '0 0 15px 0', fontSize: '14px', color: '#64748b' }}>📄 PROPERTY DOCUMENTS ({documents.length})</h4>
+          
+          {documents.length === 0 ? (
+            <div className="doc-viewer-empty" style={{ textAlign: 'center', padding: '40px', color: '#94a3b8' }}>
+              <p>No documents uploaded for this property.</p>
+            </div>
+          ) : (
+            <div className="documents-list" style={{ display: 'grid', gap: '15px' }}>
+              {documents.map(doc => (
+                <div key={doc.id} className="document-card" style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '15px 20px',
+                  border: '1px solid #cbd5e1',
+                  borderRadius: '12px',
+                  background: '#fff'
+                }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '15px' }}>
+                    <div style={{ fontSize: '24px' }}>📋</div>
+                    <div>
+                      <h4 style={{ margin: '0 0 5px 0', fontSize: '16px', color: '#1e293b' }}>{doc.document_name}</h4>
+                      <p style={{ margin: '0 0 5px 0', fontSize: '12px', color: '#94a3b8' }}>{doc.document_type.replace('_', ' ').toUpperCase()}</p>
+                      <span style={{ fontSize: '12px', color: '#94a3b8' }}>Uploaded: {new Date(doc.created_at).toLocaleDateString()}</span>
+                    </div>
+                  </div>
+                  
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
                     <button
-                      className="btn-view-doc"
                       onClick={() => openKeyModal(doc)}
+                      style={{ background: '#7c3aed', color: '#fff', border: 'none', padding: '8px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: '500' }}
                     >
-                      👁️ View Document
+                      👁️ View
+                    </button>
+                    {userRole !== 'system_admin' && (
+                      <button
+                        onClick={() => handleRegenerateKey(doc)}
+                        style={{ background: '#3b82f6', color: '#fff', border: 'none', padding: '8px 20px', borderRadius: '8px', cursor: 'pointer', fontWeight: '500' }}
+                      >
+                        🔑 Regen Key
+                      </button>
+                    )}
+                    {userRole !== 'system_admin' && (
+                      <button
+                        onClick={() => setShowAccessKeyForDoc(doc)}
+                        style={{ background: 'transparent', border: 'none', cursor: 'pointer', color: '#64748b', display: 'flex', flexDirection: 'column', alignItems: 'center', fontSize: '12px', padding: '0 10px' }}
+                      >
+                        <span style={{ fontSize: '16px', marginBottom: '2px' }}>📋</span>
+                        Show Key
+                      </button>
+                    )}
+                    <button
+                      onClick={() => handleToggleLock(doc)}
+                      style={{ background: '#ffedd5', border: 'none', color: '#ea580c', padding: '8px', borderRadius: '8px', cursor: 'pointer', fontSize: '16px' }}
+                      title={doc.is_locked ? "Unlock" : "Lock"}
+                    >
+                      {doc.is_locked ? "🔒" : "🔓"}
                     </button>
                     <button
-                      className="btn-send-key"
-                      onClick={() => handleSendKey(doc)}
-                      title="Send access key to property owner"
+                      onClick={() => handleDeleteDocument(doc)}
+                      style={{ background: '#fee2e2', border: 'none', color: '#ef4444', padding: '8px', borderRadius: '8px', cursor: 'pointer', fontSize: '16px' }}
                     >
-                      📤 Send Key
+                      🗑️
                     </button>
                   </div>
-                )}
-                <div style={{ display: 'flex', gap: '4px', marginTop: '8px' }}>
-                  <button
-                    className="btn-icon-small"
-                    onClick={() => handleToggleLock(doc)}
-                    title={doc.is_locked ? 'Unlock document' : 'Lock document'}
-                  >
-                    {doc.is_locked ? '🔓' : '🔒'}
-                  </button>
-                  <button
-                    className="btn-icon-small"
-                    onClick={() => handleRegenerateKey(doc)}
-                    title="Regenerate access key"
-                  >
-                    🔑
-                  </button>
-                  <button
-                    className="btn-icon-small danger"
-                    onClick={() => handleDeleteDocument(doc)}
-                    title="Delete document"
-                  >
-                    🗑️
-                  </button>
                 </div>
-              </div>
+              ))}
             </div>
-          ))}
+          )}
         </div>
       )}
 
@@ -432,30 +445,66 @@ const DocumentViewerAdmin = ({ propertyId, property, userId, onVerificationActio
               display: 'flex',
               gap: '10px',
               justifyContent: 'space-between',
-              flexWrap: 'wrap'
+              flexWrap: 'wrap',
+              background: '#f8fafc'
             }}>
-              <div style={{ display: 'flex', gap: '10px' }}>
-                <button 
-                  className="btn-success" 
-                  onClick={() => handleVerificationAction('approved')}
-                  style={{ padding: '10px 20px' }}
-                >
-                  ✅ Approve Property
-                </button>
-                <button 
-                  className="btn-warning" 
-                  onClick={() => handleVerificationAction('suspended')}
-                  style={{ padding: '10px 20px' }}
-                >
-                  ⏸️ Suspend Property
-                </button>
-                <button 
-                  className="btn-danger" 
-                  onClick={() => handleVerificationAction('rejected')}
-                  style={{ padding: '10px 20px' }}
-                >
-                  ❌ Reject Property
-                </button>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                {(property?.status === 'pending' || isRedeciding) ? (
+                  <>
+                    <button 
+                      className="btn-success" 
+                      onClick={() => handleVerificationAction('approved')}
+                      style={{ padding: '10px 20px' }}
+                    >
+                      ✅ Approve
+                    </button>
+                    <button 
+                      className="btn-warning" 
+                      onClick={() => handleVerificationAction('suspended')}
+                      style={{ padding: '10px 20px' }}
+                    >
+                      ⏸️ Suspend
+                    </button>
+                    <button 
+                      className="btn-danger" 
+                      onClick={() => handleVerificationAction('rejected')}
+                      style={{ padding: '10px 20px' }}
+                    >
+                      ❌ Reject
+                    </button>
+                    {isRedeciding && (
+                      <button 
+                        className="btn-secondary" 
+                        onClick={() => setIsRedeciding(false)}
+                        style={{ padding: '10px 20px', marginLeft: '10px' }}
+                      >
+                        Cancel Re-decide
+                      </button>
+                    )}
+                  </>
+                ) : (
+                  <>
+                    <span style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      background: property?.status === 'active' ? '#dcfce7' : '#fee2e2',
+                      color: property?.status === 'active' ? '#166534' : '#991b1b',
+                      padding: '8px 16px',
+                      borderRadius: '8px',
+                      fontWeight: '600',
+                      border: `1px solid ${property?.status === 'active' ? '#bbf7d0' : '#fecaca'}`
+                    }}>
+                      Status: {property?.status === 'active' ? '✅ Approved' : (property?.status === 'suspended' ? '⏸️ Suspended' : '❌ Rejected')}
+                    </span>
+                    <button 
+                      className="btn-primary" 
+                      onClick={() => setIsRedeciding(true)}
+                      style={{ padding: '8px 20px' }}
+                    >
+                      🔄 Re-decide
+                    </button>
+                  </>
+                )}
               </div>
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button 
@@ -467,13 +516,49 @@ const DocumentViewerAdmin = ({ propertyId, property, userId, onVerificationActio
                 </button>
                 <button 
                   className="btn-secondary" 
-                  onClick={() => setShowDocumentModal(false)}
+                  onClick={() => { setShowDocumentModal(false); setIsRedeciding(false); }}
                   style={{ padding: '10px 20px' }}
                 >
                   Close
                 </button>
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Show Key Popup Modal */}
+      {showAccessKeyForDoc && (
+        <div className="modal-overlay" onClick={() => setShowAccessKeyForDoc(null)} style={{ zIndex: 1100 }}>
+          <div className="modal-content" onClick={e => e.stopPropagation()} style={{ maxWidth: '400px', textAlign: 'center' }}>
+            <h3 style={{ marginTop: 0 }}>🔐 Access Key</h3>
+            <p style={{ color: '#64748b', fontSize: '14px', marginBottom: '20px' }}>
+              For document: <strong>{showAccessKeyForDoc.document_name}</strong>
+            </p>
+            <div style={{ 
+              background: '#f8fafc', 
+              padding: '20px', 
+              borderRadius: '8px', 
+              border: '2px dashed #cbd5e1',
+              fontFamily: 'monospace',
+              fontSize: '24px',
+              letterSpacing: '2px',
+              fontWeight: 'bold',
+              marginBottom: '20px'
+            }}>
+              {showAccessKeyForDoc.access_key}
+            </div>
+            <button
+              className="btn-primary"
+              style={{ width: '100%', padding: '12px' }}
+              onClick={() => {
+                navigator.clipboard.writeText(showAccessKeyForDoc.access_key);
+                alert('Copied to clipboard!');
+                setShowAccessKeyForDoc(null);
+              }}
+            >
+              📋 Copy to Clipboard
+            </button>
           </div>
         </div>
       )}

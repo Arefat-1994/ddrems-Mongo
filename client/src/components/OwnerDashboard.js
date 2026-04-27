@@ -6,11 +6,12 @@ import Messages from './Messages';
 import Announcements from './Announcements';
 import Agreements from './Agreements';
 import OwnerProfile from './profiles/OwnerProfile';
-import MessageNotificationWidget from './MessageNotificationWidget';
+import TopBar from './TopBar';
 import axios from 'axios';
 
-const OwnerDashboard = ({ user, onLogout }) => {
+const OwnerDashboard = ({ user, onLogout, setCurrentPage: setGlobalPage, setViewMapPropertyId }) => {
   const [currentPage, setCurrentPage] = useState('properties');
+  const [profile, setProfile] = useState(null);
   const [profileStatus, setProfileStatus] = useState(null);
   const [loading, setLoading] = useState(true);
 
@@ -21,6 +22,7 @@ const OwnerDashboard = ({ user, onLogout }) => {
   const checkProfileStatus = async () => {
     try {
       const response = await axios.get(`http://localhost:5000/api/profiles/owner/${user.id}`);
+      setProfile(response.data);
       setProfileStatus(response.data.profile_status);
       
       // Update user profile_approved and profile_completed in users table
@@ -66,7 +68,7 @@ const OwnerDashboard = ({ user, onLogout }) => {
 
     switch (currentPage) {
       case 'properties':
-        return <Properties user={user} ownerView={true} />;
+        return <Properties user={user} ownerView={true} setCurrentPage={setGlobalPage} setViewMapPropertyId={setViewMapPropertyId} />;
       case 'profile':
         return <OwnerProfile user={user} onComplete={checkProfileStatus} />;
       case 'announcements':
@@ -76,7 +78,7 @@ const OwnerDashboard = ({ user, onLogout }) => {
       case 'messages':
         return <Messages user={user} />;
       default:
-        return <Properties user={user} ownerView={true} />;
+        return <Properties user={user} ownerView={true} setCurrentPage={setGlobalPage} setViewMapPropertyId={setViewMapPropertyId} />;
     }
   };
 
@@ -94,12 +96,7 @@ const OwnerDashboard = ({ user, onLogout }) => {
         onLogout={onLogout}
       />
       <div className="dashboard-main">
-        <div style={{ position: 'absolute', top: '20px', right: '20px', zIndex: 100 }}>
-          <MessageNotificationWidget 
-            userId={user?.id}
-            onNavigateToMessages={() => setCurrentPage('messages')}
-          />
-        </div>
+        <TopBar user={user} onSettingsClick={() => setCurrentPage('profile')} />
         {profileStatus === 'not_created' && currentPage !== 'profile' && (
           <div className="alert alert-warning">
             ⚠️ Please complete your profile to access all features. 
@@ -112,9 +109,12 @@ const OwnerDashboard = ({ user, onLogout }) => {
           </div>
         )}
         {profileStatus === 'rejected' && currentPage !== 'profile' && (
-          <div className="alert alert-danger">
-            ❌ Your profile was rejected. Please update your profile.
-            <button onClick={() => setCurrentPage('profile')}>Update Profile</button>
+          <div className="alert alert-danger" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div>
+              <strong>❌ Profile Rejected</strong>
+              <p style={{ margin: '5px 0 0 0' }}>{profile?.rejection_reason || 'No specific reason provided.'}</p>
+            </div>
+            <button className="btn-secondary" style={{ alignSelf: 'flex-start' }} onClick={() => setCurrentPage('profile')}>Update Profile</button>
           </div>
         )}
         {renderContent()}

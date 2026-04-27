@@ -26,24 +26,67 @@ ChartJS.register(
   Title
 );
 
+const API_BASE = `http://${window.location.hostname}:5000/api`;
+
 const Reports = ({ user, onLogout, onBack }) => {
   const [stats, setStats] = useState(null);
+  const [revenueStats, setRevenueStats] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [revenueChartType, setRevenueChartType] = useState('bar');
   const isPropertyAdmin = user?.role === 'property_admin';
 
   useEffect(() => {
     fetchStats();
+    if (isPropertyAdmin) fetchRevenueStats();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchStats = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/properties/stats');
+      const response = await axios.get(`${API_BASE}/properties/stats`);
       setStats(response.data);
     } catch (error) {
       console.error('Error fetching stats:', error);
     } finally {
       setLoading(false);
     }
+  };
+
+  const fetchRevenueStats = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/commissions/revenue-stats`);
+      setRevenueStats(response.data);
+    } catch (error) {
+      console.error('Error fetching revenue stats:', error);
+    }
+  };
+
+  const revenueBarData = {
+    labels: (revenueStats?.monthlyRevenue || []).map(d => d.month),
+    datasets: [
+      {
+        label: 'Sale Commission (ETB)',
+        data: (revenueStats?.monthlyRevenue || []).map(d => Number(d.sale_commission)),
+        backgroundColor: '#f97316',
+        borderRadius: 6
+      },
+      {
+        label: 'Rent Commission (ETB)',
+        data: (revenueStats?.monthlyRevenue || []).map(d => Number(d.rent_commission)),
+        backgroundColor: '#3b82f6',
+        borderRadius: 6
+      }
+    ]
+  };
+
+  const revenuePieData = {
+    labels: (revenueStats?.byPropertyType || []).map(d => (d.property_type || 'Unknown').charAt(0).toUpperCase() + (d.property_type || '').slice(1)),
+    datasets: [{
+      data: (revenueStats?.byPropertyType || []).map(d => Number(d.total_commission)),
+      backgroundColor: ['#f97316', '#3b82f6', '#10b981', '#8b5cf6', '#ec4899', '#f59e0b'],
+      borderWidth: 3,
+      borderColor: '#ffffff'
+    }]
   };
 
   const getPropertyTypeColor = (type) => {
@@ -87,13 +130,26 @@ const Reports = ({ user, onLogout, onBack }) => {
     ]
   };
 
-  const revenueData = {
-    labels: (stats?.monthlyRevenue || []).map(d => d.month).length > 0 ? (stats?.monthlyRevenue || []).map(d => d.month) : ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun'],
+  const formatRole = (role) => {
+    if (!role) return 'Unknown';
+    if (role === 'user') return 'Customer';
+    return role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
+
+  const usersData = {
+    labels: (stats?.userDistribution || []).map(d => formatRole(d.role)),
     datasets: [
       {
-        label: 'Revenue (Million ETB)',
-        data: (stats?.monthlyRevenue || []).map(d => d.amount).length > 0 ? (stats?.monthlyRevenue || []).map(d => d.amount) : [45, 52, 60, 48, 70, 85],
-        backgroundColor: '#4f46e5',
+        label: 'Users by Role',
+        data: (stats?.userDistribution || []).map(d => d.count),
+        backgroundColor: [
+          '#3b82f6', // Blue
+          '#10b981', // Green
+          '#f59e0b', // Yellow
+          '#ef4444', // Red
+          '#8b5cf6', // Purple
+          '#ec4899', // Pink
+        ],
         borderRadius: 6
       }
     ]
@@ -140,7 +196,7 @@ const Reports = ({ user, onLogout, onBack }) => {
           ['Total Properties', stats.total || 0],
           ['Active Listings', stats.active || 0],
           ['Active Brokers', (stats.brokerPerformance || []).length],
-          ['Total Revenue', `${(stats.totalRevenue / 1000000 || 0).toFixed(2)}M ETB`]
+          ['Total Users', (stats.userDistribution || []).reduce((acc, curr) => acc + curr.count, 0)]
         ],
         theme: 'striped',
         headStyles: { fillColor: isPropertyAdmin ? [249, 115, 22] : [43, 63, 229] }
@@ -178,7 +234,7 @@ const Reports = ({ user, onLogout, onBack }) => {
         ["Metric", "Value"],
         ["Total Properties", stats.total || 0],
         ["Active Listings", stats.active || 0],
-        ["Total Revenue (Million ETB)", (stats.totalRevenue / 1000000 || 0).toFixed(2)]
+        ["Total Users", (stats.userDistribution || []).reduce((acc, curr) => acc + curr.count, 0)]
       ];
       const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
       XLSX.utils.book_append_sheet(wb, wsSummary, "Summary");
@@ -208,7 +264,7 @@ const Reports = ({ user, onLogout, onBack }) => {
               <li><b>Items for Rent:</b> ${stats?.listingDistribution?.find(l => l.listing_type === 'rent')?.count || 0}</li>
             ` : `
               <li><b>Active Listings:</b> ${stats.active || 0}</li>
-              <li><b>Total Revenue:</b> ${(stats.totalRevenue / 1000000 || 0).toFixed(2)}M ETB</li>
+              <li><b>Total Users:</b> ${(stats.userDistribution || []).reduce((acc, curr) => acc + curr.count, 0)}</li>
             `}
           </ul>
           <h2>${isPropertyAdmin ? 'Listing Breakdown' : 'Property Distribution'}</h2>
@@ -298,8 +354,8 @@ const Reports = ({ user, onLogout, onBack }) => {
                 <h4>Active Brokers</h4>
               </div>
               <div className="summary-card">
-                <p className="value">{(stats?.totalRevenue / 1000000 || 0).toFixed(1)}M</p>
-                <h4>Total Revenue (ETB)</h4>
+                <p className="value">{(stats?.userDistribution || []).reduce((acc, curr) => acc + curr.count, 0)}</p>
+                <h4>Total Users</h4>
               </div>
             </>
           )}
@@ -386,10 +442,10 @@ const Reports = ({ user, onLogout, onBack }) => {
 
           {!isPropertyAdmin && (
             <div className="chart-card">
-              <h3>Monthly Revenue</h3>
+              <h3 style={{ fontSize: '24px', fontWeight: '600', color: '#1e293b', marginBottom: '30px' }}>Users by Role</h3>
               <div className="chart-wrapper">
                 <Bar
-                  data={revenueData}
+                  data={usersData}
                   options={{
                     responsive: true,
                     maintainAspectRatio: false,
@@ -433,6 +489,101 @@ const Reports = ({ user, onLogout, onBack }) => {
             </div>
           )}
         </div>
+
+        {/* ═══ REVENUE SECTION (Property Admin Only) ═══ */}
+        {isPropertyAdmin && (
+          <div className="revenue-section">
+            <div className="revenue-header">
+              <h2 style={{ fontSize: '22px', fontWeight: '700', color: '#1e293b', margin: 0 }}>💰 Commission Revenue Analytics</h2>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button className={`chart-toggle-btn ${revenueChartType === 'bar' ? 'active' : ''}`} onClick={() => setRevenueChartType('bar')}>📊 Bar</button>
+                <button className={`chart-toggle-btn ${revenueChartType === 'pie' ? 'active' : ''}`} onClick={() => setRevenueChartType('pie')}>🥧 Pie</button>
+              </div>
+            </div>
+
+            {/* Revenue Summary Cards */}
+            <div className="revenue-summary-cards">
+              <div className="revenue-card total">
+                <div className="revenue-card-icon">💰</div>
+                <div className="revenue-card-content">
+                  <p className="revenue-value">{((Number(revenueStats?.summary?.total_revenue) || 0) / 1000000).toFixed(2)}M</p>
+                  <h4>Total System Earnings (ETB)</h4>
+                </div>
+              </div>
+              <div className="revenue-card sale">
+                <div className="revenue-card-icon">🏷️</div>
+                <div className="revenue-card-content">
+                  <p className="revenue-value">{((revenueStats?.byEngagementType?.find(e => e.engagement_type === 'sale')?.total_commission || 0) / 1000000).toFixed(2)}M</p>
+                  <h4>Sale Commission</h4>
+                </div>
+              </div>
+              <div className="revenue-card rent">
+                <div className="revenue-card-icon">🏠</div>
+                <div className="revenue-card-content">
+                  <p className="revenue-value">{((revenueStats?.byEngagementType?.find(e => e.engagement_type === 'rent')?.total_commission || 0) / 1000000).toFixed(2)}M</p>
+                  <h4>Rent Commission</h4>
+                </div>
+              </div>
+              <div className="revenue-card deals">
+                <div className="revenue-card-icon">🤝</div>
+                <div className="revenue-card-content">
+                  <p className="revenue-value">{Number(revenueStats?.summary?.total_deals) || 0}</p>
+                  <h4>Total Deals</h4>
+                </div>
+              </div>
+            </div>
+
+            {/* Revenue Chart */}
+            <div className="charts-grid-top">
+              <div className="chart-card" style={{ flex: 2 }}>
+                <h3 style={{ fontSize: '20px', fontWeight: '600', color: '#1e293b', marginBottom: '20px' }}>
+                  {revenueChartType === 'bar' ? '📊 Monthly Commission Revenue' : '🥧 Revenue by Property Type'}
+                </h3>
+                <div className="chart-wrapper" style={{ height: '320px' }}>
+                  {revenueChartType === 'bar' ? (
+                    <Bar data={revenueBarData} options={{
+                      responsive: true, maintainAspectRatio: false,
+                      plugins: { legend: { position: 'top', labels: { usePointStyle: true, padding: 20, font: { size: 13, weight: '500' } } } },
+                      scales: {
+                        y: { beginAtZero: true, grid: { color: '#f1f5f9' }, ticks: { color: '#64748b', callback: v => (v / 1000000).toFixed(1) + 'M' } },
+                        x: { grid: { display: false }, ticks: { color: '#64748b' } }
+                      }
+                    }} />
+                  ) : (
+                    <Pie data={revenuePieData} options={{
+                      responsive: true, maintainAspectRatio: false,
+                      plugins: {
+                        legend: { position: 'bottom', labels: { usePointStyle: true, padding: 15, font: { size: 13 } } },
+                        tooltip: { callbacks: { label: ctx => `${ctx.label}: ${(ctx.parsed / 1000000).toFixed(2)}M ETB` } }
+                      }
+                    }} />
+                  )}
+                </div>
+              </div>
+
+              <div className="chart-card" style={{ flex: 1 }}>
+                <h3 style={{ fontSize: '20px', fontWeight: '600', color: '#1e293b', marginBottom: '20px' }}>🏆 Top Brokers</h3>
+                <div className="top-brokers-list">
+                  {(revenueStats?.topBrokers || []).length === 0 ? (
+                    <p style={{ color: '#94a3b8', textAlign: 'center', padding: '30px' }}>No commission data yet</p>
+                  ) : (
+                    (revenueStats?.topBrokers || []).map((broker, i) => (
+                      <div key={i} className="top-broker-item">
+                        <span className="broker-rank">#{i + 1}</span>
+                        <div className="broker-info">
+                          <strong>{broker.broker_name || 'Unknown'}</strong>
+                          <small>{Number(broker.deal_count)} deals</small>
+                        </div>
+                        <span className="broker-commission">{(Number(broker.total_commission) / 1000000).toFixed(2)}M</span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
 
         {!isPropertyAdmin && (
           <div className="chart-card full-width">

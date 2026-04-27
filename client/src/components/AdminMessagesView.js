@@ -13,6 +13,8 @@ const AdminMessagesView = ({ user, onClose }) => {
   const [replyText, setReplyText] = useState('');
   const [replySubject, setReplySubject] = useState('');
   const [showReplyForm, setShowReplyForm] = useState(false);
+  const [historyFilter, setHistoryFilter] = useState('all'); // all, sent, received
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
     if (view === 'conversations') {
@@ -193,46 +195,101 @@ const AdminMessagesView = ({ user, onClose }) => {
               </div>
             </div>
 
+            {/* Filter and Search */}
+            <div className="history-controls">
+              <div className="search-box">
+                <input
+                  type="text"
+                  placeholder="🔍 Search messages..."
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                  className="search-input"
+                />
+              </div>
+              <div className="filter-buttons">
+                <button
+                  className={`filter-btn ${historyFilter === 'all' ? 'active' : ''}`}
+                  onClick={() => setHistoryFilter('all')}
+                >
+                  📧 All ({history.length})
+                </button>
+                <button
+                  className={`filter-btn ${historyFilter === 'sent' ? 'active' : ''}`}
+                  onClick={() => setHistoryFilter('sent')}
+                >
+                  📤 Sent ({history.filter(m => m.sender_id === user.id).length})
+                </button>
+                <button
+                  className={`filter-btn ${historyFilter === 'received' ? 'active' : ''}`}
+                  onClick={() => setHistoryFilter('received')}
+                >
+                  📥 Received ({history.filter(m => m.receiver_id === user.id).length})
+                </button>
+              </div>
+            </div>
+
             {history.length === 0 ? (
               <div className="empty-state">
                 <p>No message history</p>
               </div>
             ) : (
               <div className="history-items">
-                {history.map((msg) => (
-                  <div key={msg.id} className="history-item">
-                    <div className="history-direction">
-                      {msg.sender_id === user.id ? (
-                        <span className="sent">📤 Sent</span>
-                      ) : (
-                        <span className="received">📥 Received</span>
-                      )}
-                    </div>
-                    <div className="history-content">
-                      <h4>{msg.subject}</h4>
-                      <p>{msg.message}</p>
-                      <div className="history-meta">
-                        <span>
-                          {msg.sender_id === user.id ? 'To: ' : 'From: '}
-                          {msg.sender_id === user.id
-                            ? msg.receiver_name
-                            : msg.sender_name}
-                        </span>
-                        <span className="role">
-                          {msg.sender_id === user.id
-                            ? msg.receiver_role
-                            : msg.sender_role}
-                        </span>
-                        <span className="time">{formatDate(msg.created_at)}</span>
+                {history
+                  .filter(msg => {
+                    // Apply filter
+                    if (historyFilter === 'sent' && msg.sender_id !== user.id) return false;
+                    if (historyFilter === 'received' && msg.receiver_id !== user.id) return false;
+                    
+                    // Apply search
+                    if (searchTerm) {
+                      const searchLower = searchTerm.toLowerCase();
+                      return (
+                        msg.subject.toLowerCase().includes(searchLower) ||
+                        msg.message.toLowerCase().includes(searchLower) ||
+                        (msg.sender_id === user.id ? msg.receiver_name : msg.sender_name)
+                          .toLowerCase()
+                          .includes(searchLower)
+                      );
+                    }
+                    return true;
+                  })
+                  .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+                  .map((msg) => (
+                    <div key={msg.id} className="history-item">
+                      <div className="history-direction">
+                        {msg.sender_id === user.id ? (
+                          <span className="sent">📤 Sent</span>
+                        ) : (
+                          <span className="received">📥 Received</span>
+                        )}
                       </div>
-                      {msg.reply_count > 0 && (
-                        <span className="reply-count">
-                          💬 {msg.reply_count} replies
-                        </span>
-                      )}
+                      <div className="history-content">
+                        <h4>{msg.subject}</h4>
+                        <p>{msg.message}</p>
+                        <div className="history-meta">
+                          <span className="recipient">
+                            {msg.sender_id === user.id ? '📮 To: ' : '📬 From: '}
+                            <strong>
+                              {msg.sender_id === user.id
+                                ? msg.receiver_name
+                                : msg.sender_name}
+                            </strong>
+                          </span>
+                          <span className="role">
+                            {msg.sender_id === user.id
+                              ? msg.receiver_role
+                              : msg.sender_role}
+                          </span>
+                          <span className="time">{formatDate(msg.created_at)}</span>
+                        </div>
+                        {msg.reply_count > 0 && (
+                          <span className="reply-count">
+                            💬 {msg.reply_count} {msg.reply_count === 1 ? 'reply' : 'replies'}
+                          </span>
+                        )}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
               </div>
             )}
           </div>

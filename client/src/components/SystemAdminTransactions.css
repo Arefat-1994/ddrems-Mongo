@@ -1,0 +1,330 @@
+.system-admin-transactions {
+  padding: 24px;
+  background-color: #f8fafc;
+  min-height: 100vh;
+  font-family: 'Inter', sans-serif;
+}
+
+.sat-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 24px;
+}
+
+.sat-header h2 {
+  font-size: 24px;
+  font-weight: 700;
+  color: #1e293b;
+  margin: 0;
+}
+
+.sat-header .btn-primary {
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+  border: none;
+  padding: 10px 20px;
+  border-radius: 8px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 6px -1px rgba(16, 185, 129, 0.2);
+}
+
+.sat-header .btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 8px -1px rgba(16, 185, 129, 0.3);
+}
+
+.sat-summary-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.summary-card {
+  background: white;
+  border-radius: 12px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05), 0 2px 4px -1px rgba(0, 0, 0, 0.03);
+  border-left: 4px solid transparent;
+}
+
+.summary-card.sale { border-left-color: #3b82f6; }
+.summary-card.rent { border-left-color: #8b5cf6; }
+.summary-card.comm { border-left-color: #f59e0b; }
+.summary-card.rev { border-left-color: #10b981; }
+
+.card-icon {
+  font-size: 32px;
+  padding: 12px;
+  border-radius: 12px;
+}
+
+.summary-card.sale .card-icon { background: #eff6ff; }
+.summary-card.rent .card-icon { background: #f5f3ff; }
+.summary-card.comm .card-icon { background: #fffbeb; }
+.summary-card.rev .card-icon { background: #ecfdf5; }
+
+.card-details h3 {
+  font-size: 13px;
+  color: #64748b;
+  margin: 0 0 6px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.card-details .card-value {
+  font-size: 22px;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0;
+}
+
+.sat-filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  background: white;
+  padding: 16px;
+  border-radius: 10px;
+  margin-bottom: 24px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05);
+  align-items: center;
+}
+
+.sat-filters select, .sat-filters input {
+  padding: 10px 14px;
+  border: 1px solid #cbd5e1;
+  border-radius: 8px;
+  font-size: 14px;
+  outline: none;
+  background: #f8fafc;
+}
+
+.sat-filters select:focus, .sat-filters input:focus {
+  border-color: #3b82f6;
+  background: white;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.sat-filters .search-box {
+  flex: 1;
+  min-width: 250px;
+}
+
+.date-filters {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+}
+
+.date-filters label {
+  font-size: 13px;
+  color: #475569;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sat-tables {
+  display: flex;
+  flex-direction: column;
+  gap: 32px;
+}
+
+.sat-table-section h3 {
+  font-size: 18px;
+  font-weight: 700;
+  color: #334155;
+  margin: 0 0 16px 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 6px -1px rgba(0,0,0,0.05);
+}
+
+.admin-table th {
+  background: #f1f5f9;
+  text-align: left;
+  padding: 14px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #475569;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.admin-table td {
+  padding: 16px;
+  font-size: 14px;
+  color: #1e293b;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+}
+
+.admin-table tr:last-child td {
+  border-bottom: none;
+}
+
+.admin-table tbody tr:hover {
+  background: #f8fafc;
+}
+
+.status-badge {
+  padding: 4px 10px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.status-badge.completed, .status-badge.verified, .status-badge.paid {
+  background: #ecfdf5;
+  color: #059669;
+}
+
+.status-badge.pending {
+  background: #fffbeb;
+  color: #d97706;
+}
+
+.type-badge {
+  background: #eff6ff;
+  color: #2563eb;
+  padding: 4px 10px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.action-btns {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-sm {
+  padding: 6px 12px;
+  font-size: 12px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 500;
+  border: 1px solid transparent;
+  transition: all 0.2s;
+}
+
+.btn-outline {
+  border-color: #cbd5e1;
+  background: transparent;
+  color: #475569;
+}
+.btn-outline:hover {
+  background: #f1f5f9;
+  border-color: #94a3b8;
+}
+
+.btn-outline-success {
+  border-color: #10b981;
+  background: transparent;
+  color: #10b981;
+  text-decoration: none;
+  display: inline-block;
+}
+.btn-outline-success:hover {
+  background: #ecfdf5;
+}
+
+.empty-msg {
+  background: white;
+  padding: 30px;
+  border-radius: 10px;
+  text-align: center;
+  color: #64748b;
+  font-style: italic;
+}
+
+/* Modal specific */
+.tx-modal {
+  max-width: 650px;
+  padding: 0;
+  overflow: hidden;
+}
+
+.tx-modal .modal-header {
+  background: #1e293b;
+  color: white;
+  padding: 16px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.tx-modal .modal-header h3 {
+  margin: 0;
+  font-size: 18px;
+}
+
+.tx-modal .close-btn {
+  background: transparent;
+  color: white;
+  font-size: 24px;
+  border: none;
+  cursor: pointer;
+  opacity: 0.8;
+}
+.tx-modal .close-btn:hover { opacity: 1; }
+
+.tx-details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 20px;
+  padding: 24px;
+  background: #f8fafc;
+}
+
+.tx-box {
+  background: white;
+  padding: 16px;
+  border-radius: 8px;
+  border: 1px solid #e2e8f0;
+}
+
+.tx-box.brand {
+  grid-column: 1 / -1;
+  background: linear-gradient(to right, #eff6ff, #f8fafc);
+  border-left: 4px solid #3b82f6;
+}
+
+.tx-box strong {
+  display: block;
+  font-size: 12px;
+  color: #64748b;
+  text-transform: uppercase;
+  margin-bottom: 6px;
+  letter-spacing: 0.5px;
+}
+
+.tx-box p {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.tx-box.amount.info p { color: #0f172a; }
+.tx-box.amount.comm p { color: #d97706; }
+.tx-box.amount.net p { color: #059669; font-size: 18px;}

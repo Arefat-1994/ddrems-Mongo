@@ -11,6 +11,7 @@ import {
 } from 'chart.js';
 
 import ProfileApproval from './profiles/ProfileApproval';
+import EditRequestsAdmin from './profiles/EditRequestsAdmin';
 import Users from './Users';
 import AddBroker from './AddBroker';
 import AddUserModal from './AddUserModal';
@@ -18,16 +19,20 @@ import MessageNotificationWidget from './MessageNotificationWidget';
 import AdminMessagesView from './AdminMessagesView';
 import AgreementWorkflow from './AgreementWorkflow';
 import AgreementManagement from './AgreementManagement';
+import SystemAdminTransactions from './SystemAdminTransactions';
+import SiteCheckAdmin from './SiteCheckAdmin';
+import BrokerApplicationsAdmin from './BrokerApplicationsAdmin';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
 const API_BASE = `http://${window.location.hostname}:5000/api`;
 
-const SystemAdminDashboard = ({ user, onLogout, setCurrentPage }) => {
-  const [currentView, setCurrentView] = useState('dashboard'); // dashboard, profileApproval, users
+const SystemAdminDashboard = ({ user, onLogout, setCurrentPage, initialView }) => {
+  const [currentView, setCurrentView] = useState(initialView || 'dashboard'); // dashboard, profileApproval, users
   const [showAddBroker, setShowAddBroker] = useState(false);
   const [showAddUser, setShowAddUser] = useState(false);
   const [showAdminMessages, setShowAdminMessages] = useState(false);
+  const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [showAgreementWorkflow, setShowAgreementWorkflow] = useState(false);
   const [stats, setStats] = useState({
     totalUsers: 0,
@@ -36,8 +41,15 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage }) => {
     systemHealth: 100,
     apiCalls: 0,
     storageUsed: 0,
-    errorRate: 0
+    errorRate: 0,
+    
   });
+
+  useEffect(() => {
+    if (initialView) {
+      setCurrentView(initialView);
+    }
+  }, [initialView]);
 
   const [propertyStats, setPropertyStats] = useState(null);
   const [systemLogs, setSystemLogs] = useState([]);
@@ -49,7 +61,9 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage }) => {
       // Helper function to handle individual fetch failures
       const safeFetch = async (endpoint, defaultValue = {}) => {
         try {
-          const res = await axios.get(`${API_BASE}${endpoint}`);
+          const res = await axios.get(`${API_BASE}${endpoint}`, {
+            headers: { 'x-user-role': user?.role }
+          });
           return res.data;
         } catch (err) {
           console.error(`Error fetching ${endpoint}:`, err.message);
@@ -78,12 +92,16 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage }) => {
         systemHealth: 98,
         apiCalls: 12450,
         storageUsed: 65,
-        errorRate: 0.5
+        errorRate: 0.5,
+        
       });
+
+      // Fetch suspicious count
+      
     } catch (error) {
       console.error('Critical error in fetchSystemAdminData:', error);
     }
-  }, []);
+  }, [user?.role]);
 
   useEffect(() => {
     fetchSystemAdminData();
@@ -118,6 +136,7 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage }) => {
           subtitle="Review and approve user profiles"
           user={user}
           onLogout={onLogout}
+          onSettingsClick={() => setCurrentPage('settings')}
           actions={
             <button className="btn-secondary" onClick={() => setCurrentView('dashboard')}>
               ← Back to Analytics
@@ -131,10 +150,32 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage }) => {
     );
   }
 
+  if (currentView === 'editRequests') {
+    return (
+      <div className="system-admin-dashboard">
+        <PageHeader
+          title="Profile Edit Requests"
+          subtitle="Review user requests to update locked profile information"
+          user={user}
+          onLogout={onLogout}
+          onSettingsClick={() => setCurrentPage('settings')}
+          actions={
+            <button className="btn-secondary" onClick={() => setCurrentView('dashboard')}>
+              ← Back to Analytics
+            </button>
+          }
+        />
+        <div style={{ padding: '20px' }}>
+          <EditRequestsAdmin />
+        </div>
+      </div>
+    );
+  }
+
   if (currentView === 'agreements') {
     return (
       <div className="system-admin-dashboard">
-        <AgreementManagement user={user} onLogout={onLogout} />
+        <AgreementManagement user={user} onLogout={onLogout} onSettingsClick={() => setCurrentPage('settings')} />
       </div>
     );
   }
@@ -146,7 +187,73 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage }) => {
           <button className="btn-secondary" style={{ marginBottom: '15px' }} onClick={() => setCurrentView('dashboard')}>
             ← Back to Dashboard
           </button>
-          <Users user={user} onLogout={onLogout} />
+          <Users user={user} onLogout={onLogout} onSettingsClick={() => setCurrentPage('settings')} />
+        </div>
+      </div>
+    );
+  }
+
+  if (currentView === 'transactions') {
+    return (
+      <div className="system-admin-dashboard">
+        <PageHeader
+          title="System Transactions & Revenue"
+          subtitle="Detailed overview of all financial activities"
+          user={user}
+          onLogout={onLogout}
+          onSettingsClick={() => setCurrentPage('settings')}
+          actions={
+            <button className="btn-secondary" onClick={() => setCurrentView('dashboard')}>
+              ← Back to Analytics
+            </button>
+          }
+        />
+        <div style={{ padding: '20px', margin: '-20px' }}>
+          <SystemAdminTransactions />
+        </div>
+      </div>
+    );
+  }
+
+  if (currentView === 'site-checks') {
+    return (
+      <div className="system-admin-dashboard">
+        <PageHeader
+          title="Site Check Control Panel"
+          subtitle="Review GPS-verified site checks and legal documents"
+          user={user}
+          onLogout={onLogout}
+          onSettingsClick={() => setCurrentPage('settings')}
+          actions={
+            <button className="btn-secondary" onClick={() => setCurrentView('dashboard')}>
+              ← Back to Analytics
+            </button>
+          }
+        />
+        <div style={{ padding: '0', margin: '-10px' }}>
+          <SiteCheckAdmin user={user} />
+        </div>
+      </div>
+    );
+  }
+
+  if (currentView === 'broker-applications') {
+    return (
+      <div className="system-admin-dashboard">
+        <PageHeader
+          title="Broker Applications"
+          subtitle="Review and approve new broker registration requests"
+          user={user}
+          onLogout={onLogout}
+          onSettingsClick={() => setCurrentPage('settings')}
+          actions={
+            <button className="btn-secondary" onClick={() => setCurrentView('dashboard')}>
+              ← Back to Analytics
+            </button>
+          }
+        />
+        <div style={{ padding: '20px' }}>
+          <BrokerApplicationsAdmin />
         </div>
       </div>
     );
@@ -159,6 +266,7 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage }) => {
         subtitle="Comprehensive overview of real estate operations"
         user={user}
         onLogout={onLogout}
+        onSettingsClick={() => setCurrentPage('settings')}
         actions={
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <MessageNotificationWidget 
@@ -168,11 +276,22 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage }) => {
             <button className="btn-secondary" onClick={() => setCurrentView('agreements')}>
               🤝 Agreements
             </button>
-            <button className="btn-secondary" onClick={() => setCurrentPage('key-requests')}>
-              🔐 Access Keys
+            <button className="btn-primary" onClick={() => setCurrentView('site-checks')} style={{ background: 'linear-gradient(135deg, #0ea5e9, #6366f1)' }}>
+              📍 Site Checks
             </button>
+            <button className="btn-secondary" onClick={() => setCurrentView('transactions')}>
+              💳 Transactions
+            </button>
+
+            <button className="btn-primary" onClick={() => setShowNotificationModal(true)}>
+              🔔 Send Notification
+            </button>
+            
             <button className="btn-secondary" onClick={() => setShowAdminMessages(true)}>
               📧 Message History
+            </button>
+            <button className="btn-primary" onClick={() => setCurrentPage('messages')}>
+              📤 Send Message
             </button>
             <button className="btn-secondary" onClick={() => setCurrentView('users')}>
               👥 User Management
@@ -180,18 +299,19 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage }) => {
             <button className="btn-secondary" onClick={() => setCurrentPage('reports')}>
               📊 Detailed Reports
             </button>
+            <button className="btn-warning" onClick={() => setCurrentView('broker-applications')}>
+              🤝 Broker Applications
+            </button>
             <button className="btn-warning" onClick={() => setCurrentView('profileApproval')}>
               👥 Profile Approvals {stats.pendingProfiles > 0 && `(${stats.pendingProfiles})`}
             </button>
-            <button className="btn-secondary" onClick={() => setCurrentPage('properties')}>
-              <span>➕</span> Add New Property
+            <button className="btn-secondary" onClick={() => setCurrentView('editRequests')}>
+              ✏️ Edit Requests
             </button>
-            <button className="btn-primary" onClick={() => setShowAddBroker(true)}>
-              <span>🤝</span> Add New Broker
+            <button className="btn-warning" onClick={() => setCurrentPage('complaints-admin')}>
+              📋 Complaints
             </button>
-            <button className="btn-primary" onClick={() => setShowAddUser(true)}>
-              <span>👤</span> Add Property Admin
-            </button>
+
           </div>
         }
       />
@@ -203,6 +323,13 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage }) => {
           <div className="stat-content">
             <h3>{stats.totalUsers}</h3>
             <p>Total Users</p>
+          </div>
+        </div>
+        <div className="stat-card clickable" onClick={() => setCurrentView('broker-applications')}>
+          <div className="stat-icon" style={{ background: '#fef3c7', color: '#d97706' }}>📋</div>
+          <div className="stat-content">
+            <h3>New</h3>
+            <p>Broker Apps</p>
           </div>
         </div>
         <div className="stat-card clickable" onClick={() => setCurrentView('profileApproval')}>
@@ -219,6 +346,13 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage }) => {
             <p>Total Properties</p>
           </div>
         </div>
+        <div className="stat-card clickable" onClick={() => setCurrentPage('complaints-admin')}>
+          <div className="stat-icon" style={{ background: '#fce7f3', color: '#ec4899' }}>📋</div>
+          <div className="stat-content">
+            <h3>View</h3>
+            <p>Complaints</p>
+          </div>
+        </div>
         <div className="stat-card">
           <div className="stat-icon" style={{ background: '#e0f2fe', color: '#0ea5e9' }}>🏷️</div>
           <div className="stat-content">
@@ -233,6 +367,7 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage }) => {
             <p>Revenue (ETB)</p>
           </div>
         </div>
+        
       </div>
 
       <div className="dashboard-grid">
@@ -421,6 +556,21 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage }) => {
           initialRole="property_admin"
         />
       )}
+
+      {showNotificationModal && (
+        <div className="modal-overlay" onClick={() => setShowNotificationModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
+            <div className="modal-header">
+              <h2>🔔 Send System Notification</h2>
+              <button className="close-btn" onClick={() => setShowNotificationModal(false)}>✕</button>
+            </div>
+            <NotificationComposer 
+              onClose={() => setShowNotificationModal(false)}
+              adminId={user.id}
+            />
+          </div>
+        </div>
+      )}
       {showAdminMessages && (
         <div className="modal-overlay" onClick={() => setShowAdminMessages(false)}>
           <div className="modal-content extra-large" onClick={(e) => e.stopPropagation()}>
@@ -447,6 +597,129 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage }) => {
         </div>
       )}
     </div>
+  );
+};
+
+const NotificationComposer = ({ onClose, adminId }) => {
+  const [search, setSearch] = useState('');
+  const [users, setUsers] = useState([]);
+  const [selectedUser, setSelectedUser] = useState(null);
+  const [title, setTitle] = useState('');
+  const [message, setMessage] = useState('');
+  const [sendEmail, setSendEmail] = useState(true);
+  const [loading, setLoading] = useState(false);
+
+  const handleSearch = async (val) => {
+    setSearch(val);
+    if (val.length < 2) {
+      setUsers([]);
+      return;
+    }
+    try {
+      const res = await axios.get(`http://${window.location.hostname}:5000/api/users?search=${val}`);
+      setUsers(res.data || []);
+    } catch (err) {
+      console.error('Search failed:', err);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!selectedUser || !title || !message) {
+      alert('Please fill all fields and select a user');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      // Send in-app notification
+      await axios.post(`http://${window.location.hostname}:5000/api/notifications`, {
+        user_id: selectedUser.id,
+        title,
+        message,
+        type: 'info'
+      });
+
+      // Send email if selected
+      if (sendEmail && selectedUser.email) {
+        await axios.post(`http://${window.location.hostname}:5000/api/system/send-custom-email`, {
+          to: selectedUser.email,
+          subject: title,
+          body: message,
+          userName: selectedUser.name
+        });
+      }
+
+      alert('✅ Notification sent successfully!');
+      onClose();
+    } catch (error) {
+      console.error('Failed to send notification:', error);
+      alert('❌ Failed to send: ' + (error.response?.data?.message || error.message));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px', padding: '20px' }}>
+      <div className="form-group">
+        <label>Search User (Name/Email/ID)</label>
+        <input 
+          type="text" 
+          value={search} 
+          onChange={(e) => handleSearch(e.target.value)} 
+          placeholder="Start typing name or email..."
+        />
+        {users.length > 0 && !selectedUser && (
+          <div style={{ border: '1px solid #ddd', borderRadius: '8px', marginTop: '5px', maxHeight: '150px', overflowY: 'auto' }}>
+            {users.map(u => (
+              <div 
+                key={u.id} 
+                onClick={() => { setSelectedUser(u); setSearch(u.name + ' (' + u.email + ')'); }}
+                style={{ padding: '8px 12px', cursor: 'pointer', borderBottom: '1px solid #eee' }}
+              >
+                {u.name} - {u.email}
+              </div>
+            ))}
+          </div>
+        )}
+        {selectedUser && (
+          <div style={{ marginTop: '5px', color: '#3b82f6', fontSize: '14px', fontWeight: 'bold' }}>
+            Selected: {selectedUser.name} ({selectedUser.email}) 
+            <button type="button" onClick={() => setSelectedUser(null)} style={{ marginLeft: '10px', color: '#ef4444', border: 'none', background: 'none', cursor: 'pointer' }}>Change</button>
+          </div>
+        )}
+      </div>
+
+      <div className="form-group">
+        <label>Notification Title</label>
+        <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} required placeholder="e.g., Important Account Update" />
+      </div>
+
+      <div className="form-group">
+        <label>Message Content</label>
+        <textarea 
+          value={message} 
+          onChange={(e) => setMessage(e.target.value)} 
+          required 
+          placeholder="Write your message here..."
+          rows="4"
+          style={{ width: '100%', padding: '10px', borderRadius: '8px', border: '1px solid #ddd' }}
+        />
+      </div>
+
+      <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <input type="checkbox" id="sendEmail" checked={sendEmail} onChange={(e) => setSendEmail(e.target.checked)} />
+        <label htmlFor="sendEmail">Also send as Email notification</label>
+      </div>
+
+      <div className="modal-actions" style={{ padding: 0 }}>
+        <button type="button" className="btn-secondary" onClick={onClose}>Cancel</button>
+        <button type="submit" className="btn-primary" disabled={loading || !selectedUser}>
+          {loading ? 'Sending...' : '🚀 Send Notification'}
+        </button>
+      </div>
+    </form>
   );
 };
 

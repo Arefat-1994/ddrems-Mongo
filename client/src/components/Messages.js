@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import './Messages.css';
 import PageHeader from './PageHeader';
 import axios from 'axios';
+import { useSocketEvent } from './NotificationContext';
 
-const Messages = ({ user, onLogout }) => {
+const Messages = ({ user, onLogout, onSettingsClick }) => {
   const [messages, setMessages] = useState([]);
   const [selectedMessage, setSelectedMessage] = useState(null);
   const [unreadCount, setUnreadCount] = useState(0);
@@ -22,6 +23,12 @@ const Messages = ({ user, onLogout }) => {
     fetchUnreadCount();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Listen for real-time new messages
+  useSocketEvent('new_message', () => {
+    fetchMessages();
+    fetchUnreadCount();
+  });
 
   const fetchMessages = async () => {
     try {
@@ -228,6 +235,7 @@ const Messages = ({ user, onLogout }) => {
         subtitle="View messages and notifications from administrators"
         user={user}
         onLogout={onLogout}
+        onSettingsClick={onSettingsClick}
         actions={
           <div className="message-actions">
             <span className="unread-badge">{unreadCount} Unread</span>

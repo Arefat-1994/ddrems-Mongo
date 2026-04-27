@@ -3,7 +3,7 @@ import './Agreements.css';
 import PageHeader from './PageHeader';
 import axios from 'axios';
 
-const Agreements = ({ user, onLogout }) => {
+const Agreements = ({ user, onLogout, onSettingsClick }) => {
     const [agreements, setAgreements] = useState([]);
     const [loading, setLoading] = useState(true);
     const [showCreateModal, setShowCreateModal] = useState(false);
@@ -37,8 +37,8 @@ const Agreements = ({ user, onLogout }) => {
     const fetchAgreements = async () => {
         try {
             const endpoint = user.role === 'user'
-                ? `http://localhost:5000/api/agreements/customer/${user.id}`
-                : `http://localhost:5000/api/agreements/owner/${user.id}`;
+                ? `/api/agreements/customer/${user.id}`
+                : `/api/agreements/owner/${user.id}`;
             const response = await axios.get(endpoint);
             setAgreements(response.data);
         } catch (error) {
@@ -58,13 +58,13 @@ const Agreements = ({ user, onLogout }) => {
                 } catch (err) { console.error('Error fetching broker record:', err); }
             }
             const propEndpoint = user.role === 'broker'
-                ? `http://localhost:5000/api/properties`
-                : `http://localhost:5000/api/properties/owner/${user.id}`;
+                ? `/api/properties`
+                : `/api/properties/owner/${user.id}`;
             const propResponse = await axios.get(propEndpoint);
             setProperties(user.role === 'broker'
                 ? (propResponse.data || []).filter(p => String(p.broker_id) === String(currentBrokerId))
                 : (propResponse.data || []));
-            const userResponse = await axios.get('http://localhost:5000/api/users');
+            const userResponse = await axios.get('/api/users');
             setCustomers((userResponse.data || []).filter(u => u.role === 'user'));
         } catch (error) { console.error('Error fetching form data:', error); }
     };
@@ -72,7 +72,7 @@ const Agreements = ({ user, onLogout }) => {
     const handleCreateAgreement = async (e) => {
         e.preventDefault();
         try {
-            await axios.post('http://localhost:5000/api/agreements', { ...formData, owner_id: user.id });
+            await axios.post('/api/agreements', { ...formData, owner_id: user.id });
             alert('Agreement created successfully!');
             setShowCreateModal(false);
             fetchAgreements();
@@ -85,18 +85,18 @@ const Agreements = ({ user, onLogout }) => {
         setActionLoading(true);
         try {
             // Try to get existing document first
-            const docRes = await axios.get(`http://localhost:5000/api/agreements/${agreement.id}/document`);
+            const docRes = await axios.get(`/api/agreements/${agreement.id}/document`);
             if (docRes.data.success && docRes.data.html) {
                 setDocumentHtml(docRes.data.html);
             } else {
                 // Generate document if not exists
-                const genRes = await axios.post(`http://localhost:5000/api/agreements/${agreement.id}/generate-document`);
+                const genRes = await axios.post(`/api/agreements/${agreement.id}/generate-document`);
                 setDocumentHtml(genRes.data.html || '');
             }
         } catch (error) {
             // Auto-generate if not found
             try {
-                const genRes = await axios.post(`http://localhost:5000/api/agreements/${agreement.id}/generate-document`);
+                const genRes = await axios.post(`/api/agreements/${agreement.id}/generate-document`);
                 setDocumentHtml(genRes.data.html || '');
             } catch (genError) {
                 setDocumentHtml('<div style="padding:40px;text-align:center;color:#ef4444;"><h3>Could not generate document</h3><p>' + (genError.response?.data?.message || genError.message) + '</p></div>');
@@ -123,9 +123,9 @@ const Agreements = ({ user, onLogout }) => {
         e.preventDefault();
         setActionLoading(true);
         try {
-            await axios.put(`http://localhost:5000/api/agreements/${selectedAgreement.id}/update-fields`, editFields);
+            await axios.put(`/api/agreements/${selectedAgreement.id}/update-fields`, editFields);
             // Regenerate document with updated fields
-            await axios.post(`http://localhost:5000/api/agreements/${selectedAgreement.id}/generate-document`);
+            await axios.post(`/api/agreements/${selectedAgreement.id}/generate-document`);
             alert('✅ Agreement fields updated and document regenerated!');
             setShowEditModal(false);
             fetchAgreements();
@@ -214,14 +214,14 @@ const Agreements = ({ user, onLogout }) => {
                 return;
             }
 
-            await axios.put(`http://localhost:5000/api/agreements/${selectedAgreement.id}/sign`, {
+            await axios.put(`/api/agreements/${selectedAgreement.id}/sign`, {
                 user_id: user.id,
                 role: user.role,
                 signature_data: signatureData
             });
 
             // Regenerate document with signature
-            await axios.post(`http://localhost:5000/api/agreements/${selectedAgreement.id}/generate-document`);
+            await axios.post(`/api/agreements/${selectedAgreement.id}/generate-document`);
 
             alert('✅ Agreement signed successfully!');
             setShowSignModal(false);
@@ -237,7 +237,7 @@ const Agreements = ({ user, onLogout }) => {
         if (!window.confirm('Send this agreement to the other party for review?')) return;
         setActionLoading(true);
         try {
-            await axios.post(`http://localhost:5000/api/agreements/${agreement.id}/send`, { sender_id: user.id });
+            await axios.post(`/api/agreements/${agreement.id}/send`, { sender_id: user.id });
             alert('✅ Agreement sent successfully!');
             fetchAgreements();
         } catch (error) {
@@ -249,7 +249,7 @@ const Agreements = ({ user, onLogout }) => {
 
     const updateStatus = async (id, status) => {
         try {
-            await axios.put(`http://localhost:5000/api/agreements/${id}/status`, { status });
+            await axios.put(`/api/agreements/${id}/status`, { status });
             alert(`Agreement ${status} successfully`);
             fetchAgreements();
         } catch (error) { alert('Failed to update status'); }
@@ -270,6 +270,7 @@ const Agreements = ({ user, onLogout }) => {
                 subtitle="Manage, sign, and view your property agreements"
                 user={user}
                 onLogout={onLogout}
+                onSettingsClick={onSettingsClick}
                 actions={
                     (user.role === 'owner' || user.role === 'broker') && (
                         <button className="btn-primary" onClick={() => setShowCreateModal(true)}>
@@ -362,10 +363,10 @@ const Agreements = ({ user, onLogout }) => {
                                         (user.role === 'owner' && !agreement.owner_signature) ||
                                         (user.role === 'user' && !agreement.customer_signature)
                                     ) && (
-                                        <button className="btn-success" onClick={() => handleSignAgreement(agreement)} disabled={actionLoading}>
-                                            🖊️ Sign
-                                        </button>
-                                    )}
+                                            <button className="btn-success" onClick={() => handleSignAgreement(agreement)} disabled={actionLoading}>
+                                                🖊️ Sign
+                                            </button>
+                                        )}
                                     {/* Send to other party */}
                                     {(user.role === 'owner' || user.role === 'broker') && (
                                         <button className="btn-primary" onClick={() => handleSendAgreement(agreement)} disabled={actionLoading}>
@@ -416,8 +417,8 @@ const Agreements = ({ user, onLogout }) => {
                                         (user.role === 'owner' && !selectedAgreement.owner_signature) ||
                                         (user.role === 'user' && !selectedAgreement.customer_signature)
                                     ) && (
-                                        <button className="btn-success" onClick={() => { setShowDocumentModal(false); handleSignAgreement(selectedAgreement); }}>🖊️ Sign Agreement</button>
-                                    )}
+                                            <button className="btn-success" onClick={() => { setShowDocumentModal(false); handleSignAgreement(selectedAgreement); }}>🖊️ Sign Agreement</button>
+                                        )}
                                     <button className="btn-primary" onClick={() => { setShowDocumentModal(false); handleSendAgreement(selectedAgreement); }}>📤 Send to Other Party</button>
                                 </>
                             )}
@@ -440,32 +441,32 @@ const Agreements = ({ user, onLogout }) => {
                                 <div className="form-group">
                                     <label>Agreement Duration</label>
                                     <input type="text" value={editFields.duration}
-                                        onChange={(e) => setEditFields({...editFields, duration: e.target.value})}
+                                        onChange={(e) => setEditFields({ ...editFields, duration: e.target.value })}
                                         placeholder="e.g., 12 months, 2 years" />
                                 </div>
                                 <div className="form-group">
                                     <label>Payment Terms</label>
                                     <input type="text" value={editFields.payment_terms}
-                                        onChange={(e) => setEditFields({...editFields, payment_terms: e.target.value})}
+                                        onChange={(e) => setEditFields({ ...editFields, payment_terms: e.target.value })}
                                         placeholder="e.g., Monthly, Quarterly" />
                                 </div>
                             </div>
                             <div className="form-group">
                                 <label>Agreement Terms & Text</label>
                                 <textarea value={editFields.agreement_text}
-                                    onChange={(e) => setEditFields({...editFields, agreement_text: e.target.value})}
+                                    onChange={(e) => setEditFields({ ...editFields, agreement_text: e.target.value })}
                                     rows="5" placeholder="Full agreement terms..." />
                             </div>
                             <div className="form-group">
                                 <label>Special Conditions</label>
                                 <textarea value={editFields.special_conditions}
-                                    onChange={(e) => setEditFields({...editFields, special_conditions: e.target.value})}
+                                    onChange={(e) => setEditFields({ ...editFields, special_conditions: e.target.value })}
                                     rows="3" placeholder="Any special conditions..." />
                             </div>
                             <div className="form-group">
                                 <label>Additional Terms</label>
                                 <textarea value={editFields.additional_terms}
-                                    onChange={(e) => setEditFields({...editFields, additional_terms: e.target.value})}
+                                    onChange={(e) => setEditFields({ ...editFields, additional_terms: e.target.value })}
                                     rows="3" placeholder="Additional terms or notes..." />
                             </div>
                             <div className="modal-actions">

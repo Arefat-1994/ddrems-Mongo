@@ -1,6 +1,11 @@
 .dashboard {
   width: 100%;
   max-width: 100%;
+  padding: 24px;
+  background: var(--fg-color);
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
 }
 
 .dashboard-card.full-width {
@@ -9,25 +14,32 @@
 
 .dashboard-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
   margin-bottom: 30px;
+  gap: 30px;
+  flex-wrap: wrap;
 }
 
 .dashboard-header h1 {
   font-size: 32px;
   color: #1f2937;
   margin-bottom: 5px;
+  flex: 0 0 auto;
 }
 
 .dashboard-header p {
   color: #6b7280;
   font-size: 14px;
+  flex: 0 0 100%;
+  margin-bottom: 0;
 }
 
 .header-actions {
   display: flex;
   gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-start;
 }
 
 .btn-primary {
@@ -313,19 +325,358 @@
   white-space: nowrap;
 }
 
-@media (max-width: 768px) {
-  .dashboard-header {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 15px;
+/* Large screens (1400px+) */
+@media (max-width: 1400px) {
+  .dashboard {
+    padding: 20px;
   }
 
   .stats-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 16px;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+    gap: 16px;
+  }
+}
+
+/* Tablets (1024px - 1399px) */
+@media (max-width: 1024px) {
+  .dashboard {
+    padding: 18px;
+  }
+
+  .dashboard-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .dashboard-header h1 {
+    font-size: 28px;
+  }
+
+  .header-actions {
+    flex-wrap: wrap;
+    width: 100%;
+  }
+
+  .header-actions button {
+    flex: 1;
+    min-width: 120px;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+  }
+
+  .stat-card {
+    padding: 18px;
+    gap: 15px;
+  }
+
+  .stat-icon {
+    width: 50px;
+    height: 50px;
+    font-size: 24px;
+  }
+
+  .stat-content h3 {
+    font-size: 24px;
+  }
+
+  .stat-content p {
+    font-size: 12px;
   }
 
   .dashboard-grid {
     grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .dashboard-card {
+    padding: 18px;
+  }
+
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .card-header h3 {
+    font-size: 16px;
+  }
+}
+
+/* Small tablets (768px - 1023px) */
+@media (max-width: 768px) {
+  .dashboard {
+    padding: 16px;
+  }
+
+  .dashboard-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .dashboard-header h1 {
+    font-size: 24px;
+  }
+
+  .dashboard-header p {
+    font-size: 13px;
+  }
+
+  .header-actions {
+    flex-direction: column;
+    width: 100%;
+    gap: 8px;
+  }
+
+  .header-actions button {
+    width: 100%;
+    padding: 10px 16px;
+    font-size: 13px;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 12px;
+  }
+
+  .stat-card {
+    padding: 14px;
+    gap: 12px;
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .stat-icon {
+    width: 45px;
+    height: 45px;
+    font-size: 20px;
+  }
+
+  .stat-content h3 {
+    font-size: 20px;
+  }
+
+  .stat-content p {
+    font-size: 11px;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+
+  .dashboard-card {
+    padding: 14px;
+  }
+
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .card-header h3 {
+    font-size: 15px;
+  }
+
+  .activity-item {
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .activity-icon {
+    width: 35px;
+    height: 35px;
+    font-size: 16px;
+  }
+
+  .activity-title {
+    font-size: 13px;
+  }
+
+  .activity-time {
+    font-size: 11px;
+  }
+
+  .announcement-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+  }
+
+  .announcement-date {
+    align-self: flex-start;
+  }
+
+  .insights-grid {
+    gap: 14px;
+  }
+
+  .insight-item h4 {
+    font-size: 13px;
+  }
+
+  .insight-item span {
+    font-size: 11px;
+  }
+}
+
+/* Mobile (480px - 767px) */
+@media (max-width: 480px) {
+  .dashboard {
+    padding: 12px;
+  }
+
+  .dashboard-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .dashboard-header h1 {
+    font-size: 20px;
+  }
+
+  .dashboard-header p {
+    font-size: 12px;
+  }
+
+  .header-actions {
+    flex-direction: column;
+    width: 100%;
+    gap: 6px;
+  }
+
+  .header-actions button {
+    width: 100%;
+    padding: 8px 12px;
+    font-size: 12px;
+  }
+
+  .stats-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .stat-card {
+    padding: 12px;
+    gap: 10px;
+    flex-direction: column;
+    text-align: center;
+  }
+
+  .stat-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+  }
+
+  .stat-content h3 {
+    font-size: 18px;
+  }
+
+  .stat-content p {
+    font-size: 10px;
+  }
+
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+    gap: 10px;
+  }
+
+  .dashboard-card {
+    padding: 12px;
+  }
+
+  .card-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    margin-bottom: 12px;
+    padding-bottom: 10px;
+  }
+
+  .card-header h3 {
+    font-size: 14px;
+  }
+
+  .btn-text {
+    font-size: 12px;
+  }
+
+  .activity-item {
+    gap: 8px;
+    padding: 8px;
+  }
+
+  .activity-icon {
+    width: 32px;
+    height: 32px;
+    font-size: 14px;
+  }
+
+  .activity-title {
+    font-size: 12px;
+  }
+
+  .activity-time {
+    font-size: 10px;
+  }
+
+  .status-badge {
+    padding: 3px 8px;
+    font-size: 10px;
+  }
+
+  .announcement-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 10px;
+  }
+
+  .announcement-content h4 {
+    font-size: 13px;
+  }
+
+  .announcement-content p {
+    font-size: 12px;
+  }
+
+  .announcement-date {
+    font-size: 11px;
+  }
+
+  .insights-grid {
+    gap: 12px;
+  }
+
+  .insight-item h4 {
+    font-size: 12px;
+  }
+
+  .insight-item span {
+    font-size: 10px;
+  }
+
+  .progress-bar {
+    height: 6px;
+  }
+
+  .no-data {
+    padding: 30px 10px;
+    font-size: 12px;
   }
 }
 

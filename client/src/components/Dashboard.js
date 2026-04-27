@@ -4,11 +4,10 @@ import PageHeader from './PageHeader';
 import PropertyApproval from './PropertyApproval';
 import ProfileApproval from './profiles/ProfileApproval';
 import BrokersManagement from './BrokersManagement';
-import AIAdvisorWidget from './shared/AIAdvisorWidget';
 import MessageNotificationWidget from './MessageNotificationWidget';
 import axios from 'axios';
 
-const Dashboard = ({ user, onLogout }) => {
+const Dashboard = ({ user, onLogout, setCurrentPage, setViewMapPropertyId, onSettingsClick }) => {
   const [currentView, setCurrentView] = useState('dashboard'); // dashboard, approval, profileApproval, brokers
   const [stats, setStats] = useState({
     totalProperties: 0,
@@ -18,7 +17,8 @@ const Dashboard = ({ user, onLogout }) => {
     pendingTransactions: 0,
     todayRevenue: 0,
     pendingApprovals: 0,
-    pendingProfiles: 0
+    pendingProfiles: 0,
+    suspiciousProperties: 0
   });
   const [activities, setActivities] = useState([]);
   const [unreadMessages, setUnreadMessages] = useState(0);
@@ -77,6 +77,12 @@ const Dashboard = ({ user, onLogout }) => {
         setActivities(activitiesRes.data);
       } catch (err) { console.error('Activities error:', err); }
 
+      // 5. Get suspicious properties count
+      try {
+        const suspRes = await axios.get('http://localhost:5000/api/suspicious-activity/count');
+        setStats(prev => ({ ...prev, suspiciousProperties: suspRes.data.count || 0 }));
+      } catch (err) { console.log('Suspicious count unavailable:', err.message); }
+
     } catch (error) {
       console.error('Error in fetchDashboardData:', error);
     }
@@ -133,6 +139,14 @@ const Dashboard = ({ user, onLogout }) => {
       icon: '💰',
       color: '#06b6d4',
       bgColor: '#cffafe'
+    },
+    {
+      title: 'Suspicious',
+      value: stats.suspiciousProperties,
+      icon: '⚠️',
+      color: '#ef4444',
+      bgColor: '#fef2f2',
+      highlight: stats.suspiciousProperties > 0
     }
   ];
 
@@ -143,6 +157,8 @@ const Dashboard = ({ user, onLogout }) => {
           user={user}
           onClose={() => setCurrentView('dashboard')}
           onRefresh={fetchDashboardData}
+          setCurrentPage={setCurrentPage}
+          setViewMapPropertyId={setViewMapPropertyId}
         />
       </div>
     );
@@ -180,12 +196,13 @@ const Dashboard = ({ user, onLogout }) => {
         subtitle="Welcome back! Here's what's happening with your real estate business."
         user={user}
         onLogout={onLogout}
+        onSettingsClick={onSettingsClick}
         actions={
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             {/* Messages Notification Widget */}
             <MessageNotificationWidget 
               userId={user.id}
-              onNavigateToMessages={() => window.location.href = '/messages'}
+              onNavigateToMessages={() => setCurrentPage('messages')}
             />
             
             <button className="btn-secondary" onClick={() => setCurrentView('brokers')}>
@@ -213,7 +230,7 @@ const Dashboard = ({ user, onLogout }) => {
           <div
             key={index}
             className={`stat-card ${card.onClick ? 'clickable' : ''}`}
-            style={{ borderLeft: `4px solid ${card.color}` }}
+            style={{ borderLeft: `4px solid ${card.color}`, border: card.highlight ? `2px solid ${card.color}` : undefined }}
             onClick={card.onClick}
           >
             <div className="stat-icon" style={{ background: card.bgColor, color: card.color }}>
@@ -308,11 +325,6 @@ const Dashboard = ({ user, onLogout }) => {
             <span className="announcement-date">Feb 20</span>
           </div>
         </div>
-      </div>
-
-      {/* AI Advisor Widget */}
-      <div className="dashboard-card">
-        <AIAdvisorWidget />
       </div>
     </div>
   );

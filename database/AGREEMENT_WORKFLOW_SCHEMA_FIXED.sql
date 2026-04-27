@@ -370,7 +370,7 @@ CREATE INDEX idx_agreement_commissions_status ON agreement_commissions(payment_s
 -- ============================================================================
 
 CREATE OR REPLACE VIEW v_agreement_status AS
-SELECT 
+SELECT
   ar.id,
   ar.customer_id,
   ar.owner_id,
@@ -380,7 +380,13 @@ SELECT
   ar.request_date,
   ar.created_at,
   ar.completed_date,
-  p.title as property_title,
+  ar.is_direct_agreement,
+  ar.proposed_price,
+  ar.agreement_type,
+  ar.rental_duration_months,
+  ar.payment_schedule,
+  ar.security_deposit,
+  ar.move_in_date,
   p.price as property_price,
   c.name as customer_name,
   o.name as owner_name,

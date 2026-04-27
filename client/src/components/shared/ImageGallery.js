@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import './ImageGallery.css';
 import axios from 'axios';
 
+const API_BASE = `http://${window.location.hostname}:5000/api`;
+
 const ImageGallery = ({ propertyId, canDelete, onDelete }) => {
   const [images, setImages] = useState([]);
   const [selectedImage, setSelectedImage] = useState(null);
@@ -14,7 +16,7 @@ const ImageGallery = ({ propertyId, canDelete, onDelete }) => {
 
   const fetchImages = async () => {
     try {
-      const response = await axios.get(`http://localhost:5000/api/property-images/property/${propertyId}`);
+      const response = await axios.get(`${API_BASE}/property-images/property/${propertyId}`);
       setImages(response.data);
     } catch (error) {
       console.error('Error fetching images:', error);
@@ -29,7 +31,7 @@ const ImageGallery = ({ propertyId, canDelete, onDelete }) => {
     }
 
     try {
-      await axios.delete(`http://localhost:5000/api/property-images/${imageId}`);
+      await axios.delete(`${API_BASE}/property-images/${imageId}`);
       setImages(images.filter(img => img.id !== imageId));
       if (onDelete) onDelete();
       alert('Image deleted successfully');

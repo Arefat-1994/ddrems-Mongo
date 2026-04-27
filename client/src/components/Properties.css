@@ -1,5 +1,5 @@
 .properties {
-  max-width: 1400px;
+  max-width: 100%;
 }
 
 .page-header {
@@ -71,7 +71,7 @@
 
 .properties-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(350px, 100%), 1fr));
   gap: 25px;
 }
 
@@ -444,6 +444,47 @@
   .modal-content.extra-large {
     width: 95%;
     margin: 10px;
+  }
+}
+
+@media (max-width: 480px) {
+  .property-card {
+    border-radius: 8px;
+  }
+
+  .property-image {
+    height: 160px;
+  }
+
+  .property-content {
+    padding: 14px;
+  }
+
+  .property-content h3 {
+    font-size: 16px;
+  }
+
+  .property-price {
+    font-size: 18px;
+  }
+
+  .property-view-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .info-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .modal-content {
+    width: 98%;
+    margin: 5px;
+    padding: 15px;
+    border-radius: 12px;
   }
 }
 

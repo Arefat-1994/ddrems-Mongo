@@ -3,7 +3,7 @@ import './Brokers.css';
 import PageHeader from './PageHeader';
 import axios from 'axios';
 
-const Brokers = ({ user, onLogout }) => {
+const Brokers = ({ user, onLogout, onSettingsClick }) => {
   const [brokers, setBrokers] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedBroker, setSelectedBroker] = useState(null);
@@ -77,6 +77,7 @@ const Brokers = ({ user, onLogout }) => {
         subtitle="Manage real estate brokers and their performance"
         user={user}
         onLogout={onLogout}
+        onSettingsClick={onSettingsClick}
         actions={
           <button className="btn-primary">
             <span>➕</span> Add New Broker

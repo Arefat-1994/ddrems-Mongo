@@ -14,13 +14,44 @@ const MessageNotificationWidget = ({ userId, onNavigateToMessages }) => {
     const messageInterval = setInterval(fetchUnreadMessages, 30000);
     
     return () => clearInterval(messageInterval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
+
+  // Helper to play a short notification ping
+  const playNotificationSound = () => {
+    try {
+      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      const oscillator = audioCtx.createOscillator();
+      const gainNode = audioCtx.createGain();
+      
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(880, audioCtx.currentTime); // A5 note
+      oscillator.frequency.exponentialRampToValueAtTime(440, audioCtx.currentTime + 0.1);
+      
+      gainNode.gain.setValueAtTime(0.1, audioCtx.currentTime);
+      gainNode.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+      
+      oscillator.connect(gainNode);
+      gainNode.connect(audioCtx.destination);
+      
+      oscillator.start();
+      oscillator.stop(audioCtx.currentTime + 0.1);
+    } catch (e) {
+      console.log('Audio disabled or unsupported');
+    }
+  };
 
   const fetchUnreadMessages = async () => {
     try {
       setLoading(true);
       const response = await axios.get(`http://localhost:5000/api/messages/unread/${userId}`);
-      setUnreadMessages(response.data.count || 0);
+      const newCount = response.data.count || 0;
+      
+      // Play sound if we got a new message
+      if (newCount > unreadMessages && unreadMessages !== 0) {
+        playNotificationSound();
+      }
+      setUnreadMessages(newCount);
       
       // Also fetch recent notifications
       const notifResponse = await axios.get(`http://localhost:5000/api/messages/notifications/${userId}`);
@@ -65,7 +96,7 @@ const MessageNotificationWidget = ({ userId, onNavigateToMessages }) => {
           transition: 'all 0.3s ease'
         }}
       >
-        📧 Messages
+        📥 Incoming messages
         {unreadMessages > 0 && (
           <span 
             className="notification-badge"

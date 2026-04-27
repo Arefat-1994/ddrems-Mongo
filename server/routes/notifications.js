@@ -25,6 +25,16 @@ router.put('/:id/read', async (req, res) => {
   }
 });
 
+// Mark all as read for user
+router.put('/read-all/:userId', async (req, res) => {
+  try {
+    await db.query('UPDATE notifications SET is_read = TRUE WHERE user_id = ?', [req.params.userId]);
+    res.json({ message: 'All notifications marked as read' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 // Create notification
 router.post('/', async (req, res) => {
   try {

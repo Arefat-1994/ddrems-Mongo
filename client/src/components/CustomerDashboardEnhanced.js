@@ -1,16 +1,23 @@
 import React, { useState, useEffect } from 'react';
 import './CustomerDashboard.css';
-import PageHeader from './PageHeader';
+import DashboardHeader from './DashboardHeader';
 import DocumentViewer from './shared/DocumentViewer';
 import ImageGallery from './shared/ImageGallery';
 import MessageNotificationWidget from './MessageNotificationWidget';
-import AIPriceComparison from './AIPriceComparison';
-import AgreementWorkflow from './AgreementWorkflow';
 import AgreementManagement from './AgreementManagement';
+import PropertyMap from './shared/PropertyMap';
+import Property3DViewer from './shared/Property3DViewer';
 import axios from 'axios';
 
 const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
   const [favorites, setFavorites] = useState([]);
+  const [customerProfile, setCustomerProfile] = useState(null);
+  const [show3DViewer, setShow3DViewer] = useState(false);
+  const [active3DProperty, setActive3DProperty] = useState(null);
+  const [imageErrors, setImageErrors] = useState({});
+  const [profileStatus, setProfileStatus] = useState(null);
+  // eslint-disable-next-line no-unused-vars
+  const [loading, setLoading] = useState(true);
   const [recentViews, setRecentViews] = useState([]);
   const [allProperties, setAllProperties] = useState([]);
   const [messages, setMessages] = useState([]);
@@ -45,16 +52,25 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
   const [agreementRequests, setAgreementRequests] = useState([]);
   const [keyRequests, setKeyRequests] = useState([]);
   const [notifications, setNotifications] = useState([]);
-  const [showAgreementWorkflow, setShowAgreementWorkflow] = useState(false);
   const [showAgreementManagement, setShowAgreementManagement] = useState(false);
+  const [showAgreementFlowModal, setShowAgreementFlowModal] = useState(false);
+  const [agreementFlowPropertyId, setAgreementFlowPropertyId] = useState(null);
 
   useEffect(() => {
     fetchCustomerData();
+    const intervalId = setInterval(fetchCustomerData, 10000); // Poll every 10 seconds
+    return () => clearInterval(intervalId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchCustomerData = async () => {
+    setLoading(true);
     try {
+      // Fetch profile status
+      const profileRes = await axios.get(`http://localhost:5000/api/profiles/customer/${user.id}`);
+      setCustomerProfile(profileRes.data);
+      setProfileStatus(profileRes.data.profile_status);
+
       // Fetch ONLY ACTIVE properties
       const propertiesRes = await axios.get('http://localhost:5000/api/properties/active');
       setAllProperties(propertiesRes.data);
@@ -114,6 +130,8 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
       }
     } catch (error) {
       console.error('Error fetching customer data:', error);
+    } finally {
+      setLoading(false);
     }
 
   };
@@ -236,20 +254,7 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
     }
   };
 
-  const requestAgreement = async (propertyId) => {
-    try {
-      await axios.post('http://localhost:5000/api/agreement-requests', {
-        property_id: propertyId,
-        customer_id: user.id,
-        request_message: 'I have reviewed the documents and would like to request a formal agreement.'
-      });
-      alert('🤝 Agreement request sent successfully!');
-      fetchCustomerData();
-    } catch (error) {
-      console.error('Error requesting agreement:', error);
-      alert(error.response?.data?.message || 'Failed to send agreement request');
-    }
-  };
+
 
   const handleGuideSubmit = (e) => {
     e.preventDefault();
@@ -267,45 +272,64 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
   };
 
   const hasKey = (propertyId) => {
-    return (agreementRequests || []).find(ar => ar.property_id === propertyId && ar.request_type === 'key' && ar.status === 'accepted');
+    return (keyRequests || []).find(req => req.property_id === propertyId && req.status === 'approved');
   };
 
   const hasPendingKey = (propertyId) => {
-    return (agreementRequests || []).some(ar => ar.property_id === propertyId && ar.request_type === 'key' && ar.status === 'pending');
+    return (keyRequests || []).find(req => req.property_id === propertyId && req.status === 'pending');
   };
 
   const hasAgreement = (propertyId) => {
-    return (agreementRequests || []).some(ar => ar.property_id === propertyId && ar.request_type === 'agreement');
+    return (agreementRequests || []).some(req => req.property_id === propertyId);
   };
 
   return (
     <div className="customer-dashboard">
-      <PageHeader
-        title="My Dashboard"
-        subtitle="Find your dream property"
+      <DashboardHeader
         user={user}
         onLogout={onLogout}
-        actions={
-          <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-            <MessageNotificationWidget 
-              userId={user?.id}
-              onNavigateToMessages={() => setCurrentPage('messages')}
-            />
-            <button className="btn-secondary" onClick={() => setShowAgreementWorkflow(true)}>
-              🤝 Agreements
-            </button>
-            <button className="btn-secondary" onClick={() => setShowAgreementManagement(true)}>
-              📋 Agreement Management
-            </button>
-            <button className="btn-secondary" onClick={() => setShowGuideModal(true)}>
-              🤖 AI Guide
-            </button>
-            <button className="btn-primary" onClick={() => setShowFeedbackModal(true)}>
-              💬 Give Feedback
-            </button>
-          </div>
-        }
+        dashboardTitle="🏠 Customer Dashboard"
+        onSettingsClick={() => setCurrentPage && setCurrentPage('settings')}
       />
+
+      <div style={{ padding: '0 30px', marginTop: '20px' }}>
+        {profileStatus === 'pending' && (
+          <div className="alert alert-info">
+            ⏳ Your profile is <strong>pending approval</strong>. You will have full access to property details once approved.
+          </div>
+        )}
+        {profileStatus === 'rejected' && (
+          <div className="alert alert-danger" style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+            <div>
+              <strong>❌ Profile Rejected</strong>
+              <p style={{ margin: '5px 0 0 0' }}>{customerProfile?.rejection_reason || 'Please review your info and resubmit.'}</p>
+            </div>
+            <button className="btn-secondary" style={{ alignSelf: 'flex-start' }} onClick={() => setCurrentPage('profile')}>Update Profile</button>
+          </div>
+        )}
+      </div>
+
+      {profileStatus !== 'approved' && (
+        <div className="profile-gate" style={{ padding: '40px 20px', textAlign: 'center', background: 'white', borderRadius: '15px', margin: '20px 30px', border: '1px solid #e2e8f0' }}>
+          <div style={{ fontSize: '48px', marginBottom: '15px' }}>🔐</div>
+          <h3>Profile Approval Required</h3>
+          <p style={{ color: '#64748b', marginBottom: '20px' }}>Complete your profile and wait for admin approval to view property details and request access.</p>
+          <button className="btn-primary" onClick={() => setCurrentPage('profile')}>Go to Profile</button>
+        </div>
+      )}
+
+      {profileStatus === 'approved' && (
+        <>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', padding: '16px 24px', background: '#fff', borderBottom: '1px solid #e2e8f0', flexWrap: 'nowrap', overflowX: 'auto', marginBottom: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', marginLeft: '10px', marginRight: '10px' }}>
+        <MessageNotificationWidget 
+          userId={user?.id}
+          onNavigateToMessages={() => setCurrentPage('messages')}
+        />
+        <button onClick={() => setCurrentPage('agreements')} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', fontWeight: 600, fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap', transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(16,185,129,0.3)' }}>🤝 Agreements</button>
+        <button onClick={() => setShowAgreementManagement(true)} style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#334155', fontWeight: 600, fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap', transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>📋 Management</button>
+          <button onClick={() => setShowGuideModal(true)} style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f8fafc', color: '#475569', fontWeight: 600, fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap', transition: 'all 0.2s' }}>🤖 AI Guide</button>
+        <button onClick={() => setShowFeedbackModal(true)} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: '#fff', fontWeight: 600, fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap', transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(59,130,246,0.3)' }}>💬 Give Feedback</button>
+      </div>
 
       <div className="stats-grid">
         <div className="stat-card">
@@ -337,6 +361,61 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
           </div>
         </div>
       </div>
+
+      {/* Completed Agreements with Handshake */}
+      {agreementRequests.filter(a => a.status === 'completed' || a.status === 'payment_confirmed' || a.status === 'handover_confirmed').length > 0 && (
+        <div className="dashboard-card full-width" style={{ marginBottom: '20px' }}>
+          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <span style={{ fontSize: '24px' }}>🤝</span> Completed Agreements
+            </h3>
+            <button className="btn-text" onClick={() => setCurrentPage('agreements')}>View All</button>
+          </div>
+          <div style={{ display: 'grid', gap: '12px', padding: '10px 0' }}>
+            {agreementRequests
+              .filter(a => a.status === 'completed' || a.status === 'payment_confirmed' || a.status === 'handover_confirmed')
+              .map(agreement => (
+              <div key={agreement.id} style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '16px 20px',
+                background: 'linear-gradient(135deg, #ecfdf5, #d1fae5)',
+                borderRadius: '12px',
+                border: '1px solid #a7f3d0',
+                transition: 'all 0.3s ease'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                  <div style={{
+                    width: '44px', height: '44px', borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #10b981, #059669)',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    fontSize: '20px', color: '#fff', flexShrink: 0,
+                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
+                  }}>✓</div>
+                  <div>
+                    <div style={{ fontWeight: 700, fontSize: '15px', color: '#064e3b' }}>
+                      {agreement.property_title || 'Property Agreement'}
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#047857', marginTop: '2px' }}>
+                      {agreement.property_location || 'Completed'} • {new Date(agreement.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                </div>
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: '8px',
+                  background: '#fff', padding: '8px 16px',
+                  borderRadius: '24px', border: '2px solid #10b981',
+                  boxShadow: '0 2px 8px rgba(16, 185, 129, 0.15)'
+                }}>
+                  <span style={{ fontSize: '22px' }}>🤝</span>
+                  <span style={{ fontWeight: 700, fontSize: '13px', color: '#059669', letterSpacing: '0.5px' }}>COMPLETED</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="quick-actions-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
         <div className="dashboard-card" style={{ padding: '16px' }}>
@@ -377,20 +456,15 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
             {favorites.length > 0 ? favorites.slice(0, 4).map(fav => (
               <div key={fav.id} className="favorite-card">
                 <div className="favorite-image">
-                  {fav.main_image ? (
-                    <img
-                      src={fav.main_image}
-                      alt={fav.property_title}
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                        e.target.parentElement.innerHTML = '<div style="width:100%;height:200px;background:#f3f4f6;display:flex;align-items:center;justify-content:center;color:#9ca3af;">🏠 No Image</div>';
-                      }}
-                    />
-                  ) : (
-                    <div style={{ width: '100%', height: '200px', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: '14px' }}>
-                      🏠 No Image Available
-                    </div>
-                  )}
+                    {fav.main_image && !imageErrors[`fav_${fav.id}`] ? (
+                      <img
+                        src={fav.main_image}
+                        alt={fav.property_title}
+                        onError={() => setImageErrors(prev => ({ ...prev, [`fav_${fav.id}`]: true }))}
+                      />
+                    ) : (
+                      <div style={{ width: '100%', height: '200px', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af' }}>🏠 No Image</div>
+                    )}
                   <button className="remove-favorite" onClick={() => removeFavorite(fav.property_id)}>
                     ❌
                   </button>
@@ -434,20 +508,14 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
             {allProperties.slice(0, 6).map(property => (
               <div key={property.id} className="property-card">
                 <div className="property-image">
-                  {property.main_image ? (
+                  {property.main_image && !imageErrors[`prop_${property.id}`] ? (
                     <img
                       src={property.main_image}
                       alt={property.title}
-                      onError={(e) => {
-                        console.error('Image load error for property:', property.id);
-                        e.target.style.display = 'none';
-                        e.target.parentElement.innerHTML = '<div style="width:100%;height:200px;background:#f3f4f6;display:flex;align-items:center;justify-content:center;color:#9ca3af;">🏠 No Image</div>';
-                      }}
+                      onError={() => setImageErrors(prev => ({ ...prev, [`prop_${property.id}`]: true }))}
                     />
                   ) : (
-                    <div style={{ width: '100%', height: '200px', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: '14px' }}>
-                      🏠 No Image Available
-                    </div>
+                    <div style={{ width: '100%', height: '200px', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af' }}>🏠 No Image</div>
                   )}
                   <button
                     className={`favorite-btn ${isFavorite(property.id) ? 'active' : ''}`}
@@ -491,19 +559,14 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
             {recentViews.length > 0 ? recentViews.slice(0, 6).map(view => (
               <div key={view.id} className="recent-view-card">
                 <div className="recent-view-image">
-                  {view.main_image ? (
+                  {view.main_image && !imageErrors[`view_${view.id}`] ? (
                     <img
                       src={view.main_image}
                       alt={view.property_title}
-                      onError={(e) => {
-                        e.target.style.display = 'none';
-                        e.target.parentElement.innerHTML = '<div style="width:100%;height:120px;background:#f3f4f6;display:flex;align-items:center;justify-content:center;color:#9ca3af;font-size:24px;border-radius:8px;">🏠</div>';
-                      }}
+                      onError={() => setImageErrors(prev => ({ ...prev, [`view_${view.id}`]: true }))}
                     />
                   ) : (
-                    <div style={{ width: '100%', height: '120px', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: '24px', borderRadius: '8px' }}>
-                      🏠
-                    </div>
+                    <div style={{ width: '100%', height: '120px', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: '24px', borderRadius: '8px' }}>🏠</div>
                   )}
                   <button
                     className="view-icon-btn"
@@ -577,9 +640,10 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
                 </div>
               ))}
           </div>
-        </div>
       </div>
-
+    </div>
+  </>
+)}
 
       {/* Property View Modal */}
       {showPropertyModal && selectedProperty && (
@@ -618,15 +682,42 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
                     </div>
                   )}
 
+                  {/* 3D Property Viewer Button */}
+                  {selectedProperty.model_3d_path && (
+                    <div className="3d-viewer-cta" style={{ marginTop: '20px', padding: '15px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', borderRadius: '12px', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <div className="cta-content">
+                        <div style={{ fontWeight: 'bold', fontSize: '16px' }}>🌐 Virtual 3D Tour Available</div>
+                        <div style={{ fontSize: '12px', opacity: 0.9 }}>Explore this property in an interactive 3D environment.</div>
+                      </div>
+                      <button 
+                        className="btn-primary" 
+                        style={{ background: 'white', color: '#667eea', fontWeight: 'bold' }}
+                        onClick={() => {
+                          setActive3DProperty(selectedProperty);
+                          setShow3DViewer(true);
+                        }}
+                      >
+                        Launch 3D Viewer
+                      </button>
+                    </div>
+                  )}
+
+
+                  {/* Property Location Map */}
+                  {(selectedProperty.latitude || selectedProperty.longitude) && (
+                    <div style={{ marginTop: '20px' }}>
+                      <h3>📍 Property Location</h3>
+                      <PropertyMap 
+                        latitude={selectedProperty.latitude} 
+                        longitude={selectedProperty.longitude} 
+                        title={selectedProperty.title} 
+                      />
+                    </div>
+                  )}
+
                   {/* AI Price Analysis Integration */}
                   <div className="ai-analysis-container" style={{ marginTop: '20px' }}>
-                    <AIPriceComparison 
-                      property={{
-                        ...selectedProperty,
-                        propertyType: selectedProperty.type,
-                        size: selectedProperty.area
-                      }} 
-                    />
+                    
                   </div>
                 </div>
 
@@ -681,7 +772,11 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
                     {hasKey(selectedProperty.id) && !hasAgreement(selectedProperty.id) && (
                       <button
                         className="btn-success"
-                        onClick={() => requestAgreement(selectedProperty.id)}
+                        onClick={() => {
+                          setAgreementFlowPropertyId(selectedProperty.id);
+                          setShowPropertyModal(false);
+                          setShowAgreementFlowModal(true);
+                        }}
                       >
                         🤝 Request Agreement
                       </button>
@@ -882,7 +977,7 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
                         <option value="apartment">Apartment</option>
                         <option value="house">House</option>
                         <option value="villa">Villa</option>
-                        <option value="commercial">Commercial</option>
+                        <option value="shop">Shop</option>
                       </select>
                     </div>
                     <div className="form-group">
@@ -963,32 +1058,97 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
           </div>
         </div>
       )}
-
-      {/* Agreement Workflow Modal */}
-      {showAgreementWorkflow && (
-        <div className="modal-overlay" onClick={() => setShowAgreementWorkflow(false)}>
-          <div className="modal-content extra-large" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>🤝 Agreement Workflow</h2>
-              <button className="close-btn" onClick={() => setShowAgreementWorkflow(false)}>✕</button>
-            </div>
-            <div className="modal-body" style={{ padding: 0 }}>
-              <AgreementWorkflow user={user} onLogout={onLogout} />
-            </div>
+      
+      {/* Agreement Management Modal */}
+      {showAgreementManagement && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+          background: 'rgba(0,0,0,0.5)', zIndex: 9999, display: 'flex',
+          justifyContent: 'center', alignItems: 'center', padding: '20px'
+        }}>
+          <div style={{ background: '#f8fafc', borderRadius: '16px', width: '95%', maxWidth: '1400px', height: '90vh', overflowY: 'auto', position: 'relative', boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.25)' }}>
+            <button onClick={() => setShowAgreementManagement(false)} style={{ position: 'absolute', top: 20, right: 20, background: '#e2e8f0', color: '#475569', border: 'none', width: '36px', height: '36px', borderRadius: '50%', fontSize: '18px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', zIndex: 10, transition: 'all 0.2s' }} onMouseOver={(e) => { e.currentTarget.style.background = '#cbd5e1'; e.currentTarget.style.transform = 'scale(1.1)'; }} onMouseOut={(e) => { e.currentTarget.style.background = '#e2e8f0'; e.currentTarget.style.transform = 'scale(1)'; }}>✕</button>
+            <AgreementManagement user={user} />
           </div>
         </div>
       )}
-
-      {/* Agreement Management Modal */}
-      {showAgreementManagement && (
-        <div className="modal-overlay" onClick={() => setShowAgreementManagement(false)}>
-          <div className="modal-content extra-large" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>📋 Agreement Management</h2>
-              <button className="close-btn" onClick={() => setShowAgreementManagement(false)}>✕</button>
+      {/* Property 3D Viewer Modal */}
+      {show3DViewer && active3DProperty && (
+        <Property3DViewer
+          property={active3DProperty}
+          onClose={() => {
+            setShow3DViewer(false);
+            setActive3DProperty(null);
+          }}
+        />
+      )}
+      {/* Agreement Flow Selection Modal */}
+      {showAgreementFlowModal && (
+        <div
+          className="modal-overlay"
+          onClick={() => setShowAgreementFlowModal(false)}
+          style={{ zIndex: 1200 }}
+        >
+          <div
+            className="modal-content"
+            onClick={(e) => e.stopPropagation()}
+            style={{ maxWidth: '520px', borderRadius: '20px', padding: '0', overflow: 'hidden' }}
+          >
+            <div style={{ padding: '28px 30px', background: 'linear-gradient(135deg, #1e293b, #334155)', color: 'white' }}>
+              <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '700' }}>🤝 Choose Agreement Flow</h2>
+              <p style={{ margin: '8px 0 0', fontSize: '13px', color: 'rgba(255,255,255,0.7)' }}>Select how you'd like to proceed with the agreement</p>
             </div>
-            <div className="modal-body" style={{ padding: 0 }}>
-              <AgreementManagement user={user} onLogout={onLogout} />
+            <div style={{ padding: '30px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <button
+                onClick={() => {
+                  setShowAgreementFlowModal(false);
+                  setShowPropertyModal(false);
+                  if (setCurrentPage) setCurrentPage('agreement-workflow', { propertyId: agreementFlowPropertyId });
+                }}
+                style={{
+                  padding: '20px 24px', borderRadius: '14px', border: '2px solid #e2e8f0',
+                  background: 'linear-gradient(135deg, #f0fdf4, #dcfce7)', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: '16px', transition: 'all 0.2s',
+                  textAlign: 'left'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#10b981'; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 25px rgba(16,185,129,0.2)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
+              >
+                <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: 'linear-gradient(135deg, #10b981, #059669)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', flexShrink: 0 }}>⚡</div>
+                <div>
+                  <div style={{ fontWeight: '700', fontSize: '16px', color: '#064e3b', marginBottom: '4px' }}>Direct Agreement</div>
+                  <div style={{ fontSize: '13px', color: '#047857' }}>Proceed directly with the property owner through the Agreement Workflow</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => {
+                  setShowAgreementFlowModal(false);
+                  setShowPropertyModal(false);
+                  if (setCurrentPage) setCurrentPage('broker-engagement', { propertyId: agreementFlowPropertyId });
+                }}
+                style={{
+                  padding: '20px 24px', borderRadius: '14px', border: '2px solid #e2e8f0',
+                  background: 'linear-gradient(135deg, #eff6ff, #dbeafe)', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', gap: '16px', transition: 'all 0.2s',
+                  textAlign: 'left'
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.borderColor = '#3b82f6'; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 8px 25px rgba(59,130,246,0.2)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.borderColor = '#e2e8f0'; e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = 'none'; }}
+              >
+                <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: 'linear-gradient(135deg, #3b82f6, #2563eb)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', flexShrink: 0 }}>🏢</div>
+                <div>
+                  <div style={{ fontWeight: '700', fontSize: '16px', color: '#1e3a5f', marginBottom: '4px' }}>Through Broker</div>
+                  <div style={{ fontSize: '13px', color: '#1d4ed8' }}>Engage a broker to handle the agreement process via Broker Engagement</div>
+                </div>
+              </button>
+
+              <button
+                onClick={() => setShowAgreementFlowModal(false)}
+                style={{ padding: '12px', border: '1px solid #e2e8f0', borderRadius: '10px', background: '#f8fafc', cursor: 'pointer', fontWeight: '600', color: '#64748b', fontSize: '14px', marginTop: '4px' }}
+              >
+                ✕ Cancel
+              </button>
             </div>
           </div>
         </div>

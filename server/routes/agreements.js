@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
+const socket = require('../socket');
 
 // Helper: Generate agreement HTML document
 function generateAgreementHTML(agreement, property, owner, customer, ownerDocs, customerDocs) {
@@ -262,6 +263,13 @@ router.post('/', async (req, res) => {
       'INSERT INTO agreements (property_id, owner_id, customer_id, broker_id, agreement_text, status) VALUES (?, ?, ?, ?, ?, ?)',
       [property_id, owner_id, customer_id, broker_id || null, agreement_text, status || 'pending']
     );
+
+    // Emit socket event
+    const eventData = { agreementId: result.insertId, propertyId: property_id, status: status || 'pending' };
+    if (owner_id) socket.emitToUser(owner_id, 'agreement_created', eventData);
+    if (customer_id) socket.emitToUser(customer_id, 'agreement_created', eventData);
+    if (broker_id) socket.emitToUser(broker_id, 'agreement_created', eventData);
+
     res.status(201).json({ id: result.insertId, message: 'Agreement created successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -376,6 +384,14 @@ router.put('/:id/update-fields', async (req, res) => {
     
     await db.query(`UPDATE agreements SET ${updates.join(', ')} WHERE id = ?`, values);
     
+    // Emit event that agreement was updated
+    const [agreements] = await db.query('SELECT owner_id, customer_id FROM agreements WHERE id = ?', [req.params.id]);
+    if (agreements.length > 0) {
+      const { owner_id, customer_id } = agreements[0];
+      if (owner_id) socket.emitToUser(owner_id, 'agreement_updated', { agreementId: req.params.id });
+      if (customer_id) socket.emitToUser(customer_id, 'agreement_updated', { agreementId: req.params.id });
+    }
+
     res.json({ message: 'Agreement fields updated successfully', success: true });
   } catch (error) {
     console.error('Update fields error:', error);
@@ -420,17 +436,26 @@ router.put('/:id/sign', async (req, res) => {
     // Check if both parties signed — activate the agreement
     const [updated] = await db.query('SELECT owner_signature, customer_signature FROM agreements WHERE id = ?', [req.params.id]);
     if (updated[0].owner_signature && updated[0].customer_signature) {
-      await db.query('UPDATE agreements SET status = "active", updated_at = NOW() WHERE id = ?', [req.params.id]);
+      await db.query("UPDATE agreements SET status = 'active', updated_at = NOW() WHERE id = ?", [req.params.id]);
     }
 
     // Notify the other party
     const notifyUserId = isOwner ? agreement.customer_id : agreement.owner_id;
     const signerName = isOwner ? 'Owner' : 'Customer';
     if (notifyUserId) {
+      const notificationData = {
+        userId: notifyUserId,
+        title: 'Agreement Signed',
+        message: `The ${signerName} has signed agreement #${req.params.id}.`,
+        type: 'success'
+      };
       await db.query(
         'INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)',
-        [notifyUserId, 'Agreement Signed', `The ${signerName} has signed agreement #${req.params.id}.`, 'success']
+        [notifyUserId, notificationData.title, notificationData.message, notificationData.type]
       );
+      // Emit real-time notification
+      socket.emitToUser(notifyUserId, 'new_notification', notificationData);
+      socket.emitToUser(notifyUserId, 'agreement_updated', { agreementId: req.params.id });
     }
 
     res.json({ message: `Agreement signed by ${signerName} successfully`, success: true });
@@ -465,15 +490,26 @@ router.post('/:id/send', async (req, res) => {
     }
 
     // Create notification 
+    const notificationData = {
+      userId: recipientId,
+      title: 'Agreement Document Sent',
+      message: `An agreement document for "${agreement.property_title}" has been sent to you for review and signing.`,
+      type: 'info'
+    };
+
     await db.query(
       'INSERT INTO notifications (user_id, title, message, type, related_id) VALUES (?, ?, ?, ?, ?)',
-      [recipientId, 'Agreement Document Sent', `An agreement document for "${agreement.property_title}" has been sent to you for review and signing.`, 'info', req.params.id]
+      [recipientId, notificationData.title, notificationData.message, notificationData.type, req.params.id]
     );
+
+    // Emit real-time notification
+    socket.emitToUser(recipientId, 'new_notification', notificationData);
+    socket.emitToUser(recipientId, 'agreement_updated', { agreementId: req.params.id });
 
     // Also send as a message
     const [sender] = await db.query('SELECT name FROM users WHERE id = ?', [sender_id]);
     await db.query(
-      'INSERT INTO messages (sender_id, receiver_id, subject, message, message_type, is_read, is_group, created_at) VALUES (?, ?, ?, ?, ?, 0, 0, NOW())',
+      'INSERT INTO messages (sender_id, receiver_id, subject, message, message_type, is_read, is_group, created_at) VALUES (?, ?, ?, ?, ?, false, false, NOW())',
       [sender_id, recipientId, `Agreement Document - ${agreement.property_title}`, 
        `${sender[0]?.name || 'A party'} has sent you the agreement document for "${agreement.property_title}". Please review, fill in required fields, and sign the agreement.`,
        'property']
@@ -481,7 +517,7 @@ router.post('/:id/send', async (req, res) => {
 
     // Update agreement status to pending if it's still draft
     if (agreement.status === 'draft') {
-      await db.query('UPDATE agreements SET status = "pending", updated_at = NOW() WHERE id = ?', [req.params.id]);
+      await db.query("UPDATE agreements SET status = 'pending', updated_at = NOW() WHERE id = ?", [req.params.id]);
     }
 
     res.json({ message: 'Agreement sent successfully', success: true });
@@ -504,10 +540,18 @@ router.put('/:id/status', async (req, res) => {
         const agreement = agreements[0];
         const recipient = agreement.owner_id || agreement.broker_id;
         if (recipient) {
+          const notificationData = {
+            userId: recipient,
+            title: 'Agreement Signed',
+            message: `Customer signed agreement #${agreement.id} for property ${agreement.property_id}.`,
+            type: 'success'
+          };
           await db.query(
             'INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)',
-            [recipient, 'Agreement Signed', `Customer signed agreement #${agreement.id} for property ${agreement.property_id}.`, 'success']
+            [recipient, notificationData.title, notificationData.message, notificationData.type]
           );
+          socket.emitToUser(recipient, 'new_notification', notificationData);
+          socket.emitToUser(recipient, 'agreement_updated', { agreementId: req.params.id });
         }
       }
     }

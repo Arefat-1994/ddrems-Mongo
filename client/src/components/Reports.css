@@ -1,18 +1,25 @@
 .reports-page {
-  padding: 30px;
+  padding: 24px;
   background: #f8fafc;
   min-height: 100vh;
+  width: 100%;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
 }
 
 .reports-header-section {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
   margin-bottom: 30px;
   background: #fff;
   padding: 20px 30px;
   border-radius: 12px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+  gap: 20px;
+  flex-wrap: wrap;
 }
 
 .title-area h1 {
@@ -111,7 +118,7 @@
 }
 
 .reports-container {
-  max-width: 1400px;
+  max-width: 100%;
   margin: 0 auto;
 }
 
@@ -301,6 +308,153 @@
   align-items: center;
   justify-content: center;
   padding: 20px 0;
+}
+
+/* ══════════════════════════════════════ */
+/* REVENUE SECTION STYLES               */
+/* ══════════════════════════════════════ */
+.revenue-section {
+  margin-top: 20px;
+  padding: 30px;
+  background: linear-gradient(135deg, #fff7ed, #fffbeb);
+  border-radius: 20px;
+  border: 1px solid #fed7aa;
+}
+
+.revenue-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 25px;
+}
+
+.chart-toggle-btn {
+  padding: 8px 18px;
+  border: 2px solid #e2e8f0;
+  border-radius: 10px;
+  background: #fff;
+  color: #64748b;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.chart-toggle-btn.active {
+  background: linear-gradient(135deg, #f97316, #ea580c);
+  color: white;
+  border-color: #f97316;
+  box-shadow: 0 4px 12px rgba(249, 115, 22, 0.3);
+}
+
+.chart-toggle-btn:hover:not(.active) {
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+}
+
+.revenue-summary-cards {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+  margin-bottom: 25px;
+}
+
+.revenue-card {
+  background: #fff;
+  border-radius: 14px;
+  padding: 20px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+  border: 1px solid #f1f5f9;
+  transition: transform 0.2s;
+}
+
+.revenue-card:hover { transform: translateY(-3px); }
+
+.revenue-card-icon {
+  font-size: 28px;
+  width: 50px;
+  height: 50px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.revenue-card.total .revenue-card-icon { background: #ede9fe; }
+.revenue-card.sale .revenue-card-icon { background: #fff7ed; }
+.revenue-card.rent .revenue-card-icon { background: #dbeafe; }
+.revenue-card.deals .revenue-card-icon { background: #d1fae5; }
+
+.revenue-card-content h4 {
+  margin: 0;
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.revenue-value {
+  margin: 0 0 2px 0;
+  font-size: 24px;
+  font-weight: 800;
+  color: #1e293b;
+}
+
+.revenue-card.total .revenue-value { color: #7c3aed; }
+.revenue-card.sale .revenue-value { color: #ea580c; }
+.revenue-card.rent .revenue-value { color: #2563eb; }
+.revenue-card.deals .revenue-value { color: #059669; }
+
+.top-brokers-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 320px;
+  overflow-y: auto;
+}
+
+.top-broker-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 14px;
+  background: #f8fafc;
+  border-radius: 10px;
+  transition: background 0.15s;
+}
+
+.top-broker-item:hover { background: #f1f5f9; }
+
+.broker-rank {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #f97316, #ea580c);
+  color: white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+
+.broker-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.broker-info strong { font-size: 13px; color: #1e293b; }
+.broker-info small { font-size: 11px; color: #94a3b8; }
+
+.broker-commission {
+  font-weight: 700;
+  font-size: 14px;
+  color: #059669;
 }
 
 @media (max-width: 1024px) {

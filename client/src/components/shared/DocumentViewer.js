@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import './DocumentViewer.css';
 import axios from 'axios';
 
+const API_BASE = `http://${window.location.hostname}:5000/api`;
+
 const DocumentViewer = ({ propertyId, userId }) => {
   const [documents, setDocuments] = useState([]);
   const [loading, setLoading] = useState(false);
@@ -16,7 +18,7 @@ const DocumentViewer = ({ propertyId, userId }) => {
   const fetchDocuments = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`http://localhost:5000/api/property-documents/property/${propertyId}`);
+      const response = await axios.get(`${API_BASE}/property-documents/property/${propertyId}`);
       setDocuments(response.data);
     } catch (error) {
       console.error('Error fetching documents:', error);
@@ -27,7 +29,7 @@ const DocumentViewer = ({ propertyId, userId }) => {
 
   const requestAccess = async () => {
     try {
-      await axios.post('http://localhost:5000/api/document-access/request', {
+      await axios.post(`${API_BASE}/document-access/request`, {
         property_id: propertyId,
         user_id: userId
       });
@@ -50,7 +52,7 @@ const DocumentViewer = ({ propertyId, userId }) => {
     const normalizedKey = accessKey.trim().toUpperCase();
     setVerifying(true);
     try {
-      const response = await axios.post('http://localhost:5000/api/property-documents/verify-access', {
+      const response = await axios.post(`${API_BASE}/property-documents/verify-access`, {
         document_id: selectedDoc.id,
         access_key: normalizedKey
       });
@@ -198,19 +200,30 @@ const DocumentViewer = ({ propertyId, userId }) => {
             <div className="modal-body" style={{ minHeight: '70vh' }}>
               <p>Document: <strong>{viewedDocument.document_name}</strong></p>
               <p>Type: <strong>{viewedDocument.document_type}</strong></p>
-              <p>Access Key used: <strong>{enteredKey || viewedDocument.access_key || 'N/A'}</strong></p>
-              <div style={{ margin: '20px 0' }}>
-                <iframe
-                  title="Document Viewer"
-                  src={viewedDocument.document_url}
-                  style={{ width: '100%', height: '60vh', border: '1px solid #cbd5e1', borderRadius: '8px' }}
-                ></iframe>
+              <div style={{ margin: '20px 0', textAlign: 'center' }}>
+                {viewedDocument.document_url.startsWith('data:image') ? (
+                  <img
+                    src={viewedDocument.document_url}
+                    alt={viewedDocument.document_name}
+                    className="doc-preview-image"
+                    style={{ maxWidth: '100%', maxHeight: '60vh', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}
+                  />
+                ) : (
+                  <iframe
+                    title="Document Viewer"
+                    src={viewedDocument.document_url}
+                    style={{ width: '100%', height: '60vh', border: '1px solid #cbd5e1', borderRadius: '8px' }}
+                  ></iframe>
+                )}
               </div>
+              <p className="key-bottom-display" style={{ marginTop: '15px', color: '#16a34a', fontWeight: 'bold' }}>
+                🔑 Access Key Verified: {enteredKey || viewedDocument.access_key || 'N/A'}
+              </p>
               <button
                 className="btn-secondary"
                 onClick={async () => {
                   try {
-                    const authenticity = await axios.get(`http://localhost:5000/api/property-documents/${selectedDoc.id}/authenticate`);
+                    const authenticity = await axios.get(`${API_BASE}/property-documents/${selectedDoc.id}/authenticate`);
                     alert(`🔍 Document authenticity check result: ${authenticity.data.status}.\n${authenticity.data.comments}`);
                   } catch (error) {
                     console.error('Authenticity check failed', error);

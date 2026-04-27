@@ -1,7 +1,11 @@
 .commission-tracking {
-  padding: 20px;
-  max-width: 1400px;
-  margin: 0 auto;
+  padding: 24px;
+  max-width: 100%;
+  width: 100%;
+  background: var(--fg-color);
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
 }
 
 .loading-screen {

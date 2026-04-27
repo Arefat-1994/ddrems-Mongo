@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const db = require('../config/db');
+const emailService = require('../services/emailService');
 
 // ============================================================================
 // CUSTOMER PROFILE ROUTES
@@ -103,7 +104,7 @@ router.post('/customer/request-edit', async (req, res) => {
 
     // Check if there's already a pending request
     const [existingRequests] = await db.query(
-      'SELECT * FROM profile_edit_requests WHERE user_id = ? AND status = "pending"',
+      'SELECT * FROM profile_edit_requests WHERE user_id = ? AND status = \'pending\'',
       [user_id]
     );
 
@@ -113,13 +114,13 @@ router.post('/customer/request-edit', async (req, res) => {
 
     // Create edit request
     await db.query(
-      'INSERT INTO profile_edit_requests (user_id, profile_id, request_type, status) VALUES (?, ?, "customer", "pending")',
+      'INSERT INTO profile_edit_requests (user_id, profile_id, request_type, status) VALUES (?, ?, \'customer\', \'pending\')',
       [user_id, profile_id]
     );
 
     // Create notification for admin
     await db.query(
-      'INSERT INTO notifications (user_id, title, message, type) SELECT id, "Profile Edit Request", CONCAT("Customer ", (SELECT name FROM users WHERE id = ?), " has requested permission to edit their profile"), "info" FROM users WHERE role = "admin"',
+      'INSERT INTO notifications (user_id, title, message, type) SELECT id, \'Profile Edit Request\', CONCAT(\'Customer \', (SELECT name FROM users WHERE id = ?), \' has requested permission to edit their profile\'), \'info\' FROM users WHERE role IN (\'admin\', \'system_admin\')',
       [user_id]
     );
 
@@ -309,6 +310,39 @@ router.put('/broker/:id', async (req, res) => {
   }
 });
 
+// Request edit permission for broker profile
+router.post('/broker/request-edit', async (req, res) => {
+  try {
+    const { user_id, profile_id } = req.body;
+
+    // Check if there's already a pending request
+    const [existingRequests] = await db.query(
+      'SELECT * FROM profile_edit_requests WHERE user_id = ? AND status = \'pending\'',
+      [user_id]
+    );
+
+    if (existingRequests.length > 0) {
+      return res.status(400).json({ message: 'You already have a pending edit request' });
+    }
+
+    // Create edit request
+    await db.query(
+      'INSERT INTO profile_edit_requests (user_id, profile_id, request_type, status) VALUES (?, ?, \'broker\', \'pending\')',
+      [user_id, profile_id]
+    );
+
+    // Create notification for admin
+    await db.query(
+      'INSERT INTO notifications (user_id, title, message, type) SELECT id, \'Broker Profile Edit Request\', CONCAT(\'Broker \', (SELECT name FROM users WHERE id = ?), \' has requested permission to edit their profile\'), \'info\' FROM users WHERE role IN (\'admin\', \'system_admin\')',
+      [user_id]
+    );
+
+    res.json({ message: 'Edit request submitted successfully' });
+  } catch (error) {
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 // ============================================================================
 // ADMIN PROFILE APPROVAL ROUTES
 // ============================================================================
@@ -372,12 +406,17 @@ router.post('/approve/:profileType/:profileId', async (req, res) => {
 
     // Update profile status
     await db.query(
-      `UPDATE ${tableName} SET profile_status = 'approved', approved_by = ?, approved_at = NOW(), rejection_reason = NULL WHERE id = ?`,
+      `UPDATE ${tableName} SET 
+        profile_status = 'approved', 
+        approved_by = ?, 
+        approved_at = NOW(), 
+        rejection_reason = NULL 
+       WHERE id = ?`,
       [adminId, profileId]
     );
 
     // Update user table
-    await db.query('UPDATE users SET profile_approved = TRUE WHERE id = ?', [userId]);
+    await db.query('UPDATE users SET profile_approved = TRUE, status = \'active\' WHERE id = ?', [userId]);
 
     // Log the change
     await db.query(
@@ -392,6 +431,17 @@ router.post('/approve/:profileType/:profileId', async (req, res) => {
        VALUES (?, 'Profile Approved', 'Your profile has been approved. You now have full access to all features.', 'success')`,
       [userId]
     );
+
+    // Send email notification
+    try {
+      const [user] = await db.query('SELECT name, email FROM users WHERE id = ?', [userId]);
+      if (user.length > 0 && user[0].email) {
+        const template = emailService.templates.accountApproved(user[0].name);
+        await emailService.sendEmail(user[0].email, template.subject, template.html);
+      }
+    } catch (emailErr) {
+      console.error('Email notification failed for profile approval:', emailErr);
+    }
 
     res.json({ message: 'Profile approved successfully', previousStatus, newStatus: 'approved' });
   } catch (error) {
@@ -445,7 +495,23 @@ router.post('/suspend/:profileType/:profileId', async (req, res) => {
       [userId, `Your profile has been suspended. Reason: ${reason || 'Contact support for details.'}`]
     );
 
-    res.json({ message: 'Profile suspended', previousStatus, newStatus: 'suspended' });
+    // Send email notification
+    try {
+      const [user] = await db.query('SELECT name, email FROM users WHERE id = ?', [userId]);
+      if (user.length > 0 && user[0].email) {
+        const template = emailService.templates.securityAlert(user[0].name, `Your account has been suspended. Reason: ${reason || 'Suspended by administrator'}`);
+        await emailService.sendEmail(user[0].email, template.subject, template.html);
+      }
+    } catch (emailErr) {
+      console.error('Email notification failed for profile suspension:', emailErr);
+    }
+
+    res.json({ 
+      message: 'Profile suspended successfully', 
+      previousStatus, 
+      newStatus: 'suspended',
+      reason: reason || 'Suspended by administrator'
+    });
   } catch (error) {
     console.error('Suspend profile error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -497,9 +563,47 @@ router.post('/reject/:profileType/:profileId', async (req, res) => {
       [userId, `Your profile has been rejected. Reason: ${rejectionReason}`]
     );
 
-    res.json({ message: 'Profile rejected', previousStatus, newStatus: 'rejected' });
+    // Send email notification
+    try {
+      const [user] = await db.query('SELECT name, email FROM users WHERE id = ?', [userId]);
+      if (user.length > 0 && user[0].email) {
+        const template = emailService.templates.accountRejected(user[0].name, rejectionReason);
+        await emailService.sendEmail(user[0].email, template.subject, template.html);
+      }
+    } catch (emailErr) {
+      console.error('Email notification failed for profile rejection:', emailErr);
+    }
+
+    res.json({ 
+      message: 'Profile rejected successfully', 
+      previousStatus, 
+      newStatus: 'rejected',
+      reason: rejectionReason
+    });
   } catch (error) {
     console.error('Reject profile error:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+// Get total pending profiles count
+router.get('/pending', async (req, res) => {
+  try {
+    const [customerCount] = await db.query('SELECT COUNT(*) as total FROM customer_profiles WHERE profile_status = \'pending\'');
+    const [ownerCount] = await db.query('SELECT COUNT(*) as total FROM owner_profiles WHERE profile_status = \'pending\'');
+    const [brokerCount] = await db.query('SELECT COUNT(*) as total FROM broker_profiles WHERE profile_status = \'pending\'');
+
+    const total = parseInt(customerCount[0].total) + parseInt(ownerCount[0].total) + parseInt(brokerCount[0].total);
+    
+    res.json({
+      total,
+      breakdown: {
+        customer: customerCount[0].total,
+        owner: ownerCount[0].total,
+        broker: brokerCount[0].total
+      }
+    });
+  } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });

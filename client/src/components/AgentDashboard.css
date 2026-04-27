@@ -1,9 +1,14 @@
 @import './ProfileGate.css';
 
 .agent-dashboard {
-  padding: 20px;
+  padding: 24px;
   background: linear-gradient(135deg, #f9fafb 0%, #e5e7eb 100%);
   min-height: 100vh;
+  width: 100%;
+  max-width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
 }
 
 .stats-grid {

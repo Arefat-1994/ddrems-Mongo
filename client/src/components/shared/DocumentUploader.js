@@ -51,7 +51,8 @@ const DocumentUploader = ({ propertyId, uploadedBy, onUploadComplete }) => {
         size: `${(selectedFile.size / 1024).toFixed(2)} KB`
       });
 
-      const response = await axios.post('http://localhost:5000/api/property-documents', {
+      const API_BASE = `http://${window.location.hostname}:5000/api`;
+      const response = await axios.post(`${API_BASE}/property-documents`, {
         property_id: propertyId,
         document_name: documentName,
         document_url: documentBase64,
@@ -88,7 +89,9 @@ const DocumentUploader = ({ propertyId, uploadedBy, onUploadComplete }) => {
         if (error.response.status === 413) {
           errorMessage = '📦 File is too large for the server to handle. Try a smaller file.';
         } else if (error.response.status === 500) {
-          errorMessage = `🔧 Server error: ${error.response.data?.message || 'Database issue. Please run fix-document-upload.sql'}`;
+          const detail = error.response.data?.error ? `\nDetail: ${error.response.data.error}` : '';
+          const errCode = error.response.data?.code ? `\nCode: ${error.response.data.code}` : '';
+          errorMessage = `🔧 Server error: ${error.response.data?.message || 'Database issue.'}${detail}${errCode}`;
         }
       } else if (error.request) {
         // Request made but no response

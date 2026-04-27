@@ -22,21 +22,38 @@ import OwnerProfile from './components/profiles/OwnerProfile';
 import BrokerProfile from './components/profiles/BrokerProfile';
 import BrokerRequests from './components/BrokerRequests';
 import KeyRequests from './components/KeyRequests';
-import AIPricePredictor from './components/AIPricePredictor';
-import Login from './components/Login';
 
+import Login from './components/Login';
+import LandingPage from './components/LandingPage';
+import MapPropertyViewer from './components/MapPropertyViewer';
+import MpesaDashboard from './components/MpesaDashboard';
+import SiteCheckManager from './components/SiteCheckManager';
+import SiteCheckAdmin from './components/SiteCheckAdmin';
+import { NotificationProvider } from './components/NotificationContext';
+import Footer from './components/shared/Footer';
+import SystemSettings from './components/SystemSettings';
+import PasswordResetRequests from './components/PasswordResetRequests';
+import UserSettingsEnhanced from './components/UserSettingsEnhanced';
+import RentalLedger from './components/RentalLedger';
+import AgreementWorkflow from './components/AgreementWorkflow';
+import BrokerEngagement from './components/BrokerEngagement';
+import Favorites from './components/Favorites';
+import MyBookings from './components/MyBookings';
+import UserSettings from './components/UserSettings';
+import Complaints from './components/Complaints';
+import ComplaintsAdmin from './components/ComplaintsAdmin';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [pageOptions, setPageOptions] = useState({});
   const [user, setUser] = useState(null);
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
+  const [viewMapPropertyId, setViewMapPropertyId] = useState(null);
 
   useEffect(() => {
     const token = localStorage.getItem('token');
     const userData = localStorage.getItem('user');
     if (token && userData) {
-      setIsAuthenticated(true);
       setUser(JSON.parse(userData));
     }
   }, []);
@@ -44,123 +61,198 @@ function App() {
   const handleLogin = (token, userData) => {
     localStorage.setItem('token', token);
     localStorage.setItem('user', JSON.stringify(userData));
-    setIsAuthenticated(true);
     setUser(userData);
   };
 
   const handleLogout = () => {
     localStorage.removeItem('token');
     localStorage.removeItem('user');
-    setIsAuthenticated(false);
     setUser(null);
     setCurrentPage('dashboard');
   };
 
-  if (!isAuthenticated) {
-    return <Login onLogin={handleLogin} />;
+  // Refresh user data from backend (used after profile submission to update gate flags)
+  const refreshUser = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token || !user?.id) return;
+      const res = await fetch(`http://${window.location.hostname}:5000/api/users/${user.id}`);
+      if (res.ok) {
+        const freshData = await res.json();
+        const updatedUser = {
+          ...user,
+          profile_completed: freshData.profile_completed,
+          profile_approved: freshData.profile_approved,
+          profile_image: freshData.profile_image || user.profile_image
+        };
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        setUser(updatedUser);
+      }
+    } catch (err) {
+      console.error('Error refreshing user data:', err);
+    }
+  };
+
+  const navigateToPage = (page, options = {}) => {
+    setCurrentPage(page);
+    setPageOptions(options);
+  };
+
+  const handleThemeChange = (theme) => {
+    document.documentElement.setAttribute('data-theme', theme);
+  };
+
+  const [showAuth, setShowAuth] = useState(null); // null | 'login' | 'register'
+
+  if (!user) {
+    if (showAuth === 'login') {
+      return <Login onLogin={handleLogin} onBackToLanding={() => setShowAuth(null)} />;
+    } else if (showAuth === 'register') {
+      return <Login onLogin={handleLogin} initialShowRegister={true} onBackToLanding={() => setShowAuth(null)} />;
+    }
+    return <LandingPage onNavigateToLogin={() => setShowAuth('login')} onNavigateToRegister={() => setShowAuth('register')} />;
   }
 
+  const renderProfilePage = () => {
+    switch (user?.role) {
+      case 'user':
+        return <CustomerProfile user={user} onLogout={handleLogout} onRefreshUser={refreshUser} />;
+      case 'owner':
+        return <OwnerProfile user={user} onLogout={handleLogout} onRefreshUser={refreshUser} />;
+      case 'broker':
+        return <BrokerProfile user={user} onLogout={handleLogout} onComplete={refreshUser} />;
+      default:
+        return <CustomerProfile user={user} onLogout={handleLogout} onRefreshUser={refreshUser} />;
+    }
+  };
+
   const renderDashboard = () => {
-    // Role-based dashboard rendering
-    if (currentPage === 'dashboard') {
-      switch (user.role) {
-        case 'broker':
-          return <AgentDashboard user={user} onLogout={handleLogout} setCurrentPage={setCurrentPage} />;
-        case 'owner':
-          return <OwnerDashboard user={user} onLogout={handleLogout} />;
-        case 'user':
-          return <CustomerDashboard user={user} onLogout={handleLogout} setCurrentPage={setCurrentPage} />;
-        case 'property_admin':
-          return <PropertyAdminDashboard user={user} onLogout={handleLogout} setCurrentPage={setCurrentPage} />;
-        case 'system_admin':
-          return <SystemAdminDashboard user={user} onLogout={handleLogout} setCurrentPage={setCurrentPage} />;
-        case 'admin':
-        default:
-          return <Dashboard user={user} onLogout={handleLogout} />;
-      }
+    const isAdmin = ['admin', 'system_admin', 'property_admin'].includes(user?.role);
+    if (!isAdmin) {
+      if (!user?.profile_completed) return renderProfilePage();
+      if (!user?.profile_approved) return renderProfilePage();
     }
 
-    // Other pages
     switch (currentPage) {
+      case 'dashboard':
+        if (user.role === 'system_admin') {
+          return <SystemAdminDashboard user={user} onLogout={handleLogout} setCurrentPage={navigateToPage} setViewMapPropertyId={setViewMapPropertyId} initialView={pageOptions.view || 'dashboard'} />;
+        }
+        if (user.role === 'property_admin') {
+          return <PropertyAdminDashboard user={user} onLogout={handleLogout} setCurrentPage={navigateToPage} setViewMapPropertyId={setViewMapPropertyId} initialView={pageOptions.view || 'dashboard'} />;
+        }
+        if (user.role === 'broker') return <AgentDashboard user={user} onLogout={handleLogout} setCurrentPage={navigateToPage} setViewMapPropertyId={setViewMapPropertyId} onSettingsClick={() => navigateToPage('settings')} />;
+        if (user.role === 'owner') return <OwnerDashboard user={user} onLogout={handleLogout} setCurrentPage={navigateToPage} setViewMapPropertyId={setViewMapPropertyId} onSettingsClick={() => navigateToPage('settings')} />;
+        if (user.role === 'user') return <CustomerDashboard user={user} onLogout={handleLogout} setCurrentPage={navigateToPage} setViewMapPropertyId={setViewMapPropertyId} onSettingsClick={() => navigateToPage('settings')} />;
+        return <Dashboard user={user} onLogout={handleLogout} setCurrentPage={navigateToPage} setViewMapPropertyId={setViewMapPropertyId} onSettingsClick={() => navigateToPage('settings')} />;
       case 'properties':
-        return <Properties user={user} onLogout={handleLogout} />;
+        return <Properties user={user} onLogout={handleLogout} viewMode="my" setCurrentPage={navigateToPage} setViewMapPropertyId={setViewMapPropertyId} onSettingsClick={() => navigateToPage('settings')} />;
       case 'browse-properties':
-        return <Properties user={user} onLogout={handleLogout} />;
+        return <Properties user={user} onLogout={handleLogout} viewMode="all" setCurrentPage={navigateToPage} setViewMapPropertyId={setViewMapPropertyId} onSettingsClick={() => navigateToPage('settings')} />;
       case 'brokers':
-        return <Brokers user={user} onLogout={handleLogout} />;
+        return <Brokers user={user} onLogout={handleLogout} onSettingsClick={() => navigateToPage('settings')} />;
       case 'users':
-        return <Users user={user} onLogout={handleLogout} />;
+        return <Users user={user} onLogout={handleLogout} onSettingsClick={() => navigateToPage('settings')} />;
       case 'users-brokers':
-        return <Users user={user} onLogout={handleLogout} initialRole="broker" />;
+        return <Users user={user} onLogout={handleLogout} initialRole="broker" onSettingsClick={() => navigateToPage('settings')} />;
       case 'users-customers':
-        return <Users user={user} onLogout={handleLogout} initialRole="user" />;
+        return <Users user={user} onLogout={handleLogout} initialRole="user" onSettingsClick={() => navigateToPage('settings')} />;
       case 'users-owners':
-        return <Users user={user} onLogout={handleLogout} initialRole="owner" />;
+        return <Users user={user} onLogout={handleLogout} initialRole="owner" onSettingsClick={() => navigateToPage('settings')} />;
       case 'users-admins':
-        return <Users user={user} onLogout={handleLogout} initialRole="property_admin" />;
+        return <Users user={user} onLogout={handleLogout} initialRole="property_admin" onSettingsClick={() => navigateToPage('settings')} />;
       case 'transactions':
-        return <Transactions user={user} onLogout={handleLogout} />;
+        if (user.role === 'system_admin') return <SystemAdminDashboard user={user} onLogout={handleLogout} setCurrentPage={navigateToPage} setViewMapPropertyId={setViewMapPropertyId} initialView="transactions" onSettingsClick={() => navigateToPage('settings')} />;
+        if (user.role === 'property_admin') return <PropertyAdminDashboard user={user} onLogout={handleLogout} setCurrentPage={navigateToPage} setViewMapPropertyId={setViewMapPropertyId} initialView="transactions" onSettingsClick={() => navigateToPage('settings')} />;
+        return <Transactions user={user} onLogout={handleLogout} onSettingsClick={() => navigateToPage('settings')} />;
       case 'announcements':
-        return <Announcements user={user} onLogout={handleLogout} />;
+        return <Announcements user={user} onLogout={handleLogout} onSettingsClick={() => navigateToPage('settings')} />;
       case 'messages':
-        return <Messages user={user} onLogout={handleLogout} />;
+        return <Messages user={user} onLogout={handleLogout} onSettingsClick={() => navigateToPage('settings')} />;
       case 'send-message':
-        return <SendMessage user={user} onLogout={handleLogout} />;
+        return <SendMessage user={user} onLogout={handleLogout} onSettingsClick={() => navigateToPage('settings')} />;
       case 'commission':
-        return <CommissionTracking user={user} onLogout={handleLogout} />;
+        return <CommissionTracking user={user} onLogout={handleLogout} onSettingsClick={() => navigateToPage('settings')} />;
       case 'agreements':
-        return <Agreements user={user} onLogout={handleLogout} />;
+        return <Agreements user={user} onLogout={handleLogout} onSettingsClick={() => navigateToPage('settings')} />;
       case 'documents':
-        if (user.role === 'property_admin') {
-          return <PropertyAdminDashboard user={user} onLogout={handleLogout} setCurrentPage={setCurrentPage} initialView="documents" />;
-        }
-        return <Dashboard user={user} onLogout={handleLogout} />;
+        if (user.role === 'property_admin') return <PropertyAdminDashboard user={user} onLogout={handleLogout} setCurrentPage={navigateToPage} setViewMapPropertyId={setViewMapPropertyId} initialView="documents" />;
+        return <Dashboard user={user} onLogout={handleLogout} onSettingsClick={() => navigateToPage('settings')} />;
       case 'agreement-requests':
-        if (user.role === 'property_admin') {
-          return <PropertyAdminDashboard user={user} onLogout={handleLogout} setCurrentPage={setCurrentPage} initialView="agreement-requests" />;
-        }
-        return <Dashboard user={user} onLogout={handleLogout} />;
+        if (user.role === 'property_admin') return <PropertyAdminDashboard user={user} onLogout={handleLogout} setCurrentPage={navigateToPage} setViewMapPropertyId={setViewMapPropertyId} initialView="agreement-requests" />;
+        return <Dashboard user={user} onLogout={handleLogout} onSettingsClick={() => navigateToPage('settings')} />;
       case 'key-requests':
         return <KeyRequests user={user} />;
       case 'requests':
         return <BrokerRequests user={user} onLogout={handleLogout} />;
-      case 'ai-predictor':
-        return <AIPricePredictor user={user} onLogout={handleLogout} />;
+      case 'broker-engagement':
+        return <BrokerEngagement user={user} onLogout={handleLogout} initialPropertyId={pageOptions.propertyId} />;
+      case 'rent-payments':
+        return <RentalLedger user={user} />;
+      case 'agreement-workflow':
+      case 'direct-agreements':
+        return <AgreementWorkflow user={user} onLogout={handleLogout} initialPropertyId={pageOptions.propertyId} />;
+      case 'favorites':
+        return <Favorites user={user} onLogout={handleLogout} onSettingsClick={() => navigateToPage('settings')} />;
+      case 'bookings':
+        return <MyBookings user={user} onLogout={handleLogout} setCurrentPage={navigateToPage} onSettingsClick={() => navigateToPage('settings')} />;
+      case 'map-view':
+        return <MapPropertyViewer user={user} onLogout={handleLogout} onSettingsClick={() => navigateToPage('settings')} initialPropertyId={viewMapPropertyId} onClose={() => navigateToPage(pageOptions.returnTo || 'dashboard', { view: pageOptions.returnView })} />;
       case 'profile':
-        if (user.role === 'user') return <CustomerProfile user={user} onLogout={handleLogout} />;
-        if (user.role === 'owner') return <OwnerProfile user={user} onLogout={handleLogout} />;
-        if (user.role === 'broker') return <BrokerProfile user={user} onLogout={handleLogout} />;
-        return <Dashboard user={user} onLogout={handleLogout} />;
+        return renderProfilePage();
+      case 'system-settings':
+        if (user.role === 'system_admin') return <SystemSettings user={user} onLogout={handleLogout} onSettingsClick={() => navigateToPage('settings')} />;
+        return <Dashboard user={user} onLogout={handleLogout} onSettingsClick={() => navigateToPage('settings')} />;
+      case 'password-resets':
+        if (user.role === 'system_admin') return <PasswordResetRequests user={user} onLogout={handleLogout} onSettingsClick={() => navigateToPage('settings')} />;
+        return <Dashboard user={user} onLogout={handleLogout} onSettingsClick={() => navigateToPage('settings')} />;
+      case 'user-settings':
+        return <UserSettings user={user} onLogout={handleLogout} onThemeChange={handleThemeChange} />;
+      case 'settings':
+        return <UserSettingsEnhanced user={user} onLogout={handleLogout} onRefreshUser={refreshUser} />;
+      case 'mpesa':
+        return <MpesaDashboard user={user} onLogout={handleLogout} onSettingsClick={() => navigateToPage('settings')} />;
+      case 'site-check':
+        return <SiteCheckManager user={user} setCurrentPage={navigateToPage} initialPropertyId={pageOptions.initialPropertyId} />;
+      case 'site-check-admin':
+        if (['admin', 'system_admin'].includes(user?.role)) return <SiteCheckAdmin user={user} />;
+        return <Dashboard user={user} onLogout={handleLogout} onSettingsClick={() => navigateToPage('settings')} />;
+      case 'complaints':
+        return <Complaints user={user} />;
+      case 'complaints-admin':
+        if (['admin', 'system_admin'].includes(user?.role)) return <ComplaintsAdmin user={user} />;
+        return <Dashboard user={user} onLogout={handleLogout} onSettingsClick={() => navigateToPage('settings')} />;
       default:
-        return <Dashboard user={user} onLogout={handleLogout} />;
+        return <Dashboard user={user} onLogout={handleLogout} onSettingsClick={() => navigateToPage('settings')} />;
     }
-
   };
 
   const showSidebar = currentPage !== 'reports' || ['admin', 'system_admin', 'property_admin'].includes(user?.role);
 
   return (
-    <div className={`App ${!showSidebar ? 'no-sidebar' : ''}`}>
-      {showSidebar && (
-        <Sidebar
-          currentPage={currentPage}
-          setCurrentPage={setCurrentPage}
-          user={user}
-          onLogout={handleLogout}
-          isCollapsed={isSidebarCollapsed}
-          setIsCollapsed={setIsSidebarCollapsed}
-        />
-      )}
-      <div className={`main-content ${isSidebarCollapsed && showSidebar ? 'sidebar-collapsed' : ''}`}>
-        {currentPage === 'reports' ? (
-          <Reports user={user} onLogout={handleLogout} onBack={() => setCurrentPage('dashboard')} />
-        ) : (
-          renderDashboard()
+    <NotificationProvider userId={user?.id}>
+      <div className={`App ${!showSidebar ? 'no-sidebar' : ''}`}>
+        {showSidebar && (
+          <Sidebar
+            currentPage={currentPage}
+            setCurrentPage={navigateToPage}
+            user={user}
+            onLogout={handleLogout}
+            isCollapsed={isSidebarCollapsed}
+            setIsCollapsed={setIsSidebarCollapsed}
+          />
         )}
+        <div className={`main-content ${isSidebarCollapsed && showSidebar ? 'sidebar-collapsed' : ''}`}>
+          {currentPage === 'reports' ? (
+            <Reports user={user} onLogout={handleLogout} onBack={() => navigateToPage('dashboard')} />
+          ) : (
+            renderDashboard()
+          )}
+          {currentPage === 'dashboard' && <Footer isMainDashboard={true} />}
+        </div>
       </div>
-    </div>
+    </NotificationProvider>
   );
 }
-
 
 export default App;

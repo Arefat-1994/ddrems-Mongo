@@ -1,5 +1,11 @@
 .brokers {
-  max-width: 1400px;
+  max-width: 100%;
+  width: 100%;
+  padding: 24px;
+  background: var(--fg-color);
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
 }
 
 .brokers-grid {
@@ -23,9 +29,11 @@
 
 .broker-header {
   display: flex;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: center;
   margin-bottom: 20px;
+  gap: 15px;
+  flex-wrap: wrap;
 }
 
 .broker-avatar {

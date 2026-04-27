@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { UserProfilePill } from './PageHeader';
 
-const KeyRequests = ({ user }) => {
+const KeyRequests = ({ user, onSettingsClick }) => {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -12,7 +13,6 @@ const KeyRequests = ({ user }) => {
       setError(null);
       try {
         let response;
-
         if (user.role === 'property_admin') {
           const [pending, history] = await Promise.all([
             axios.get(`http://${window.location.hostname}:5000/api/key-requests/admin/pending`),
@@ -26,7 +26,6 @@ const KeyRequests = ({ user }) => {
           response = await axios.get(`http://${window.location.hostname}:5000/api/key-requests/customer/${user.id}`);
           setRequests(response.data);
         } else if (user.role === 'owner') {
-          // owners currently may not have a dedicated route; show customer style by default
           response = await axios.get(`http://${window.location.hostname}:5000/api/key-requests/customer/${user.id}`);
           setRequests(response.data);
         } else {
@@ -39,7 +38,6 @@ const KeyRequests = ({ user }) => {
         setLoading(false);
       }
     };
-
     fetchRequests();
   }, [user]);
 
@@ -50,52 +48,94 @@ const KeyRequests = ({ user }) => {
   };
 
   return (
-    <div className="key-requests-page" style={{ padding: '20px' }}>
-      <h2>🔐 Key Access Center</h2>
-      <p>Manage and review all key access requests and receive admin-issued access codes.</p>
-
-      {loading && <p>Loading requests...</p>}
-      {error && <p style={{ color: 'red' }}>{error}</p>}
-
-      {!loading && requests.length === 0 && (
-        <div style={{ background: '#f8fafc', border: '1px solid #c7d2fe', padding: '18px', borderRadius: '8px' }}>
-          <p>No key request records found yet.</p>
-          <p>Use the property list or user management screens to create or approve new requests.</p>
+    <div className="key-requests-page" style={{ padding: '0' }}>
+      {/* Page Header with Profile Pill */}
+      <div style={{
+        display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+        padding: '20px 24px', background: 'white',
+        borderBottom: '1px solid #e5e7eb',
+        boxShadow: '0 1px 4px rgba(0,0,0,0.06)'
+      }}>
+        <div>
+          <h2 style={{ margin: 0, fontSize: '22px', fontWeight: '700', color: '#1e293b' }}>
+            🔐 Key Access Center
+          </h2>
+          <p style={{ margin: '4px 0 0 0', fontSize: '14px', color: '#64748b' }}>
+            Manage and review all key access requests and receive admin-issued access codes.
+          </p>
         </div>
-      )}
+        <UserProfilePill user={user} onSettingsClick={onSettingsClick} />
+      </div>
 
-      {!loading && requests.length > 0 && (
-        <div style={{ marginTop: '16px' }}>
-          <table style={{ width: '100%', borderCollapse: 'collapse' }}>
-            <thead>
-              <tr style={{ background: '#f1f5f9', fontWeight: 'bold' }}>
-                <th style={{ padding: '10px', textAlign: 'left' }}>#</th>
-                <th style={{ padding: '10px', textAlign: 'left' }}>Property</th>
-                <th style={{ padding: '10px', textAlign: 'left' }}>Requester</th>
-                <th style={{ padding: '10px', textAlign: 'left' }}>Status</th>
-                <th style={{ padding: '10px', textAlign: 'left' }}>Key Code</th>
-                <th style={{ padding: '10px', textAlign: 'left' }}>Requested On</th>
-                <th style={{ padding: '10px', textAlign: 'left' }}>Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {requests.map((req, idx) => (
-                <tr key={`${req.id}-${idx}`} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                  <td style={{ padding: '10px' }}>{idx + 1}</td>
-                  <td style={{ padding: '10px' }}>{req.property_title || 'N/A'}</td>
-                  <td style={{ padding: '10px' }}>{req.customer_name || req.customer_email || 'N/A'}</td>
-                  <td style={{ padding: '10px' }}>{req.status || 'pending'}</td>
-                  <td style={{ padding: '10px' }}>{req.key_code || '—'}</td>
-                  <td style={{ padding: '10px' }}>{req.created_at ? new Date(req.created_at).toLocaleString() : '—'}</td>
-                  <td style={{ padding: '10px' }}>
-                    {req.key_code && <button onClick={() => copyKey(req.key_code)} style={{ padding: '6px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', background: '#e0f2fe' }}>Copy</button>}
-                  </td>
+      {/* Content */}
+      <div style={{ padding: '24px' }}>
+        {loading && (
+          <div style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
+            <div style={{ fontSize: '2rem', marginBottom: '12px' }}>⏳</div>
+            <p>Loading requests...</p>
+          </div>
+        )}
+        {error && (
+          <div style={{ background: '#fef2f2', border: '1px solid #fecaca', padding: '16px', borderRadius: '8px', color: '#dc2626' }}>
+            {error}
+          </div>
+        )}
+
+        {!loading && requests.length === 0 && (
+          <div style={{ background: '#f8fafc', border: '1px solid #c7d2fe', padding: '24px', borderRadius: '12px', textAlign: 'center' }}>
+            <div style={{ fontSize: '3rem', marginBottom: '12px' }}>🔑</div>
+            <p style={{ fontWeight: '600', color: '#1e293b', margin: '0 0 8px 0' }}>No key request records found yet.</p>
+            <p style={{ color: '#64748b', margin: 0 }}>Use the property list or user management screens to create or approve new requests.</p>
+          </div>
+        )}
+
+        {!loading && requests.length > 0 && (
+          <div style={{ background: 'white', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 1px 4px rgba(0,0,0,0.06)', border: '1px solid #e5e7eb' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse' }}>
+              <thead>
+                <tr style={{ background: '#f8fafc' }}>
+                  {['#', 'Property', 'Requester', 'Status', 'Key Code', 'Requested On', 'Action'].map(h => (
+                    <th key={h} style={{ padding: '14px 16px', textAlign: 'left', fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px', borderBottom: '2px solid #e5e7eb' }}>{h}</th>
+                  ))}
                 </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+              </thead>
+              <tbody>
+                {requests.map((req, idx) => (
+                  <tr key={`${req.id}-${idx}`} style={{ borderBottom: '1px solid #f1f5f9' }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#f8fafc'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}>
+                    <td style={{ padding: '14px 16px', color: '#64748b', fontSize: '13px' }}>{idx + 1}</td>
+                    <td style={{ padding: '14px 16px', fontWeight: '600', color: '#1e293b' }}>{req.property_title || 'N/A'}</td>
+                    <td style={{ padding: '14px 16px', color: '#475569' }}>{req.customer_name || req.customer_email || 'N/A'}</td>
+                    <td style={{ padding: '14px 16px' }}>
+                      <span style={{
+                        padding: '4px 10px', borderRadius: '12px', fontSize: '11px', fontWeight: '700',
+                        background: req.status === 'accepted' ? '#dcfce7' : req.status === 'rejected' ? '#fee2e2' : '#fef9c3',
+                        color: req.status === 'accepted' ? '#166534' : req.status === 'rejected' ? '#991b1b' : '#854d0e',
+                        textTransform: 'uppercase'
+                      }}>
+                        {req.status || 'pending'}
+                      </span>
+                    </td>
+                    <td style={{ padding: '14px 16px', fontFamily: 'monospace', fontWeight: '700', color: '#0369a1' }}>{req.key_code || '—'}</td>
+                    <td style={{ padding: '14px 16px', color: '#64748b', fontSize: '13px' }}>{req.created_at ? new Date(req.created_at).toLocaleString() : '—'}</td>
+                    <td style={{ padding: '14px 16px' }}>
+                      {req.key_code && (
+                        <button onClick={() => copyKey(req.key_code)} style={{
+                          padding: '6px 14px', borderRadius: '6px', border: '1px solid #93c5fd',
+                          background: '#e0f2fe', color: '#0369a1', cursor: 'pointer', fontWeight: '600', fontSize: '12px'
+                        }}>
+                          📋 Copy
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
     </div>
   );
 };

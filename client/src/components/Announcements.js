@@ -3,7 +3,7 @@ import './Announcements.css';
 import PageHeader from './PageHeader';
 import axios from 'axios';
 
-const Announcements = ({ user, onLogout }) => {
+const Announcements = ({ user, onLogout, onSettingsClick }) => {
   const [announcements, setAnnouncements] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({
@@ -106,6 +106,7 @@ const Announcements = ({ user, onLogout }) => {
         subtitle="Manage system-wide announcements and notifications"
         user={user}
         onLogout={onLogout}
+        onSettingsClick={onSettingsClick}
         actions={
           <button className="btn-primary" onClick={() => setShowModal(true)}>
             <span>➕</span> New Announcement

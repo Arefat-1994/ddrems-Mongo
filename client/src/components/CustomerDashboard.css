@@ -3,6 +3,11 @@
 .customer-dashboard {
   width: 100%;
   max-width: 100%;
+  padding: 24px;
+  background: var(--fg-color);
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
 }
 
 .favorites-grid {

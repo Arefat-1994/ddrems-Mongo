@@ -2,15 +2,215 @@ import React, { useState, useEffect } from 'react';
 import './AgentDashboard.css';
 import PageHeader from './PageHeader';
 import CommissionTracking from './CommissionTracking';
-import ImageUploader from './shared/ImageUploader';
-import DocumentUploader from './shared/DocumentUploader';
 import ImageGallery from './shared/ImageGallery';
 import DocumentManager from './shared/DocumentManager';
-import AIPriceComparison from './AIPriceComparison';
 import axios from 'axios';
 import MessageNotificationWidget from './MessageNotificationWidget';
+import PropertyUploaderModal from './shared/PropertyUploaderModal';
 
-const AgentDashboardEnhanced = ({ user, onLogout }) => {
+// ============================================================================
+// In-Progress View — Shows real broker engagements from the API
+// ============================================================================
+const InProgressView = ({ user, onLogout, setCurrentPage, onBack }) => {
+  const [engagements, setEngagements] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchEngagements = async () => {
+      setLoading(true);
+      try {
+        const res = await axios.get(`http://localhost:5000/api/broker-engagement/broker/${user.id}`);
+        const all = res.data.engagements || [];
+        // Filter to only in-progress (not completed/cancelled/declined)
+        const inProgress = all.filter(e => !['completed', 'cancelled', 'declined', 'rejected', 'broker_declined'].includes(e.status));
+        setEngagements(inProgress);
+      } catch (err) {
+        console.error('Error fetching engagements:', err);
+        setEngagements([]);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchEngagements();
+  }, [user.id]);
+
+  const statusMap = {
+    'created': { emoji: '📝', label: 'Created', color: '#64748b' },
+    'pending_broker_acceptance': { emoji: '⏳', label: 'Pending Acceptance', color: '#f59e0b' },
+    'broker_accepted': { emoji: '✅', label: 'Accepted', color: '#10b981' },
+    'draft_offer_sent': { emoji: '📋', label: 'Draft Sent', color: '#f59e0b' },
+    'broker_negotiating': { emoji: '🤝', label: 'Negotiating', color: '#3b82f6' },
+    'pending_buyer_approval': { emoji: '⏳', label: 'Pending Buyer Approval', color: '#f59e0b' },
+    'buyer_approved_draft': { emoji: '👍', label: 'Buyer Approved', color: '#10b981' },
+    'buyer_rejected_draft': { emoji: '👎', label: 'Buyer Rejected', color: '#ef4444' },
+    'price_presented': { emoji: '💰', label: 'Price Presented', color: '#8b5cf6' },
+    'owner_accepted': { emoji: '🤝', label: 'Owner Accepted', color: '#10b981' },
+    'owner_counter_offered': { emoji: '🔄', label: 'Counter-Offered', color: '#f97316' },
+    'broker_reviewing_counter': { emoji: '🔍', label: 'Reviewing Counter', color: '#8b5cf6' },
+    'owner_rejected': { emoji: '❌', label: 'Owner Rejected', color: '#ef4444' },
+    'awaiting_buyer_authorization': { emoji: '🔔', label: 'Awaiting Authorization', color: '#dc2626' },
+    'broker_finalizing': { emoji: '✅', label: 'Finalizing', color: '#22c55e' },
+    'agreement_generated': { emoji: '📄', label: 'Agreement Ready', color: '#3b82f6' },
+    'pending_signatures': { emoji: '✍️', label: 'Pending Signatures', color: '#6366f1' },
+    'fully_signed': { emoji: '🔒', label: 'Fully Signed', color: '#6366f1' },
+    'payment_submitted': { emoji: '💳', label: 'Payment Submitted', color: '#f97316' },
+    'payment_verified': { emoji: '✅', label: 'Payment Verified', color: '#14b8a6' },
+    'handover_confirmed': { emoji: '🔑', label: 'Handover Confirmed', color: '#22c55e' },
+  };
+
+  const progressSteps = ['created', 'pending_broker_acceptance', 'broker_accepted', 'broker_negotiating', 'pending_buyer_approval', 'owner_counter_offered', 'awaiting_buyer_authorization', 'broker_finalizing', 'agreement_generated', 'pending_signatures', 'fully_signed', 'payment_submitted', 'payment_verified', 'handover_confirmed', 'completed'];
+
+  if (loading) {
+    return (
+      <div className="agent-dashboard" style={{ textAlign: 'center', padding: '60px' }}>
+        <div style={{ fontSize: '48px', marginBottom: '20px' }}>⏳</div>
+        <p style={{ color: '#64748b', fontSize: '18px' }}>Loading in-progress engagements...</p>
+      </div>
+    );
+  }
+
+  return (
+    <div className="agent-dashboard">
+      <PageHeader
+        title="In-Progress Engagements"
+        subtitle={`${engagements.length} active deal${engagements.length !== 1 ? 's' : ''} in your pipeline`}
+        user={user}
+        onLogout={onLogout}
+        onSettingsClick={() => setCurrentPage && setCurrentPage('settings')}
+        actions={
+          <button className="btn-secondary" onClick={onBack}>
+            ← Back to Dashboard
+          </button>
+        }
+      />
+
+      {engagements.length === 0 ? (
+        <div style={{ textAlign: 'center', padding: '80px 20px', background: '#fff', borderRadius: '16px', margin: '30px 20px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+          <div style={{ fontSize: '64px', marginBottom: '20px' }}>🎉</div>
+          <h2 style={{ color: '#1e293b', marginBottom: '10px' }}>No In-Progress Deals</h2>
+          <p style={{ color: '#64748b', maxWidth: '400px', margin: '0 auto' }}>
+            You have no active engagements at the moment. Browse properties and start engaging with buyers to see your deals here.
+          </p>
+        </div>
+      ) : (
+        <div style={{ padding: '20px', display: 'grid', gap: '20px' }}>
+          {engagements.map(eng => {
+            const badge = statusMap[eng.status] || { emoji: '❓', label: eng.status?.replace(/_/g, ' '), color: '#6b7280' };
+            const isRental = eng.engagement_type === 'rent';
+            const price = Number(eng.agreed_price || eng.current_offer || eng.starting_offer || 0);
+            const brokerComm = eng.broker_commission_amount ? Number(eng.broker_commission_amount) : Math.round(price * 0.02 * 100) / 100;
+            const stepIndex = progressSteps.indexOf(eng.status);
+            const progress = stepIndex >= 0 ? Math.round(((stepIndex + 1) / progressSteps.length) * 100) : 10;
+
+            return (
+              <div key={eng.id} style={{
+                background: '#fff',
+                border: '1px solid #e2e8f0',
+                borderRadius: '16px',
+                padding: '24px',
+                boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)',
+                transition: 'all 0.3s ease'
+              }}>
+                {/* Header */}
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '18px', flexWrap: 'wrap', gap: '10px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <h3 style={{ margin: 0, fontSize: '17px', color: '#1e293b' }}>
+                      Engagement #{eng.id}
+                    </h3>
+                    <span style={{
+                      background: badge.color + '15',
+                      color: badge.color,
+                      padding: '4px 14px',
+                      borderRadius: '20px',
+                      fontSize: '12px',
+                      fontWeight: '600',
+                      border: `1px solid ${badge.color}30`
+                    }}>
+                      {badge.emoji} {badge.label}
+                    </span>
+                    <span style={{
+                      background: isRental ? '#dbeafe' : '#fef3c7',
+                      color: isRental ? '#1d4ed8' : '#92400e',
+                      padding: '3px 10px',
+                      borderRadius: '10px',
+                      fontSize: '11px',
+                      fontWeight: '600'
+                    }}>
+                      {isRental ? '🔑 Rental' : '🏷️ Sale'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Progress Bar */}
+                <div style={{ marginBottom: '18px' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '12px', color: '#64748b', marginBottom: '5px' }}>
+                    <span>Progress Tracker</span>
+                    <span>{progress}%</span>
+                    <span style={{ fontWeight: '700', color: badge.color }}>Current: {badge.label}</span>
+                  </div>
+                  <div style={{ height: '8px', background: '#f1f5f9', borderRadius: '4px', overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${progress}%`, background: `linear-gradient(90deg, ${badge.color}, ${badge.color}cc)`, borderRadius: '4px', transition: 'width 0.5s ease' }} />
+                  </div>
+                </div>
+
+                {/* Info Grid */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '12px', marginBottom: '15px' }}>
+                  <div style={{ fontSize: '13px' }}>
+                    <span style={{ color: '#64748b' }}>🏠 Property: </span>
+                    <span style={{ fontWeight: '600' }}>{eng.property_title || 'N/A'}</span>
+                  </div>
+                  <div style={{ fontSize: '13px' }}>
+                    <span style={{ color: '#64748b' }}>👤 Buyer/Tenant: </span>
+                    <span style={{ fontWeight: '600' }}>{eng.buyer_name || 'N/A'}</span>
+                  </div>
+                  <div style={{ fontSize: '13px' }}>
+                    <span style={{ color: '#64748b' }}>🏢 Owner/Landlord: </span>
+                    <span style={{ fontWeight: '600' }}>{eng.owner_name || 'N/A'}</span>
+                  </div>
+                  <div style={{ fontSize: '13px' }}>
+                    <span style={{ color: '#64748b' }}>💰 {isRental ? 'Rent' : 'Price'}: </span>
+                    <span style={{ fontWeight: '700', color: '#059669' }}>
+                      {price.toLocaleString()} ETB{isRental ? '/mo' : ''}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Projected Commission */}
+                <div style={{
+                  background: '#fffbeb',
+                  border: '1px solid #fde68a',
+                  borderRadius: '8px',
+                  padding: '10px 16px',
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  flexWrap: 'wrap',
+                  gap: '10px'
+                }}>
+                  <div style={{ fontSize: '13px' }}>
+                    <span style={{ fontWeight: '600', color: '#92400e' }}>📊 Projected Commission:</span>
+                    <span style={{ fontWeight: '700', marginLeft: '8px', color: '#d97706', fontSize: '15px' }}>
+                      {brokerComm.toLocaleString()} ETB
+                    </span>
+                    <span style={{ color: '#64748b', fontSize: '12px', marginLeft: '6px' }}>({eng.broker_commission_pct || 2}%)</span>
+                  </div>
+                </div>
+
+                {/* Timeline */}
+                <div style={{ marginTop: '12px', borderTop: '1px solid #f1f5f9', paddingTop: '10px', display: 'flex', gap: '16px', fontSize: '12px', color: '#94a3b8', flexWrap: 'wrap' }}>
+                  <span>📅 Started: {new Date(eng.created_at).toLocaleDateString()}</span>
+                  {eng.updated_at && <span>🔄 Updated: {new Date(eng.updated_at).toLocaleDateString()}</span>}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+};
+
+const AgentDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
   const [currentView, setCurrentView] = useState('dashboard'); // dashboard, commission, viewProperty, browseProperties, agreements
   const [stats, setStats] = useState({
     totalSales: 0,
@@ -21,7 +221,6 @@ const AgentDashboardEnhanced = ({ user, onLogout }) => {
     pendingDeals: 0
   });
   const [myProperties, setMyProperties] = useState([]);
-  const [allActiveProperties, setAllActiveProperties] = useState([]);
   const [agreements, setAgreements] = useState([]);
   const [messages, setMessages] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
@@ -46,11 +245,6 @@ const AgentDashboardEnhanced = ({ user, onLogout }) => {
     security_rating: '3',
     condition: 'Good'
   });
-  const [newPropertyId, setNewPropertyId] = useState(null);
-  const [showImageUpload, setShowImageUpload] = useState(false);
-  const [showDocUpload, setShowDocUpload] = useState(false);
-  const [showPreview, setShowPreview] = useState(false);
-  const [previewImages, setPreviewImages] = useState([]);
 
   useEffect(() => {
     fetchAgentData();
@@ -59,11 +253,10 @@ const AgentDashboardEnhanced = ({ user, onLogout }) => {
 
   const fetchAgentData = async () => {
     try {
-      // Fetch ALL properties first
-      const propertiesRes = await axios.get(`http://localhost:5000/api/properties`);
+      // Fetch ONLY broker's own properties
+      const propertiesRes = await axios.get(`http://localhost:5000/api/properties/broker/${user.id}`);
       
-      // Filter to get ONLY broker's own properties
-      const brokerProperties = propertiesRes.data.filter(p => p.broker_id === user.id);
+      const brokerProperties = propertiesRes.data.filter(p => Number(p.broker_id) === Number(user.id)); // Safety filter
       setMyProperties(brokerProperties);
 
       const sales = brokerProperties.filter(p => p.listing_type === 'sale' && p.status === 'sold').length;
@@ -93,15 +286,6 @@ const AgentDashboardEnhanced = ({ user, onLogout }) => {
         setAnnouncements([]);
       }
 
-      // Fetch active properties from others (for Browse Properties)
-      try {
-        const activePropsRes = await axios.get('http://localhost:5000/api/properties/active');
-        // Filter out broker's own properties
-        const othersProperties = activePropsRes.data.filter(p => p.broker_id !== user.id && p.owner_id !== user.id);
-        setAllActiveProperties(othersProperties);
-      } catch (error) {
-        setAllActiveProperties([]);
-      }
 
       // Fetch broker's agreements
       try {
@@ -113,70 +297,6 @@ const AgentDashboardEnhanced = ({ user, onLogout }) => {
     } catch (error) {
       console.error('Error fetching agent data:', error);
     }
-  };
-
-  const handleAddProperty = async (e) => {
-    e.preventDefault();
-    try {
-      const response = await axios.post('http://localhost:5000/api/properties', {
-        ...propertyForm,
-        broker_id: user.id,
-        status: 'pending'
-      });
-
-      setNewPropertyId(response.data.id);
-      setShowImageUpload(true);
-      alert('Property added successfully! Now upload images and documents.');
-    } catch (error) {
-      console.error('Error adding property:', error);
-      alert('Failed to add property');
-    }
-  };
-
-  const handleImageUploadComplete = () => {
-    setShowImageUpload(false);
-    setShowDocUpload(true);
-  };
-
-  const handleDocUploadComplete = () => {
-    setShowDocUpload(false);
-    setShowPreview(true);
-    fetchPreviewData();
-  };
-
-  const fetchPreviewData = async () => {
-    try {
-      const response = await axios.get(`http://localhost:5000/api/property-images/property/${newPropertyId}`);
-      setPreviewImages(response.data);
-    } catch (error) {
-      console.error('Error fetching preview:', error);
-    }
-  };
-
-  const handleFinalSubmit = () => {
-    setShowPreview(false);
-    setShowAddProperty(false);
-    setNewPropertyId(null);
-    setPropertyForm({
-      title: '',
-      type: 'apartment',
-      listing_type: 'sale',
-      price: '',
-      location: '',
-      bedrooms: '',
-      bathrooms: '',
-      area: '',
-      description: '',
-      distance_to_center_km: '3',
-      near_school: false,
-      near_hospital: false,
-      near_market: false,
-      parking: false,
-      security_rating: '3',
-      condition: 'Good'
-    });
-    fetchAgentData();
-    alert('Property submitted successfully! Waiting for admin approval.');
   };
 
   const viewProperty = (property) => {
@@ -248,64 +368,13 @@ const AgentDashboardEnhanced = ({ user, onLogout }) => {
     );
   }
 
-  if (currentView === 'browseProperties') {
+  if (currentView === 'inProgress') {
     return (
-      <div className="agent-dashboard">
-        <PageHeader
-          title="Browse Properties"
-          subtitle="View active properties from other brokers and owners"
-          user={user}
-          onLogout={onLogout}
-          actions={
-            <button className="btn-secondary" onClick={() => setCurrentView('dashboard')}>
-              ← Back to Dashboard
-            </button>
-          }
-        />
-        <div className="dashboard-card full-width">
-          <div className="card-header">
-            <h3>🏠 Active Properties (Others)</h3>
-            <span>{allActiveProperties.length} properties available</span>
-          </div>
-          <div className="properties-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px', padding: '20px' }}>
-            {allActiveProperties.map(property => (
-              <div key={property.id} className="property-card" style={{ border: '1px solid #e2e8f0', borderRadius: '12px', overflow: 'hidden', background: 'white' }}>
-                <div className="property-image" style={{ height: '200px', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                  {property.main_image ? (
-                    <img src={property.main_image} alt={property.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                  ) : (
-                    <span style={{ fontSize: '48px' }}>🏠</span>
-                  )}
-                </div>
-                <div style={{ padding: '15px' }}>
-                  <h4 style={{ margin: '0 0 10px 0' }}>{property.title}</h4>
-                  <p style={{ color: '#64748b', margin: '0 0 10px 0' }}>📍 {property.location}</p>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '18px', fontWeight: 'bold', color: '#3b82f6' }}>
-                      {(property.price / 1000000).toFixed(2)}M ETB
-                    </span>
-                    <button 
-                      className="btn-small" 
-                      onClick={() => {
-                        setSelectedProperty(property);
-                        setShowViewProperty(true);
-                      }}
-                      style={{ padding: '5px 15px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
-                    >
-                      View Details
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-          {allActiveProperties.length === 0 && (
-            <p className="no-data">No properties available from other brokers/owners</p>
-          )}
-        </div>
-      </div>
+      <InProgressView user={user} onLogout={onLogout} setCurrentPage={setCurrentPage} onBack={() => setCurrentView('dashboard')} />
     );
   }
+
+
 
   if (currentView === 'agreements') {
     const downloadAgreement = (agreement) => {
@@ -346,6 +415,7 @@ Generated by DDREMS
           subtitle="View and manage your property agreements"
           user={user}
           onLogout={onLogout}
+          onSettingsClick={() => setCurrentPage('settings')}
           actions={
             <button className="btn-secondary" onClick={() => setCurrentView('dashboard')}>
               ← Back to Dashboard
@@ -523,18 +593,14 @@ Generated by DDREMS
         subtitle="Agent Dashboard - Manage your properties and track your performance"
         user={user}
         onLogout={onLogout}
+        onSettingsClick={() => setCurrentPage('settings')}
         actions={
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <MessageNotificationWidget 
               userId={user?.id}
-              onNavigateToMessages={() => setCurrentView('messages')}
+              onNavigateToMessages={() => setCurrentPage('messages')}
             />
-            <button
-              className="btn-secondary"
-              onClick={() => setCurrentView(currentView === 'browseProperties' ? 'dashboard' : 'browseProperties')}
-            >
-              🏠 Browse Properties
-            </button>
+
             <button
               className="btn-secondary"
               onClick={() => setCurrentView(currentView === 'agreements' ? 'dashboard' : 'agreements')}
@@ -691,297 +757,13 @@ Generated by DDREMS
         </div>
       </div>
 
-      {/* Add Property Modal */}
-      {showAddProperty && !showImageUpload && !showDocUpload && (
-        <div className="modal-overlay" onClick={() => setShowAddProperty(false)}>
-          <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>➕ Add New Property</h2>
-              <button className="close-btn" onClick={() => setShowAddProperty(false)}>✕</button>
-            </div>
-            <form onSubmit={handleAddProperty}>
-              <div className="form-grid">
-                <div className="form-group">
-                  <label>Property Title *</label>
-                  <input
-                    type="text"
-                    value={propertyForm.title}
-                    onChange={(e) => setPropertyForm({ ...propertyForm, title: e.target.value })}
-                    required
-                    placeholder="e.g., Modern Villa in Kezira"
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Property Type *</label>
-                  <select
-                    value={propertyForm.type}
-                    onChange={(e) => setPropertyForm({ ...propertyForm, type: e.target.value })}
-                    required
-                  >
-                    <option value="apartment">Apartment</option>
-                    <option value="villa">Villa</option>
-                    <option value="house">House</option>
-                    <option value="land">Land</option>
-                    <option value="commercial">Commercial</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Listing Type *</label>
-                  <select
-                    value={propertyForm.listing_type}
-                    onChange={(e) => setPropertyForm({ ...propertyForm, listing_type: e.target.value })}
-                    required
-                  >
-                    <option value="sale">For Sale</option>
-                    <option value="rent">For Rent</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Price (ETB) *</label>
-                  <input
-                    type="number"
-                    value={propertyForm.price}
-                    onChange={(e) => setPropertyForm({ ...propertyForm, price: e.target.value })}
-                    required
-                    placeholder="e.g., 8500000"
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Location *</label>
-                  <input
-                    type="text"
-                    value={propertyForm.location}
-                    onChange={(e) => setPropertyForm({ ...propertyForm, location: e.target.value })}
-                    required
-                    placeholder="e.g., Kezira, Dire Dawa"
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Bedrooms</label>
-                  <input
-                    type="number"
-                    value={propertyForm.bedrooms}
-                    onChange={(e) => setPropertyForm({ ...propertyForm, bedrooms: e.target.value })}
-                    placeholder="e.g., 3"
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Distance to Center (km)</label>
-                  <input
-                    type="number"
-                    value={propertyForm.distance_to_center_km}
-                    onChange={(e) => setPropertyForm({ ...propertyForm, distance_to_center_km: e.target.value })}
-                    placeholder="e.g., 2.5"
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Security Rating (1-5)</label>
-                  <select
-                    value={propertyForm.security_rating}
-                    onChange={(e) => setPropertyForm({ ...propertyForm, security_rating: e.target.value })}
-                  >
-                    <option value="1">1 - Basic</option>
-                    <option value="2">2 - Moderate</option>
-                    <option value="3">3 - Good</option>
-                    <option value="4">4 - High</option>
-                    <option value="5">5 - Elite</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Condition</label>
-                  <select
-                    value={propertyForm.condition}
-                    onChange={(e) => setPropertyForm({ ...propertyForm, condition: e.target.value })}
-                  >
-                    <option value="New">New</option>
-                    <option value="Excellent">Excellent</option>
-                    <option value="Good">Good</option>
-                    <option value="Fair">Fair</option>
-                    <option value="Needs Work">Needs Work</option>
-                  </select>
-                </div>
-                <div className="form-group" style={{ gridColumn: 'span 2', display: 'flex', gap: '20px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={propertyForm.near_school}
-                      onChange={(e) => setPropertyForm({ ...propertyForm, near_school: e.target.checked })}
-                    /> Near School
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={propertyForm.near_hospital}
-                      onChange={(e) => setPropertyForm({ ...propertyForm, near_hospital: e.target.checked })}
-                    /> Near Hospital
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={propertyForm.near_market}
-                      onChange={(e) => setPropertyForm({ ...propertyForm, near_market: e.target.checked })}
-                    /> Near Market
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}>
-                    <input
-                      type="checkbox"
-                      checked={propertyForm.parking}
-                      onChange={(e) => setPropertyForm({ ...propertyForm, parking: e.target.checked })}
-                    /> Parking Available
-                  </label>
-                </div>
-                <div className="form-group">
-                  <label>Bathrooms</label>
-                  <input
-                    type="number"
-                    value={propertyForm.bathrooms}
-                    onChange={(e) => setPropertyForm({ ...propertyForm, bathrooms: e.target.value })}
-                    placeholder="e.g., 2"
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Area (m²)</label>
-                  <input
-                    type="number"
-                    value={propertyForm.area}
-                    onChange={(e) => setPropertyForm({ ...propertyForm, area: e.target.value })}
-                    placeholder="e.g., 250"
-                  />
-                </div>
-              </div>
-              <div className="form-group">
-                <label>Description</label>
-                <textarea
-                  value={propertyForm.description}
-                  onChange={(e) => setPropertyForm({ ...propertyForm, description: e.target.value })}
-                  rows="4"
-                  placeholder="Enter property description..."
-                />
-              </div>
-              <div className="modal-actions">
-                <button type="button" className="btn-secondary" onClick={() => setShowAddProperty(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn-primary">
-                  Next: Upload Images →
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Image Upload Modal */}
-      {showImageUpload && newPropertyId && (
-        <div className="modal-overlay">
-          <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>📷 Upload Property Images</h2>
-            </div>
-            <div className="modal-body">
-              <ImageUploader
-                propertyId={newPropertyId}
-                uploadedBy={user.id}
-                onUploadComplete={handleImageUploadComplete}
-              />
-            </div>
-            <div className="modal-actions">
-              <button className="btn-secondary" onClick={handleImageUploadComplete}>
-                Skip Images
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Document Upload Modal */}
-      {showDocUpload && newPropertyId && (
-        <div className="modal-overlay">
-          <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>📄 Upload Property Documents</h2>
-            </div>
-            <div className="modal-body">
-              <DocumentUploader
-                propertyId={newPropertyId}
-                uploadedBy={user.id}
-                onUploadComplete={handleDocUploadComplete}
-              />
-            </div>
-            <div className="modal-actions">
-              <button className="btn-primary" onClick={handleDocUploadComplete}>
-                Next: Preview & Submit →
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Preview & Submit Modal */}
-      {showPreview && newPropertyId && (
-        <div className="modal-overlay">
-          <div className="modal-content extra-large" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>👁️ Preview Your Property Listing</h2>
-            </div>
-            <div className="modal-body">
-              <div className="preview-grid">
-                <div className="preview-section full-width">
-                  <h3>📷 Property Images ({previewImages.length})</h3>
-                  {previewImages.length > 0 ? (
-                    <div className="preview-images">
-                      {previewImages.map(img => (
-                        <img key={img.id} src={img.image_url} alt="Property" />
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="no-data">No images uploaded</p>
-                  )}
-                </div>
-                <div className="preview-section">
-                  <h3>ℹ️ Property Details</h3>
-                  <div className="preview-details">
-                    <p><strong>Title:</strong> {propertyForm.title}</p>
-                    <p><strong>Type:</strong> {propertyForm.type}</p>
-                    <p><strong>Listing:</strong> {propertyForm.listing_type}</p>
-                    <p><strong>Price:</strong> {(propertyForm.price / 1000000).toFixed(2)}M ETB</p>
-                    <p><strong>Location:</strong> {propertyForm.location}</p>
-                    <p><strong>Bedrooms:</strong> {propertyForm.bedrooms || 'N/A'}</p>
-                    <p><strong>Bathrooms:</strong> {propertyForm.bathrooms || 'N/A'}</p>
-                    <p><strong>Area:</strong> {propertyForm.area || 'N/A'} m²</p>
-                  </div>
-                  {propertyForm.description && (
-                    <div className="preview-description">
-                      <strong>Description:</strong>
-                      <p>{propertyForm.description}</p>
-                    </div>
-                  )}
-
-                  <div style={{ marginTop: '20px' }}>
-                    <AIPriceComparison propertyData={propertyForm} />
-                  </div>
-                </div>
-                <div className="preview-section">
-                  <h3>📋 Status</h3>
-                  <div className="preview-status">
-                    <p>✅ Property details saved</p>
-                    <p>✅ Images uploaded ({previewImages.length})</p>
-                    <p>✅ Documents uploaded</p>
-                    <p>⏳ Pending admin approval</p>
-                  </div>
-                </div>
-              </div>
-            </div>
-            <div className="modal-actions">
-              <button className="btn-secondary" onClick={() => setShowPreview(false)}>
-                Cancel
-              </button>
-              <button className="btn-primary" onClick={handleFinalSubmit}>
-                ✅ Submit Property for Approval
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Add Property Modal - Shared Component */}
+      {showAddProperty && (
+        <PropertyUploaderModal 
+          user={user} 
+          onClose={() => setShowAddProperty(false)} 
+          onSuccess={fetchAgentData} 
+        />
       )}
 
       {/* Edit Property Modal */}
@@ -1013,8 +795,7 @@ Generated by DDREMS
                     <option value="apartment">Apartment</option>
                     <option value="villa">Villa</option>
                     <option value="house">House</option>
-                    <option value="land">Land</option>
-                    <option value="commercial">Commercial</option>
+                    <option value="shop">Shop</option>
                   </select>
                 </div>
                 <div className="form-group">
@@ -1177,7 +958,7 @@ Generated by DDREMS
                     </div>
                   )}
                   <div style={{ marginTop: '20px' }}>
-                    <AIPriceComparison propertyData={selectedProperty} />
+                    
                   </div>
                 </div>
               </div>

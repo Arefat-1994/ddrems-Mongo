@@ -6,10 +6,11 @@ import Messages from './Messages';
 import Announcements from './Announcements';
 import Agreements from './Agreements';
 import CustomerProfile from './profiles/CustomerProfile';
-import MessageNotificationWidget from './MessageNotificationWidget';
+import TopBar from './TopBar';
+import MpesaPayment from './MpesaPayment';
 import axios from 'axios';
 
-const CustomerDashboard = ({ user, onLogout }) => {
+const CustomerDashboard = ({ user, onLogout, setCurrentPage: setGlobalPage, setViewMapPropertyId }) => {
   const [currentPage, setCurrentPage] = useState('browse');
   const [profileStatus, setProfileStatus] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -66,7 +67,7 @@ const CustomerDashboard = ({ user, onLogout }) => {
 
     switch (currentPage) {
       case 'browse':
-        return <Properties user={user} />;
+        return <Properties user={user} setCurrentPage={setGlobalPage} setViewMapPropertyId={setViewMapPropertyId} />;
       case 'profile':
         return <CustomerProfile user={user} onComplete={checkProfileStatus} />;
       case 'announcements':
@@ -75,8 +76,19 @@ const CustomerDashboard = ({ user, onLogout }) => {
         return <Agreements user={user} />;
       case 'messages':
         return <Messages user={user} />;
+      case 'mpesa':
+        return (
+          <div style={{ padding: '24px' }}>
+            <h2 style={{ marginBottom: '20px', color: '#1e293b' }}>📱 M-Pesa Payments</h2>
+            <div style={{ background: 'linear-gradient(135deg, #00a651, #007a3d)', borderRadius: '12px', padding: '20px', color: 'white', marginBottom: '20px' }}>
+              <h3 style={{ margin: 0 }}>Safaricom Ethiopia M-Pesa</h3>
+              <p style={{ margin: '6px 0 0 0', opacity: 0.9 }}>Use M-Pesa to pay for your property agreements securely.</p>
+            </div>
+            <p style={{ color: '#64748b' }}>To make an M-Pesa payment, go to your <strong>Agreements</strong> section, find your signed agreement, and click <strong>"Pay Now"</strong> — then select <strong>M-Pesa</strong> as your payment method.</p>
+          </div>
+        );
       default:
-        return <Properties user={user} />;
+        return <Properties user={user} setCurrentPage={setGlobalPage} setViewMapPropertyId={setViewMapPropertyId} />;
     }
   };
 
@@ -94,12 +106,7 @@ const CustomerDashboard = ({ user, onLogout }) => {
         onLogout={onLogout}
       />
       <div className="dashboard-main">
-        <div style={{ position: 'absolute', top: '20px', right: '20px', zIndex: 100 }}>
-          <MessageNotificationWidget 
-            userId={user?.id}
-            onNavigateToMessages={() => setCurrentPage('messages')}
-          />
-        </div>
+        <TopBar user={user} onSettingsClick={() => setCurrentPage('profile')} />
         {profileStatus === 'not_created' && currentPage !== 'profile' && (
           <div className="alert alert-warning">
             ⚠️ Please complete your profile to access all features. 

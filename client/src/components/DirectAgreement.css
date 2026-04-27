@@ -1,0 +1,680 @@
+/* ============================================================
+   Direct Agreement — Styles
+   ============================================================ */
+
+.direct-agreement-page {
+  width: 100%;
+  max-width: 1400px;
+  margin: 0 auto;
+  padding: 20px;
+  box-sizing: border-box;
+}
+
+.direct-container {
+  width: 100%;
+}
+
+/* ── Header ───────────────────────────────────────────────── */
+.direct-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 30px;
+  padding: 20px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  border-radius: 12px;
+  color: white;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.direct-header h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.direct-header p {
+  margin: 5px 0 0 0;
+  opacity: 0.9;
+  font-size: 14px;
+}
+
+/* ── Loading State ────────────────────────────────────────── */
+.direct-loading {
+  text-align: center;
+  padding: 60px 20px;
+  color: #64748b;
+}
+
+.direct-loading .spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid #e2e8f0;
+  border-top: 4px solid #667eea;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+  margin: 0 auto 16px;
+}
+
+/* ── Empty State ──────────────────────────────────────────── */
+.direct-empty-state {
+  text-align: center;
+  padding: 60px 20px;
+  color: #64748b;
+}
+
+.direct-empty-state .empty-icon {
+  font-size: 4rem;
+  margin-bottom: 16px;
+}
+
+.direct-empty-state h3 {
+  font-size: 20px;
+  color: #1e293b;
+  margin-bottom: 8px;
+}
+
+.direct-empty-state p {
+  margin-bottom: 20px;
+  max-width: 400px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+/* ── Agreements Grid ─────────────────────────────────────── */
+.direct-agreements-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(420px, 100%), 1fr));
+  gap: 20px;
+}
+
+/* ── Agreement Card ──────────────────────────────────────── */
+.direct-card {
+  background: #fff;
+  border-radius: 16px;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.07);
+  padding: 20px;
+  transition: all 0.3s ease;
+  border: 1px solid #e2e8f0;
+}
+
+.direct-card:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  transform: translateY(-2px);
+}
+
+.direct-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.direct-card-title {
+  font-size: 16px;
+  font-weight: 700;
+  color: #1e293b;
+}
+
+.direct-card-body {
+  margin-bottom: 16px;
+}
+
+.direct-card-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── 12-Step Progress Bar ────────────────────────────────── */
+.direct-progress-bar {
+  display: flex;
+  align-items: flex-start;
+  gap: 2px;
+  margin-bottom: 16px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.direct-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  flex: 1;
+  min-width: 55px;
+  position: relative;
+}
+
+.direct-step .step-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #94a3b8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  margin-bottom: 4px;
+  transition: all 0.3s;
+  z-index: 1;
+}
+
+.direct-step.completed .step-dot {
+  background: #10b981;
+  color: #fff;
+}
+
+.direct-step.active .step-dot {
+  background: #667eea;
+  color: #fff;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3);
+  animation: pulse-step 2s infinite;
+}
+
+@keyframes pulse-step {
+  0%, 100% { box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.3); }
+  50% { box-shadow: 0 0 0 6px rgba(102, 126, 234, 0.1); }
+}
+
+.direct-step .step-label {
+  font-size: 8px;
+  color: #94a3b8;
+  text-align: center;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+  line-height: 1.2;
+}
+
+.direct-step.completed .step-label { color: #10b981; }
+.direct-step.active .step-label { color: #667eea; font-weight: 700; }
+
+/* ── Info Grid ───────────────────────────────────────────── */
+.direct-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+.direct-info-item {
+  padding: 8px 10px;
+  background: #f8fafc;
+  border-radius: 6px;
+  border-left: 3px solid #667eea;
+}
+
+.direct-info-item .info-label {
+  display: block;
+  font-size: 10px;
+  color: #94a3b8;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 2px;
+}
+
+.direct-info-item .info-value {
+  font-size: 13px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+/* Counter Badge */
+.direct-counter-badge {
+  padding: 8px 12px;
+  background: #fef3c7;
+  border: 1px solid #fcd34d;
+  border-radius: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #92400e;
+  text-align: center;
+}
+
+/* Danger Button */
+.direct-btn-danger {
+  background: #ef4444;
+  color: white;
+}
+.direct-btn-danger:hover {
+  background: #dc2626;
+  transform: translateY(-1px);
+}
+
+/* Card Header */
+.card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 16px;
+}
+
+.card-top-left h3 {
+  margin: 0 0 8px 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.direct-badge {
+  display: inline-block;
+  background: #dbeafe;
+  color: #1e40af;
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+
+.status-pill {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  font-weight: 600;
+  border: 1px solid;
+}
+
+.btn-details {
+  background: #f1f5f9;
+  color: #475569;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.btn-details:hover {
+  background: #e2e8f0;
+}
+
+/* Progress */
+.progress-container {
+  margin-bottom: 20px;
+}
+
+.progress-steps {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.step {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  color: #64748b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 600;
+  transition: all 0.3s;
+}
+
+.step.completed {
+  background: #10b981;
+  color: white;
+}
+
+.progress-track {
+  height: 4px;
+  background: #e2e8f0;
+  border-radius: 2px;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  border-radius: 2px;
+  transition: width 0.3s ease;
+}
+
+/* Card Info */
+.card-info {
+  margin-bottom: 20px;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 0;
+  border-bottom: 1px solid #f1f5f9;
+}
+
+.info-row:last-child {
+  border-bottom: none;
+}
+
+.lbl {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.val {
+  font-size: 14px;
+  color: #1e293b;
+  font-weight: 600;
+}
+
+/* Card Actions */
+.card-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* ── Buttons ─────────────────────────────────────────────── */
+.direct-btn {
+  padding: 10px 16px;
+  border: none;
+  border-radius: 8px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  transition: all 0.3s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  text-decoration: none;
+}
+
+.direct-btn-primary {
+  background: #667eea;
+  color: white;
+}
+
+.direct-btn-primary:hover {
+  background: #5a67d8;
+  transform: translateY(-1px);
+}
+
+.direct-btn-success {
+  background: #10b981;
+  color: white;
+}
+
+.direct-btn-success:hover {
+  background: #059669;
+  transform: translateY(-1px);
+}
+
+.direct-btn-outline {
+  background: transparent;
+  color: #667eea;
+  border: 1px solid #667eea;
+}
+
+.direct-btn-outline:hover {
+  background: #667eea;
+  color: white;
+}
+
+/* ── Modal ───────────────────────────────────────────────── */
+.direct-modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 20px;
+}
+
+.direct-modal-content {
+  background: white;
+  border-radius: 12px;
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow: hidden;
+  box-shadow: 0 20px 25px -5px rgba(0,0,0,0.1), 0 10px 10px -5px rgba(0,0,0,0.04);
+}
+
+.direct-modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 24px;
+  border-bottom: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+.direct-modal-header h2 {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 600;
+  color: #1e293b;
+}
+
+.direct-modal-close {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #64748b;
+  padding: 0;
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  transition: all 0.2s;
+}
+
+.direct-modal-close:hover {
+  background: #e2e8f0;
+  color: #1e293b;
+}
+
+.direct-modal-body {
+  padding: 24px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.direct-modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 16px 24px;
+  border-top: 1px solid #e2e8f0;
+  background: #f8fafc;
+}
+
+/* ── Form Elements ───────────────────────────────────────── */
+.direct-form-group {
+  margin-bottom: 20px;
+}
+
+.direct-form-group label {
+  display: block;
+  margin-bottom: 6px;
+  font-weight: 600;
+  color: #374151;
+  font-size: 14px;
+}
+
+.direct-form-group input,
+.direct-form-group select,
+.direct-form-group textarea {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #d1d5db;
+  border-radius: 6px;
+  font-size: 14px;
+  transition: border-color 0.2s, box-shadow 0.2s;
+  box-sizing: border-box;
+}
+
+.direct-form-group input:focus,
+.direct-form-group select:focus,
+.direct-form-group textarea:focus {
+  outline: none;
+  border-color: #667eea;
+  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+}
+
+.direct-form-group textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+/* ── Agreement Details ───────────────────────────────────── */
+.agreement-details {
+  max-width: 100%;
+}
+
+.details-section {
+  margin-bottom: 24px;
+}
+
+.details-section h4 {
+  margin: 0 0 12px 0;
+  font-size: 16px;
+  font-weight: 600;
+  color: #1e293b;
+  border-bottom: 2px solid #e2e8f0;
+  padding-bottom: 6px;
+}
+
+.details-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.detail-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #f8fafc;
+  border-radius: 6px;
+  border: 1px solid #e2e8f0;
+}
+
+.detail-label {
+  font-size: 12px;
+  color: #64748b;
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.detail-value {
+  font-size: 14px;
+  color: #1e293b;
+  font-weight: 600;
+}
+
+/* ── History ─────────────────────────────────────────────── */
+.history-list {
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.history-item {
+  padding: 12px;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  margin-bottom: 8px;
+  background: #fafbfc;
+}
+
+.history-item:last-child {
+  margin-bottom: 0;
+}
+
+.history-action {
+  font-weight: 600;
+  color: #1e293b;
+  margin-bottom: 4px;
+}
+
+.history-meta {
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 4px;
+}
+
+.history-notes {
+  font-size: 13px;
+  color: #374151;
+  font-style: italic;
+}
+
+/* ── Spinner Animation ───────────────────────────────────── */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.spinner {
+  border: 2px solid #f3f4f6;
+  border-top: 2px solid #667eea;
+  border-radius: 50%;
+  width: 16px;
+  height: 16px;
+  animation: spin 1s linear infinite;
+}
+
+/* ── Responsive ─────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .direct-header {
+    flex-direction: column;
+    text-align: center;
+    gap: 16px;
+  }
+
+  .direct-agreements-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .direct-modal-content {
+    margin: 20px;
+    max-width: none;
+  }
+
+  .direct-modal-header,
+  .direct-modal-body,
+  .direct-modal-footer {
+    padding: 16px;
+  }
+
+  .details-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .card-top {
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .card-actions {
+    flex-direction: column;
+  }
+
+  .direct-btn {
+    width: 100%;
+  }
+}

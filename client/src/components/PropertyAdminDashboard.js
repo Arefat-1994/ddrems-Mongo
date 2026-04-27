@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react'; // Added useCallback
+import React, { useState, useEffect, useCallback } from 'react'; // Final re-verification of property type filters
 import './PropertyAdminDashboard.css';
 import PageHeader from './PageHeader';
 import PropertyApproval from './PropertyApproval';
@@ -6,23 +6,23 @@ import ImageGallery from './shared/ImageGallery';
 import DocumentViewerAdmin from './shared/DocumentViewerAdmin';
 import Reports from './Reports';
 import axios from 'axios';
-import ProfileApproval from './profiles/ProfileApproval';
-import { AIPriceComparison } from './shared/AIAdvisorWidget';
 import Users from './Users';
-import AddBroker from './AddBroker';
-import AddUserModal from './AddUserModal';
 import MessageNotificationWidget from './MessageNotificationWidget';
 import AdminMessagesView from './AdminMessagesView';
 import AgreementWorkflow from './AgreementWorkflow';
 import AgreementManagement from './AgreementManagement';
+import SendMessage from './SendMessage';
+import PropertyMap from './shared/PropertyMap';
+import SystemAdminTransactions from './SystemAdminTransactions';
+import MpesaDashboard from './MpesaDashboard';
+
 const API_BASE = `http://${window.location.hostname}:5000/api`;
 
-const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, initialView }) => {
-  const [currentView, setCurrentView] = useState(initialView || 'dashboard'); // dashboard, approval, all-properties, reports, documents, profileApproval, users
-  const [showAddBroker, setShowAddBroker] = useState(false);
-  const [showAddUser, setShowAddUser] = useState(false);
+const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapPropertyId, initialView }) => {
+  const [currentView, setCurrentView] = useState(initialView || 'dashboard'); // dashboard, approval, all-properties, reports, documents, users, messages, send-message, transactions
   const [showAdminMessages, setShowAdminMessages] = useState(false);
   const [showAgreementWorkflow, setShowAgreementWorkflow] = useState(false);
+  const [keyHistoryLimit, setKeyHistoryLimit] = useState(5);
 
   const [stats, setStats] = useState({
     pendingVerification: 0,
@@ -32,8 +32,13 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, initialView })
     totalProperties: 0,
     pendingProfiles: 0,
     pendingKeyRequests: 0,
-    pendingAgreementRequests: 0
+    pendingAgreementRequests: 0,
+    suspiciousProperties: 0
   });
+
+  // Suspicious activity state
+  const [suspiciousData, setSuspiciousData] = useState([]);
+  const [suspiciousLoading, setSuspiciousLoading] = useState(false);
 
   const [pendingRequests, setPendingRequests] = useState([]);
   const [requestHistory, setRequestHistory] = useState([]);
@@ -44,12 +49,46 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, initialView })
   const [selectedMediationRequest, setSelectedMediationRequest] = useState(null);
   const [previewKey, setPreviewKey] = useState(null);
   const [responseMsg, setResponseMsg] = useState('');
-  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterType, setFilterType] = useState('all');
 
   // Documents view state - moved to top level
   const [allPropertiesWithDocs, setAllPropertiesWithDocs] = useState([]);
   const [docFilter, setDocFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
+  const [notification, setNotification] = useState(null);
+
+  // Broker Holds state
+  const [brokerHolds, setBrokerHolds] = useState([]);
+  
+  const fetchBrokerHolds = useCallback(async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/broker-bookings?property_admin_id=${user.id}`);
+      setBrokerHolds(response.data);
+    } catch (error) {
+      console.error('Error fetching broker holds:', error);
+    }
+  }, [user.id]);
+
+  useEffect(() => {
+    if (currentView === 'broker-holds') {
+      fetchBrokerHolds();
+    }
+  }, [currentView, fetchBrokerHolds]);
+
+  const handleBrokerHoldAction = async (id, action) => {
+    try {
+      await axios.put(`${API_BASE}/broker-bookings/${id}/${action}`);
+      showNotification(`Booking ${action}ed successfully`, 'success');
+      fetchBrokerHolds();
+    } catch (error) {
+      showNotification(`Failed to ${action} booking`, 'error');
+    }
+  };
+
+  const showNotification = (message, type = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 5000);
+  };
 
   const fetchPropertyAdminData = useCallback(async () => {
     try {
@@ -65,18 +104,28 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, initialView })
       };
 
       const [statsData, pendingProfilesData, pendingAgreementsData, pendingKeysData] = await Promise.all([
-        safeFetch('/properties/stats', { verified: 0, inactive: 0, suspended: 0, total: 0 }),
+        safeFetch(`/properties/stats?admin_id=${user.id}`, { verified: 0, inactive: 0, suspended: 0, total: 0 }),
         safeFetch('/profiles/pending', { total: 0 }),
         safeFetch(`/agreement-requests/admin/pending?admin_id=${user.id}`, []),
         safeFetch(`/key-requests/admin/pending?admin_id=${user.id}`, [])
       ]);
+
+      // Fetch suspicious properties count
+      let suspiciousCount = 0;
+      try {
+        const suspRes = await axios.get(`${API_BASE}/suspicious-activity/count`);
+        suspiciousCount = suspRes.data?.count || 0;
+      } catch (e) {
+        console.log('Suspicious activity count unavailable:', e.message);
+      }
 
       setStats({
         pendingVerification: statsData.pending || 0,
         verifiedProperties: statsData.verified || 0,
         totalProperties: statsData.total || 0,
         pendingProfiles: pendingProfilesData.total || 0,
-        pendingAgreementRequests: (pendingAgreementsData.length || 0) + (pendingKeysData.length || 0)
+        pendingAgreementRequests: (pendingAgreementsData.length || 0) + (pendingKeysData.length || 0),
+        suspiciousProperties: suspiciousCount
       });
 
       // Always set pending requests for dashboard display
@@ -102,6 +151,7 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, initialView })
     } catch (error) {
       console.error('Critical error in fetchPropertyAdminData:', error);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentView]);
   const fetchAllProperties = useCallback(async () => {
     try {
@@ -186,20 +236,22 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, initialView })
       rejected: 'Reject this property? It will be deactivated.'
     };
 
+    // Use a custom confirmation instead of window.confirm for a more modern feel
     if (!window.confirm(confirmMessages[action])) return;
 
     try {
-      await axios.put(`http://localhost:5000/api/properties/${propertyId}/verify`, {
+      const response = await axios.put(`${API_BASE}/properties/${propertyId}/verify`, {
         status: action,
         verified_by: user.id,
         notes: `Quick ${action} by admin`
       });
-      alert(`Property ${action} successfully!`);
+      
+      showNotification(response.data.message || `Property ${action} successfully!`, 'success');
       fetchAllProperties();
       fetchPropertyAdminData();
     } catch (error) {
       console.error(`Error: ${action}`, error);
-      alert(`Failed to ${action} property`);
+      showNotification(`Failed to ${action} property: ${error.response?.data?.message || error.message}`, 'error');
     }
   };
 
@@ -222,13 +274,235 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, initialView })
   };
 
   const filteredProperties = allProperties.filter(p => {
-    if (filterStatus === 'all') return true;
-    return p.status === filterStatus || p.verification_status === filterStatus;
+    if (filterType === 'all') return true;
+    return p.type === filterType;
   });
+
+
+  // === SUSPICIOUS ACTIVITY VIEW ===
+  if (currentView === 'suspicious') {
+    const fetchSuspiciousData = async () => {
+      setSuspiciousLoading(true);
+      try {
+        const res = await axios.get(`${API_BASE}/suspicious-activity/scan`);
+        setSuspiciousData(res.data.properties || []);
+      } catch (err) {
+        console.error('Failed to load suspicious data:', err);
+        showNotification('Failed to load suspicious activity data', 'error');
+      }
+      setSuspiciousLoading(false);
+    };
+
+    // Auto-fetch on mount
+    if (suspiciousData.length === 0 && !suspiciousLoading) {
+      fetchSuspiciousData();
+    }
+
+    return (
+      <div className="property-admin-dashboard">
+        <PageHeader
+          title="⚠️ Suspicious Activity Monitor"
+          subtitle="AI-powered fraud detection — properties with unusual pricing patterns"
+          user={user}
+          onLogout={onLogout}
+          onSettingsClick={() => setCurrentPage('settings')}
+          actions={
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button className="btn-primary" onClick={fetchSuspiciousData} disabled={suspiciousLoading}>
+                {suspiciousLoading ? '⏳ Scanning...' : '🔄 Re-scan All Properties'}
+              </button>
+              <button className="btn-secondary" onClick={() => setCurrentView('dashboard')}>
+                ← Back to Dashboard
+              </button>
+            </div>
+          }
+        />
+
+        <div style={{ padding: '20px 30px' }}>
+          {/* Summary Banner */}
+          <div style={{
+            background: 'linear-gradient(135deg, #fef2f2, #fff1f2)',
+            border: '1px solid #fecaca',
+            borderRadius: '16px',
+            padding: '24px',
+            marginBottom: '24px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '20px'
+          }}>
+            <div style={{ fontSize: '48px' }}>⚠️</div>
+            <div>
+              <h2 style={{ margin: '0 0 6px 0', color: '#991b1b', fontSize: '22px' }}>
+                {suspiciousData.length} Suspicious Properties Detected
+              </h2>
+              <p style={{ margin: 0, color: '#b91c1c', fontSize: '14px' }}>
+                These properties have pricing that deviates significantly from AI market predictions. Manual review is recommended.
+              </p>
+            </div>
+          </div>
+
+          {/* Suspicious Properties List */}
+          {suspiciousLoading ? (
+            <div style={{ textAlign: 'center', padding: '60px', color: '#64748b' }}>
+              <div style={{ fontSize: '3rem', marginBottom: '16px' }}>🔍</div>
+              <h3>Scanning properties...</h3>
+              <p>Running AI fraud detection on all properties. This may take a moment.</p>
+            </div>
+          ) : suspiciousData.length === 0 ? (
+            <div style={{ textAlign: 'center', padding: '60px', color: '#64748b' }}>
+              <div style={{ fontSize: '3rem', marginBottom: '16px' }}>✅</div>
+              <h3>No Suspicious Activity Detected</h3>
+              <p>All properties appear to be fairly priced according to AI analysis.</p>
+            </div>
+          ) : (
+            <div style={{ display: 'grid', gap: '16px' }}>
+              {suspiciousData.map(property => (
+                <div key={property.id} style={{
+                  background: '#fff',
+                  border: property.riskLevel === 'high' ? '2px solid #ef4444' : '2px solid #f59e0b',
+                  borderRadius: '12px',
+                  padding: '20px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '20px'
+                }}>
+                  {/* Property Image */}
+                  <div style={{ width: '70px', height: '70px', borderRadius: '12px', overflow: 'hidden', flexShrink: 0 }}>
+                    {property.main_image ? (
+                      <img src={property.main_image} alt={property.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} onError={(e) => { e.target.style.display = 'none'; }} />
+                    ) : (
+                      <div style={{ width: '100%', height: '100%', background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '28px' }}>🏠</div>
+                    )}
+                  </div>
+
+                  {/* Property Info */}
+                  <div style={{ flex: 1 }}>
+                    <h4 style={{ margin: '0 0 4px 0', fontSize: '16px' }}>{property.title}</h4>
+                    <p style={{ margin: '0 0 2px 0', fontSize: '13px', color: '#64748b' }}>
+                      📍 {property.location} • {property.type} • {(property.price / 1000000).toFixed(2)}M ETB
+                    </p>
+                    <p style={{ margin: 0, fontSize: '12px', color: '#94a3b8' }}>
+                      👤 {property.owner_name || property.broker_name || 'Unknown'} • 📅 {new Date(property.created_at).toLocaleDateString()}
+                    </p>
+                  </div>
+
+                  {/* Risk Badge */}
+                  <div style={{ textAlign: 'center', minWidth: '120px' }}>
+                    <span style={{
+                      display: 'inline-block',
+                      background: property.riskLevel === 'high' ? '#ef4444' : '#f59e0b',
+                      color: 'white',
+                      padding: '4px 14px',
+                      borderRadius: '20px',
+                      fontSize: '12px',
+                      fontWeight: '700',
+                      marginBottom: '6px',
+                      textTransform: 'uppercase'
+                    }}>
+                      ⚠ SUSPICIOUS
+                    </span>
+                    <div style={{ fontSize: '13px', color: '#ef4444', fontWeight: '600' }}>
+                      Risk: {property.riskScore}%
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
+                      {property.status}
+                    </div>
+                  </div>
+
+                  {/* Price Comparison */}
+                  <div style={{ textAlign: 'center', minWidth: '140px', background: '#fef2f2', padding: '10px', borderRadius: '10px' }}>
+                    <div style={{ fontSize: '11px', color: '#64748b' }}>Listed</div>
+                    <div style={{ fontWeight: '700', color: '#dc2626', fontSize: '14px' }}>{(property.price / 1000000).toFixed(2)}M</div>
+                    <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>AI Predicted</div>
+                    <div style={{ fontWeight: '700', color: '#059669', fontSize: '14px' }}>{(property.predictedPrice / 1000000).toFixed(2)}M</div>
+                    <div style={{ fontSize: '11px', color: '#ef4444', marginTop: '4px' }}>
+                      {property.deviation > 0 ? '+' : ''}{property.deviation?.toFixed(1)}% deviation
+                    </div>
+                  </div>
+
+                  {/* Actions */}
+                  <div style={{ display: 'flex', gap: '8px', flexDirection: 'column' }}>
+                    <button className="btn-icon" title="View" onClick={() => viewPropertyDetail(property)} style={{ background: '#3b82f6', color: 'white' }}>👁️</button>
+                    {property.status !== 'suspended' && (
+                      <button className="btn-icon warning" title="Suspend" onClick={() => handleQuickAction(property.id, 'suspended')}>⏸️</button>
+                    )}
+                    <button className="btn-icon danger" title="Reject" onClick={() => handleQuickAction(property.id, 'rejected')}>❌</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   // === REPORTS VIEW ===
   if (currentView === 'reports') {
-    return <Reports user={user} onLogout={onLogout} onBack={() => setCurrentView('dashboard')} />;
+    return <Reports user={user} onSettingsClick={() => setCurrentPage('settings')} onLogout={onLogout} onBack={() => setCurrentView('dashboard')} />;
+  }
+
+  // === TRANSACTIONS VIEW ===
+  if (currentView === 'transactions') {
+    return (
+      <div className="property-admin-dashboard">
+        <PageHeader title="Platform Transactions" subtitle="View system revenue and financial activity" user={user} onLogout={onLogout} onSettingsClick={() => setCurrentPage('settings')} actions={<button className="btn-secondary" onClick={() => setCurrentView('dashboard')}>← Back to Dashboard</button>} />
+        <div style={{ padding: '20px' }}>
+          <SystemAdminTransactions />
+        </div>
+      </div>
+    );
+  }
+
+  // === BROKER HOLDS VIEW ===
+  if (currentView === 'broker-holds') {
+    return (
+      <div className="property-admin-dashboard">
+        <PageHeader title="Booked Lists" subtitle="Manage properties temporarily reserved by buyers and brokers" user={user} onLogout={onLogout} onSettingsClick={() => setCurrentPage('settings')} actions={<button className="btn-secondary" onClick={() => setCurrentView('dashboard')}>← Back to Dashboard</button>} />
+        <div style={{ padding: '20px' }}>
+          <div className="dashboard-card">
+            <div className="card-header">
+              <h3>⏱️ Booked Lists ({brokerHolds.length})</h3>
+            </div>
+            <div style={{ padding: '20px' }}>
+              {brokerHolds.length === 0 ? (
+                <p>No active broker holds.</p>
+              ) : (
+                <div style={{ display: 'grid', gap: '15px' }}>
+                  {brokerHolds.map(hold => (
+                    <div key={hold.id} style={{ padding: '15px', border: '1px solid #e2e8f0', borderRadius: '8px', background: '#fff' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
+                        <h4 style={{ margin: 0 }}>{hold.property_title}</h4>
+                        <span style={{ 
+                          padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold',
+                          background: hold.status === 'reserved' ? '#fef3c7' : hold.status === 'confirmed' ? '#d1fae5' : '#fee2e2',
+                          color: hold.status === 'reserved' ? '#d97706' : hold.status === 'confirmed' ? '#059669' : '#dc2626'
+                        }}>
+                          {hold.status.toUpperCase()}
+                        </span>
+                      </div>
+                      <p style={{ margin: '5px 0', fontSize: '14px' }}><strong>Broker:</strong> {hold.broker_name} ({hold.broker_phone})</p>
+                      <p style={{ margin: '5px 0', fontSize: '14px' }}><strong>Buyer:</strong> {hold.buyer_name} ({hold.phone}) - {hold.id_type}: {hold.id_number}</p>
+                      <p style={{ margin: '5px 0', fontSize: '14px' }}><strong>Visit Time:</strong> {new Date(hold.preferred_visit_time).toLocaleString()}</p>
+                      <p style={{ margin: '5px 0', fontSize: '14px' }}><strong>Expiry:</strong> {new Date(hold.hold_expiry_time).toLocaleString()}</p>
+                      
+                      {hold.status === 'reserved' && (
+                        <div style={{ marginTop: '15px', display: 'flex', gap: '10px' }}>
+                          <button onClick={() => handleBrokerHoldAction(hold.id, 'confirm')} style={{ padding: '8px 16px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>✅ Confirm</button>
+                          <button onClick={() => handleBrokerHoldAction(hold.id, 'extend')} style={{ padding: '8px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>⏱️ Extend (+30m)</button>
+                          <button onClick={() => handleBrokerHoldAction(hold.id, 'cancel')} style={{ padding: '8px 16px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>❌ Cancel</button>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
   }
 
   // === DOCUMENTS VIEW ===
@@ -254,6 +528,7 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, initialView })
           subtitle="Review and verify property documents organized by property, owner, and status"
           user={user}
           onLogout={onLogout}
+          onSettingsClick={() => setCurrentPage('settings')}
           actions={
             <button className="btn-secondary" onClick={() => setCurrentView('dashboard')}>
               ← Back to Dashboard
@@ -364,27 +639,9 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, initialView })
                     </span>
                   </div>
                   <div style={{ display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
-                    <button
-                      className="btn-success"
-                      onClick={() => handleQuickAction(selectedProperty.id, 'approved')}
-                      style={{ padding: '8px 16px', fontSize: '14px' }}
-                    >
-                      ✅ Approve
-                    </button>
-                    <button
-                      className="btn-warning"
-                      onClick={() => handleQuickAction(selectedProperty.id, 'suspended')}
-                      style={{ padding: '8px 16px', fontSize: '14px' }}
-                    >
-                      ⏸️ Suspend
-                    </button>
-                    <button
-                      className="btn-danger"
-                      onClick={() => handleQuickAction(selectedProperty.id, 'rejected')}
-                      style={{ padding: '8px 16px', fontSize: '14px' }}
-                    >
-                      ❌ Reject
-                    </button>
+                    <span style={{ fontSize: '12px', color: '#64748b' }}>
+                      Review documents below to make a decision
+                    </span>
                   </div>
                 </div>
               </div>
@@ -396,7 +653,7 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, initialView })
                 <DocumentViewerAdmin
                   propertyId={selectedProperty.id}
                   property={selectedProperty}
-                  userId={user.id}
+                  userId={user?.id} userRole={user?.role}
                   onVerificationAction={() => {
                     setSelectedProperty(null);
                     fetchPropertyAdminData();
@@ -485,7 +742,25 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, initialView })
   if (currentView === 'agreements') {
     return (
       <div className="property-admin-dashboard">
-        <AgreementManagement user={user} onLogout={onLogout} />
+        <AgreementManagement user={user} onLogout={onLogout} onSettingsClick={() => setCurrentPage('settings')} />
+      </div>
+    );
+  }
+
+  // === M-PESA DASHBOARD VIEW ===
+  if (currentView === 'mpesa') {
+    return (
+      <div className="property-admin-dashboard">
+        <MpesaDashboard user={user} onLogout={onLogout} onSettingsClick={() => setCurrentPage('settings')} />
+      </div>
+    );
+  }
+
+  // === SEND MESSAGE VIEW ===
+  if (currentView === 'send-message') {
+    return (
+      <div className="property-admin-dashboard">
+        <SendMessage user={user} onLogout={onLogout} onSettingsClick={() => setCurrentPage('settings')} onCancel={() => setCurrentView('messages')} onSuccess={() => setCurrentView('messages')} />
       </div>
     );
   }
@@ -500,7 +775,7 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, initialView })
         setResponseMsg('Your property access key is provided below. You can now use this to view all sensitive property documents.');
         setShowResponseModal(true);
       } catch (error) {
-        alert('Failed to fetch key preview');
+        showNotification('Failed to fetch key preview', 'error');
       }
     };
 
@@ -512,11 +787,11 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, initialView })
           response_message: responseMsg,
           key_code: previewKey
         });
-        alert('🔑 Key sent to customer successfully!');
+        showNotification('🔑 Key sent to customer successfully!', 'success');
         setShowResponseModal(false);
         fetchPropertyAdminData();
       } catch (error) {
-        alert('Failed to send key');
+        showNotification('Failed to send key', 'error');
       }
     };
 
@@ -539,6 +814,7 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, initialView })
           subtitle="Manage customer access key requests for property documents"
           user={user}
           onLogout={onLogout}
+          onSettingsClick={() => setCurrentPage('settings')}
           actions={
             <button className="btn-secondary" onClick={() => setCurrentView('dashboard')}>
               ← Back to Dashboard
@@ -586,12 +862,25 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, initialView })
             <div className="dashboard-card">
               <div className="card-header">
                 <h3>📜 Key Request History ({keyHistory.length})</h3>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <label style={{ fontSize: '13px', color: '#64748b' }}>Show:</label>
+                  <select 
+                    value={keyHistoryLimit} 
+                    onChange={(e) => setKeyHistoryLimit(Number(e.target.value))}
+                    style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '13px' }}
+                  >
+                    <option value={2}>2</option>
+                    <option value={5}>5</option>
+                    <option value={8}>8</option>
+                    <option value={10}>10</option>
+                  </select>
+                </div>
               </div>
               <div className="requests-list" style={{ padding: '20px' }}>
                 {keyHistory.length === 0 ? (
                   <p className="no-data">No historical records.</p>
                 ) : (
-                  keyHistory.map(req => (
+                  keyHistory.slice(0, keyHistoryLimit).map(req => (
                     <div key={req.id} className="request-card-mini" style={{ border: '1px solid #f1f5f9', padding: '12px', borderRadius: '8px', marginBottom: '10px', opacity: 0.85 }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                         <span style={{ fontSize: '11px', color: '#64748b' }}>KEY REQUEST</span>
@@ -690,11 +979,11 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, initialView })
           admin_id: user.id,
           response_message: responseMsg
         });
-        alert('🤝 Agreement forwarded to owner successfully!');
+        showNotification('🤝 Agreement forwarded to owner successfully!', 'success');
         setShowResponseModal(false);
         fetchPropertyAdminData();
       } catch (error) {
-        alert('Failed to forward agreement');
+        showNotification('Failed to forward agreement', 'error');
       }
     };
 
@@ -717,6 +1006,7 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, initialView })
           subtitle="Forward agreement requests to property owners for final approval"
           user={user}
           onLogout={onLogout}
+          onSettingsClick={() => setCurrentPage('settings')}
           actions={
             <button className="btn-secondary" onClick={() => setCurrentView('dashboard')}>
               ← Back to Dashboard
@@ -829,6 +1119,48 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, initialView })
     );
   }
 
+  // === MESSAGES VIEW ===
+  if (currentView === 'messages') {
+    return (
+      <div className="property-admin-dashboard">
+        <PageHeader
+          title="Messages"
+          subtitle="View message history and incoming replies"
+          user={user}
+          onLogout={onLogout}
+          onSettingsClick={() => setCurrentPage('settings')}
+          actions={
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button className="btn-primary" onClick={() => setCurrentView('send-message')}>
+                📤 Send New Message
+              </button>
+              <button className="btn-secondary" onClick={() => setCurrentView('dashboard')}>
+                ← Back to Dashboard
+              </button>
+            </div>
+          }
+        />
+        <div style={{ padding: '20px' }}>
+          <AdminMessagesView user={user} onClose={() => setCurrentView('dashboard')} />
+        </div>
+      </div>
+    );
+  }
+
+  // === SEND MESSAGE VIEW ===
+  if (currentView === 'send-message') {
+    return (
+      <div className="property-admin-dashboard">
+        <div style={{ padding: '10px 20px' }}>
+          <button className="btn-secondary" style={{ marginBottom: '10px' }} onClick={() => setCurrentView('dashboard')}>
+            ← Back to Dashboard
+          </button>
+        </div>
+        <SendMessage user={user} onLogout={onLogout} onSettingsClick={() => setCurrentPage('settings')} />
+      </div>
+    );
+  }
+
   // === APPROVAL VIEW ===
 
   if (currentView === 'approval') {
@@ -836,30 +1168,13 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, initialView })
       <div className="property-admin-dashboard">
         <PropertyApproval
           user={user}
+          onSettingsClick={() => setCurrentPage('settings')}
+          onLogout={onLogout}
           onClose={() => { setCurrentView('dashboard'); fetchPropertyAdminData(); }}
           onRefresh={fetchPropertyAdminData}
+          setCurrentPage={setCurrentPage}
+          setViewMapPropertyId={setViewMapPropertyId}
         />
-      </div>
-    );
-  }
-
-  if (currentView === 'profileApproval') {
-    return (
-      <div className="property-admin-dashboard">
-        <PageHeader
-          title="Profile Approvals"
-          subtitle="Review and approve user profiles"
-          user={user}
-          onLogout={onLogout}
-          actions={
-            <button className="btn-secondary" onClick={() => setCurrentView('dashboard')}>
-              ← Back to Dashboard
-            </button>
-          }
-        />
-        <div style={{ padding: '20px' }}>
-          <ProfileApproval />
-        </div>
       </div>
     );
   }
@@ -871,7 +1186,7 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, initialView })
           <button className="btn-secondary" style={{ marginBottom: '15px' }} onClick={() => setCurrentView('dashboard')}>
             ← Back to Dashboard
           </button>
-          <Users user={user} onLogout={onLogout} />
+          <Users user={user} onLogout={onLogout} onSettingsClick={() => setCurrentPage('settings')} />
         </div>
       </div>
     );
@@ -886,6 +1201,7 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, initialView })
           subtitle="View and manage all property statuses"
           user={user}
           onLogout={onLogout}
+          onSettingsClick={() => setCurrentPage('settings')}
           actions={
             <button className="btn-secondary" onClick={() => { setCurrentView('dashboard'); fetchPropertyAdminData(); }}>
               ← Back to Dashboard
@@ -896,17 +1212,15 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, initialView })
         <div className="filters-bar" style={{ margin: '20px 0', display: 'flex', gap: '10px', alignItems: 'center' }}>
           <select
             className="filter-select"
-            value={filterStatus}
-            onChange={(e) => setFilterStatus(e.target.value)}
+            value={filterType}
+            onChange={(e) => setFilterType(e.target.value)}
             style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
           >
-            <option value="all">All Status ({allProperties.length})</option>
-            <option value="active">Active</option>
-            <option value="pending">Pending</option>
-            <option value="suspended">Suspended</option>
-            <option value="inactive">Inactive/Rejected</option>
-            <option value="sold">Sold</option>
-            <option value="rented">Rented</option>
+            <option value="all">All Types ({allProperties.length})</option>
+            <option value="apartment">Apartment</option>
+            <option value="villa">Villa</option>
+            <option value="house">House</option>
+            <option value="shop">Shop</option>
           </select>
           <span style={{ color: '#64748b', fontSize: '14px' }}>
             Showing {filteredProperties.length} of {allProperties.length} properties
@@ -944,6 +1258,26 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, initialView })
                   <span style={{ fontSize: '12px', color: vBadge.color, marginTop: '4px' }}>
                     {vBadge.emoji} {vBadge.label}
                   </span>
+                  {property._suspicious && (
+                    <span style={{
+                      display: 'inline-block',
+                      background: '#ef4444',
+                      color: 'white',
+                      padding: '2px 8px',
+                      borderRadius: '10px',
+                      fontSize: '10px',
+                      fontWeight: '700',
+                      marginTop: '4px',
+                      textTransform: 'uppercase'
+                    }}>
+                      ⚠ SUSPICIOUS
+                    </span>
+                  )}
+                  {property._riskScore > 0 && (
+                    <span style={{ fontSize: '11px', color: '#ef4444', marginTop: '2px' }}>
+                      Risk: {property._riskScore}%
+                    </span>
+                  )}
                 </div>
                 <div className="property-row-actions">
                   <button className="btn-icon" title="View" onClick={() => viewPropertyDetail(property)}>👁️</button>
@@ -974,10 +1308,10 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, initialView })
                       if (window.confirm('PERMANENTLY DELETE this property? This cannot be undone.')) {
                         try {
                           await axios.delete(`${API_BASE}/properties/${property.id}`);
-                          alert('Property deleted permanently.');
+                          showNotification('Property deleted permanently.', 'success');
                           fetchAllProperties();
                         } catch (err) {
-                          alert('Failed to delete property.');
+                          showNotification('Failed to delete property.', 'error');
                         }
                       }
                     }}
@@ -1000,9 +1334,46 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, initialView })
         {showViewModal && selectedProperty && (
           <div className="modal-overlay" onClick={() => setShowViewModal(false)}>
             <div className="modal-content extra-large" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header">
-                <h2>🏠 {selectedProperty.title}</h2>
-                <button className="close-btn" onClick={() => setShowViewModal(false)}>✕</button>
+              <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  🏠 {selectedProperty.title}
+                </h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  {selectedProperty.latitude && selectedProperty.longitude && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        if (setViewMapPropertyId && setCurrentPage) {
+                          setViewMapPropertyId(selectedProperty.id);
+                          setCurrentPage('map-view');
+                        }
+                      }}
+                      style={{
+                        background: 'white',
+                        color: '#475569',
+                        border: 'none',
+                        padding: '6px 14px',
+                        borderRadius: '8px',
+                        fontSize: '13px',
+                        fontWeight: '600',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                      }}
+                    >
+                      📍 View on Map
+                    </button>
+                  )}
+                  <button
+                    className="close-btn"
+                    onClick={() => setShowViewModal(false)}
+                    style={{ position: 'relative', top: 'auto', right: 'auto', margin: 0 }}
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
               <div className="modal-body">
                 <div className="property-review-grid">
@@ -1027,7 +1398,8 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, initialView })
                     )}
                     
                     <div style={{ marginTop: '20px' }}>
-                      <AIPriceComparison propertyData={selectedProperty} />
+                      <h4 style={{marginTop: '20px'}}>ML Price Verification</h4>
+                      
                     </div>
                   </div>
                   <div className="review-section">
@@ -1047,6 +1419,17 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, initialView })
                       </div>
                     )}
                   </div>
+                  {/* Property Map */}
+                  {(selectedProperty.latitude || selectedProperty.longitude) && (
+                    <div className="review-section full-width" style={{ marginTop: '15px' }}>
+                      <h3>📍 Property Location Map</h3>
+                      <PropertyMap 
+                        latitude={selectedProperty.latitude} 
+                        longitude={selectedProperty.longitude} 
+                        title={selectedProperty.title} 
+                      />
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="modal-actions">
@@ -1065,62 +1448,96 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, initialView })
   // === MAIN DASHBOARD VIEW ===
   return (
     <div className="property-admin-dashboard">
+      {/* Top Notification Banner */}
+      {notification && (
+        <div className={`top-notification ${notification.type}`}>
+          <div className="notification-content">
+            <span className="notification-icon">
+              {notification.type === 'success' ? '✅' : notification.type === 'error' ? '❌' : 'ℹ️'}
+            </span>
+            {notification.message}
+          </div>
+          <button className="notification-close" onClick={() => setNotification(null)}>✕</button>
+        </div>
+      )}
+
       <PageHeader
         title="Property Admin Dashboard"
         subtitle="Verify and manage property listings"
         user={user}
         onLogout={onLogout}
+        onSettingsClick={() => setCurrentPage('settings')}
         actions={
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <MessageNotificationWidget 
               userId={user?.id}
-              onNavigateToMessages={() => setCurrentView('messages')}
+              onNavigateToMessages={() => setCurrentPage('messages')}
             />
-            <button className="btn-secondary" onClick={() => setCurrentView('agreements')}>
-              🤝 Agreements
-            </button>
-            <button className="btn-secondary" onClick={() => setCurrentView('key-requests')}>
-              🔐 Access Keys
-            </button>
-            <button className="btn-secondary" onClick={() => setShowAdminMessages(true)}>
-              📧 Message History
-            </button>
-            <button className="btn-secondary" onClick={() => setCurrentView('reports')}>
-              📊 Visual reports
-            </button>
-            <button className="btn-secondary" onClick={() => { setCurrentView('documents'); fetchAllProperties(); }}>
-              📄 Document Verification
-            </button>
-            <button className="btn-secondary" onClick={() => setCurrentPage('properties')}>
-              <span>➕</span> Add New Property
-            </button>
-            <button className="btn-primary" onClick={() => setShowAddBroker(true)}>
-              <span>🤝</span> Add New Broker
-            </button>
-            <button className="btn-primary" onClick={() => setShowAddUser(true)}>
-              <span>👤</span> Add Property Admin
-            </button>
-
-            {stats.pendingAgreementRequests > 0 && (
-              <button className="btn-warning" onClick={() => setCurrentView('agreement-requests')}>
-                🤝 Mediate Agreements ({stats.pendingAgreementRequests})
-              </button>
-            )}
             {stats.pendingVerification > 0 && (
               <button className="btn-warning" onClick={() => setCurrentView('approval')}>
-                ⏳ Review Properties ({stats.pendingVerification})
+                ⏳ Pending Properties ({stats.pendingVerification})
               </button>
             )}
-            <button className="btn-warning" onClick={() => setCurrentView('profileApproval')}>
-              👥 Profile Approvals {stats.pendingProfiles > 0 && `(${stats.pendingProfiles})`}
-            </button>
             <button className="btn-primary" onClick={handleViewAll}>
               📋 View All Properties
             </button>
           </div>
-
         }
       />
+
+      {/* Quick Navigation Toolbar */}
+      <div style={{ 
+        display: 'flex', 
+        gap: '12px', 
+        padding: '16px 20px', 
+        background: '#fff', 
+        borderBottom: '1px solid #e2e8f0',
+        marginBottom: '20px',
+        overflowX: 'auto',
+        WebkitOverflowScrolling: 'touch',
+        alignItems: 'center',
+        boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
+      }}>
+        <button className="btn-secondary" onClick={() => setCurrentView('agreements')} style={{ padding: '8px 16px', fontSize: '13px' }}>
+          🤝 Agreements
+        </button>
+        <button className="btn-secondary" onClick={() => setCurrentView('broker-holds')} style={{ padding: '8px 16px', fontSize: '13px' }}>
+          ⏱️ Booked Lists
+        </button>
+        <button className="btn-secondary" onClick={() => setCurrentView('key-requests')} style={{ padding: '8px 16px', fontSize: '13px' }}>
+          🔐 Access Keys
+        </button>
+        <button className="btn-secondary" onClick={() => setCurrentView('reports')} style={{ padding: '8px 16px', fontSize: '13px' }}>
+          📊 Visual Reports
+        </button>
+        <button className="btn-secondary" onClick={() => { setCurrentView('documents'); fetchAllProperties(); }} style={{ padding: '8px 16px', fontSize: '13px' }}>
+          📄 Document Verification
+        </button>
+        <button className="btn-primary" onClick={() => setCurrentPage('site-check')} style={{ padding: '8px 16px', fontSize: '13px', background: 'linear-gradient(135deg, #0ea5e9, #6366f1)' }}>
+          📍 Start Site Check
+        </button>
+        <button className="btn-primary" onClick={() => setCurrentView('send-message')} style={{ padding: '8px 16px', fontSize: '13px', background: '#3b82f6' }}>
+          📤 Send Message
+        </button>
+        <button
+          className="btn-secondary"
+          onClick={() => { setSuspiciousData([]); setCurrentView('suspicious'); }}
+          style={{
+            padding: '8px 16px',
+            fontSize: '13px',
+            background: stats.suspiciousProperties > 0 ? '#fef2f2' : undefined,
+            color: stats.suspiciousProperties > 0 ? '#dc2626' : undefined,
+            borderColor: stats.suspiciousProperties > 0 ? '#fecaca' : undefined
+          }}
+        >
+          ⚠️ Suspicious Activity {stats.suspiciousProperties > 0 ? `(${stats.suspiciousProperties})` : ''}
+        </button>
+        {stats.pendingAgreementRequests > 0 && (
+          <button className="btn-warning" onClick={() => setCurrentView('agreement-requests')} style={{ padding: '8px 16px', fontSize: '13px' }}>
+            🤝 Mediate Agreements ({stats.pendingAgreementRequests})
+          </button>
+        )}
+      </div>
 
       <div className="stats-grid">
         <div className="stat-card" style={{ cursor: 'pointer' }} onClick={() => setCurrentView('approval')}>
@@ -1144,18 +1561,18 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, initialView })
             <p>Rejected</p>
           </div>
         </div>
-        <div className="stat-card clickable" onClick={() => setCurrentView('profileApproval')}>
-          <div className="stat-icon" style={{ background: '#fee2e2', color: '#ef4444' }}>👥</div>
-          <div className="stat-content">
-            <h3>{stats.pendingProfiles}</h3>
-            <p>Pending Profiles</p>
-          </div>
-        </div>
         <div className="stat-card">
           <div className="stat-icon" style={{ background: '#fff7ed', color: '#f97316' }}>⏸️</div>
           <div className="stat-content">
             <h3>{stats.suspendedProperties}</h3>
             <p>Suspended</p>
+          </div>
+        </div>
+        <div className="stat-card clickable" style={{ cursor: 'pointer', border: stats.suspiciousProperties > 0 ? '2px solid #fecaca' : undefined }} onClick={() => { setSuspiciousData([]); setCurrentView('suspicious'); }}>
+          <div className="stat-icon" style={{ background: '#fef2f2', color: '#ef4444' }}>⚠️</div>
+          <div className="stat-content">
+            <h3>{stats.suspiciousProperties}</h3>
+            <p>Suspicious</p>
           </div>
         </div>
         <div className="stat-card clickable" onClick={() => setCurrentView('agreement-requests')}>
@@ -1179,7 +1596,7 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, initialView })
             <>
               <p>You have <strong>{stats.pendingVerification}</strong> properties waiting for verification.</p>
               <button className="btn-primary" onClick={() => setCurrentView('approval')}>
-                Review Properties
+                Pending Properties
               </button>
             </>
           ) : (
@@ -1233,26 +1650,6 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, initialView })
         </div>
       </div>
 
-      {showAddBroker && (
-        <AddBroker
-          onClose={() => setShowAddBroker(false)}
-          onSuccess={() => {
-            setShowAddBroker(false);
-            fetchPropertyAdminData(); // Refresh if needed
-          }}
-        />
-      )}
-      {showAddUser && (
-        <AddUserModal
-          user={user}
-          onClose={() => setShowAddUser(false)}
-          onSuccess={() => {
-            setShowAddUser(false);
-            fetchPropertyAdminData();
-          }}
-          initialRole="property_admin"
-        />
-      )}
       {showAdminMessages && (
         <div className="modal-overlay" onClick={() => setShowAdminMessages(false)}>
           <div className="modal-content extra-large" onClick={(e) => e.stopPropagation()}>
