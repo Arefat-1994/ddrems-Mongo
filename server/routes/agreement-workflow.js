@@ -172,7 +172,7 @@ router.put("/:agreementId/forward-to-owner", async (req, res) => {
       `
       UPDATE agreement_requests SET
         status = 'waiting_owner_response',
-        current_step = 2,
+        current_step = 4,
         property_admin_id = ?,
         forwarded_to_owner_date = NOW(),
         admin_notes = ?,
@@ -188,7 +188,7 @@ router.put("/:agreementId/forward-to-owner", async (req, res) => {
       INSERT INTO agreement_workflow_history (
         agreement_request_id, step_number, step_name, action,
         action_by_id, previous_status, new_status, notes
-      ) VALUES (?, 2, 'Forward to Owner', 'forwarded', ?, 
+      ) VALUES (?, 4, 'Forward to Owner', 'forwarded', ?, 
         'pending_admin_review', 'waiting_owner_response', ?)
     `,
       [agreementId, admin_id, admin_notes],
@@ -261,7 +261,7 @@ router.put("/:agreementId/owner-decision", async (req, res) => {
         : decision === "counter_offer"
           ? "counter_offer"
           : "owner_rejected";
-    const next_step = decision === "accepted" ? 3 : 1;
+    const next_step = decision === "accepted" ? 6 : 5;
 
     // Determine the final agreed price when accepting
     let agreedPrice = null;
@@ -281,27 +281,20 @@ router.put("/:agreementId/owner-decision", async (req, res) => {
       if (priceMatch) agreedPrice = parseFloat(priceMatch[1].replace(/,/g, ""));
     }
 
-    await db.query(
-      `UPDATE agreement_requests SET
-        status = ?,
-        current_step = ?,
-        owner_decision = ?,
-        owner_decision_date = NOW(),
-        owner_notes = ?,
-        ${agreedPrice ? "proposed_price = ?," : ""}
-        updated_at = NOW()
-      WHERE id = ?`,
-      agreedPrice
-        ? [
-            new_status,
-            next_step,
-            decision,
-            owner_notes,
-            agreedPrice,
-            agreementId,
-          ]
-        : [new_status, next_step, decision, owner_notes, agreementId],
-    );
+    const updates = [`status = ?`, `current_step = ?`, `owner_decision = ?`, `owner_decision_date = NOW()`, `owner_notes = ?`, `updated_at = NOW()`];
+    const values = [new_status, next_step, decision, owner_notes];
+
+    if (agreedPrice) {
+      updates.push(`proposed_price = ?`);
+      values.push(agreedPrice);
+    }
+    if (req.body.system_fee_payer) {
+      updates.push(`system_fee_payer = ?`);
+      values.push(req.body.system_fee_payer);
+    }
+    values.push(agreementId);
+
+    await db.query(`UPDATE agreement_requests SET ${updates.join(', ')} WHERE id = ?`, values);
 
     // Log workflow history
     await db.query(
@@ -528,7 +521,7 @@ router.put("/:agreementId/forward-buyer-counter", async (req, res) => {
 router.put("/:agreementId/buyer-counter-response", async (req, res) => {
   try {
     const { agreementId } = req.params;
-    const { buyer_id, response, counter_price, buyer_notes } = req.body;
+    const { buyer_id, response, counter_price, buyer_notes, system_fee_payer } = req.body;
 
     if (!["accepted", "rejected", "counter_offer"].includes(response)) {
       return res
@@ -572,17 +565,20 @@ router.put("/:agreementId/buyer-counter-response", async (req, res) => {
       agreedPrice = parseFloat(counter_price);
     }
 
-    await db.query(
-      `UPDATE agreement_requests SET
-        status = ?,
-        customer_notes = ?,
-        ${agreedPrice ? "proposed_price = ?," : ""}
-        updated_at = NOW()
-       WHERE id = ?`,
-      agreedPrice
-        ? [new_status, notes, agreedPrice, agreementId]
-        : [new_status, notes, agreementId],
-    );
+    const updates = [`status = ?`, `customer_notes = ?`, `updated_at = NOW()`];
+    const values = [new_status, notes];
+
+    if (agreedPrice) {
+      updates.push(`proposed_price = ?`);
+      values.push(agreedPrice);
+    }
+    if (system_fee_payer) {
+      updates.push(`system_fee_payer = ?`);
+      values.push(system_fee_payer);
+    }
+    values.push(agreementId);
+
+    await db.query(`UPDATE agreement_requests SET ${updates.join(', ')} WHERE id = ?`, values);
 
     await db.query(
       `INSERT INTO agreement_workflow_history (
@@ -675,8 +671,36 @@ router.post("/:agreementId/generate-agreement", async (req, res) => {
 
     const hasBroker = !!agr.broker_id;
     const systemCommPct = hasBroker ? 0.02 : 0.05;
-    const systemFee = (agreedPrice * systemCommPct).toFixed(2);
-    const ownerNet = (agreedPrice - Number(systemFee)).toFixed(2);
+    const systemFee = agreedPrice * systemCommPct;
+    
+    const feePayer = agr.system_fee_payer || 'buyer';
+    const brokerCommPct = hasBroker ? (agr.commission_percentage || 2.5) / 100 : 0;
+    const brokerFee = agreedPrice * brokerCommPct;
+    
+    let buyerTotal = agreedPrice;
+    let ownerNet = agreedPrice;
+    let buyerSystemFee = 0;
+    let buyerBrokerFee = 0;
+    let ownerSystemFee = 0;
+    let ownerBrokerFee = 0;
+    
+    if (feePayer === 'buyer') {
+      buyerSystemFee = systemFee;
+      buyerBrokerFee = brokerFee;
+      buyerTotal = agreedPrice + systemFee + brokerFee;
+      ownerNet = agreedPrice;
+    } else if (feePayer === 'owner') {
+      ownerSystemFee = systemFee;
+      ownerBrokerFee = brokerFee;
+      ownerNet = agreedPrice - systemFee - brokerFee;
+    } else if (feePayer === 'split') {
+      buyerSystemFee = systemFee / 2;
+      buyerBrokerFee = brokerFee / 2;
+      ownerSystemFee = systemFee / 2;
+      ownerBrokerFee = brokerFee / 2;
+      buyerTotal = agreedPrice + buyerSystemFee + buyerBrokerFee;
+      ownerNet = agreedPrice - ownerSystemFee - ownerBrokerFee;
+    }
     const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
     const rentalMonths = agr.rental_duration_months || 12;
     const paymentSchedule = agr.payment_schedule || 'monthly';
@@ -803,11 +827,21 @@ router.post("/:agreementId/generate-agreement", async (req, res) => {
     <table class="breakdown-table">
       <thead><tr><th>Description</th><th style="text-align:right">Amount</th></tr></thead>
       <tbody>
-        <tr><td>Monthly Rent</td><td class="amount">${monthlyRent.toLocaleString()} ETB</td></tr>
+        <tr><td>Agreed Monthly Rent</td><td class="amount">${monthlyRent.toLocaleString()} ETB</td></tr>
         <tr><td>Lease Duration</td><td class="amount">${rentalMonths} months</td></tr>
+        <tr class="total"><td>Total Base Rent</td><td class="amount">${totalRent.toLocaleString()} ETB</td></tr>
         ${securityDeposit > 0 ? `<tr><td>Security Deposit (refundable)</td><td class="amount">${securityDeposit.toLocaleString()} ETB</td></tr>` : ''}
-        <tr><td>System Service Fee (${hasBroker ? 2 : 5}%)</td><td class="amount">- ${Number(systemFee).toLocaleString()} ETB / month</td></tr>
-        <tr class="total"><td>Total Lease Value</td><td class="amount">${totalRent.toLocaleString()} ETB</td></tr>
+        ${feePayer === 'buyer' || feePayer === 'both' ? `
+        <tr><td>System Service Fee (Buyer Portion)</td><td class="amount">+ ${(buyerSystemFee * rentalMonths).toLocaleString()} ETB</td></tr>
+        ${hasBroker ? `<tr><td>Broker Commission (Buyer Portion)</td><td class="amount">+ ${(buyerBrokerFee * rentalMonths).toLocaleString()} ETB</td></tr>` : ''}
+        ` : ''}
+        <tr class="total"><td>Total Amount Due by Tenant</td><td class="amount">${(buyerTotal * rentalMonths + securityDeposit).toLocaleString()} ETB</td></tr>
+        <tr><td colspan="2" style="background:#e5e7eb;height:2px;padding:0;"></td></tr>
+        ${feePayer === 'owner' || feePayer === 'both' ? `
+        <tr><td>System Service Fee (Owner Deduction)</td><td class="amount">- ${(ownerSystemFee * rentalMonths).toLocaleString()} ETB</td></tr>
+        ${hasBroker ? `<tr><td>Broker Commission (Owner Deduction)</td><td class="amount">- ${(ownerBrokerFee * rentalMonths).toLocaleString()} ETB</td></tr>` : ''}
+        ` : ''}
+        <tr class="total"><td>Net Amount to Landlord</td><td class="amount">${(ownerNet * rentalMonths).toLocaleString()} ETB</td></tr>
       </tbody>
     </table>
   </div>
@@ -912,8 +946,17 @@ router.post("/:agreementId/generate-agreement", async (req, res) => {
       <thead><tr><th>Description</th><th style="text-align:right">Amount</th></tr></thead>
       <tbody>
         <tr><td>Agreed Purchase Price</td><td class="amount">${agreedPrice.toLocaleString()} ETB</td></tr>
-        <tr><td>System Service Fee (${hasBroker ? 2 : 5}%)</td><td class="amount">- ${Number(systemFee).toLocaleString()} ETB</td></tr>
-        <tr class="total"><td>Net Amount to Owner</td><td class="amount">${Number(ownerNet).toLocaleString()} ETB</td></tr>
+        ${feePayer === 'buyer' || feePayer === 'both' ? `
+        <tr><td>System Service Fee (Buyer Portion)</td><td class="amount">+ ${buyerSystemFee.toLocaleString()} ETB</td></tr>
+        ${hasBroker ? `<tr><td>Broker Commission (Buyer Portion)</td><td class="amount">+ ${buyerBrokerFee.toLocaleString()} ETB</td></tr>` : ''}
+        ` : ''}
+        <tr class="total"><td>Total Amount Due by Buyer</td><td class="amount">${buyerTotal.toLocaleString()} ETB</td></tr>
+        <tr><td colspan="2" style="background:#e5e7eb;height:2px;padding:0;"></td></tr>
+        ${feePayer === 'owner' || feePayer === 'both' ? `
+        <tr><td>System Service Fee (Owner Deduction)</td><td class="amount">- ${ownerSystemFee.toLocaleString()} ETB</td></tr>
+        ${hasBroker ? `<tr><td>Broker Commission (Owner Deduction)</td><td class="amount">- ${ownerBrokerFee.toLocaleString()} ETB</td></tr>` : ''}
+        ` : ''}
+        <tr class="total"><td>Net Amount to Owner</td><td class="amount">${ownerNet.toLocaleString()} ETB</td></tr>
       </tbody>
     </table>
   </div>
@@ -1403,6 +1446,30 @@ router.post("/:agreementId/submit-payment", async (req, res) => {
       });
     }
 
+    // --- FINANCIAL VALIDATION ---
+    const agr = agreement[0];
+    const price = Number(agr.proposed_price || agr.property_price || 0);
+    const hasBroker = !!agr.broker_id;
+    const feePayer = agr.system_fee_payer || 'buyer';
+    const sysRate = hasBroker ? 0.02 : 0.05;
+    const sysFee = price * sysRate;
+    const brokerRate = hasBroker ? (Number(agr.commission_percentage) || 2.5) / 100 : 0;
+    const brokerFee = price * brokerRate;
+
+    let expectedBuyerFee = 0;
+    if (feePayer === 'buyer') expectedBuyerFee = sysFee + brokerFee;
+    else if (feePayer === 'split') expectedBuyerFee = (sysFee + brokerFee) / 2;
+
+    const expectedTotal = price + expectedBuyerFee;
+
+    // Allow 1 ETB tolerance for rounding
+    if (Number(payment_amount) < (expectedTotal - 1)) {
+      return res.status(400).json({
+        success: false,
+        message: `Invalid payment amount. Expected at least ${expectedTotal.toLocaleString()} ETB based on negotiated terms.`
+      });
+    }
+
     // Record payment
     await db.query(
       `
@@ -1620,6 +1687,15 @@ router.put("/:agreementId/confirm-handover", async (req, res) => {
         [agreementId]
       );
     } else {
+      // OWNER CONFIRMATION
+      // Enforce sequence: Buyer must confirm first
+      if (!agreement[0].buyer_handover_confirmed) {
+        return res.status(400).json({
+          success: false,
+          message: "The buyer must confirm receipt of property/keys before you can confirm handover completion."
+        });
+      }
+      
       await db.query(
         `UPDATE agreement_requests SET owner_handover_confirmed = TRUE, owner_handover_date = NOW(), updated_at = NOW() WHERE id = ?`,
         [agreementId]
@@ -1732,17 +1808,29 @@ router.put("/:agreementId/release-funds", async (req, res) => {
     const property_price =
       agreement[0].proposed_price || agreement[0].property_price;
     
-    // COMMISSION LOGIC:
-    // With broker: 2% to broker, 2% to system (total 4%)
-    // Without broker: 5% to system (total 5%)
     const hasBroker = !!agreement[0].broker_id;
-    const broker_comm_pct = hasBroker ? 2.0 : 0.0;
-    const system_comm_pct = hasBroker ? 2.0 : 5.0;
+    const feePayer = agreement[0].system_fee_payer || 'buyer';
     
-    const total_broker_commission = (property_price * broker_comm_pct) / 100;
-    const total_system_commission = (property_price * system_comm_pct) / 100;
-    const total_commission = total_broker_commission + total_system_commission;
-    const net_amount = property_price - total_commission;
+    // Percentages (defaults if not specified)
+    const systemFeePct = (agreement[0].system_fee_percentage || 5.0) / 100;
+    const brokerCommPct = hasBroker ? (agreement[0].commission_percentage || 2.5) / 100 : 0;
+    
+    const total_system_commission = property_price * systemFeePct;
+    const total_broker_commission = property_price * brokerCommPct;
+    const total_commission = total_system_commission + total_broker_commission;
+    
+    let net_amount = property_price;
+    
+    if (feePayer === 'buyer') {
+      // Buyer paid extra, owner gets full agreed price
+      net_amount = property_price;
+    } else if (feePayer === 'owner') {
+      // Owner pays all fees from the agreed price
+      net_amount = property_price - total_system_commission - total_broker_commission;
+    } else if (feePayer === 'both') {
+      // Shared: Owner pays half of the fees from their share
+      net_amount = property_price - (total_system_commission / 2) - (total_broker_commission / 2);
+    }
 
     const isRental = agreement[0].agreement_type === 'rental' || agreement[0].agreement_type === 'rent';
     const txType = isRental ? 'rent' : 'sale';
@@ -1788,7 +1876,7 @@ router.put("/:agreementId/release-funds", async (req, res) => {
           agreementId,
           agreement[0].broker_id,
           property_price,
-          broker_comm_pct,
+          brokerCommPct * 100,
           total_broker_commission,
           admin_id,
         ],
@@ -1809,10 +1897,10 @@ router.put("/:agreementId/release-funds", async (req, res) => {
           agreement[0].broker_id || null, 
           agreement[0].property_id, 
           property_price, 
-          total_system_commission, // System share goes to customer_commission for revenue tracking
-          system_comm_pct,
-          total_broker_commission, // Broker share goes to owner_commission
-          broker_comm_pct,
+          total_system_commission, 
+          systemFeePct * 100,
+          total_broker_commission, 
+          brokerCommPct * 100,
           total_commission
         ]
       );
@@ -1834,7 +1922,7 @@ router.put("/:agreementId/release-funds", async (req, res) => {
         agreementId,
         admin_id,
         property_price,
-        system_comm_pct,
+        systemFeePct * 100,
         total_system_commission,
         admin_id,
       ],
@@ -1855,7 +1943,7 @@ router.put("/:agreementId/release-funds", async (req, res) => {
         updated_at = NOW()
       WHERE id = ?
     `,
-      [admin_id, hasBroker ? 4.0 : 5.0, total_commission, agreementId],
+      [admin_id, (systemFeePct + brokerCommPct) * 100, total_commission, agreementId],
     );
 
     // Update transaction status to completed
@@ -1879,7 +1967,7 @@ router.put("/:agreementId/release-funds", async (req, res) => {
       INSERT INTO agreement_workflow_history (
         agreement_request_id, step_number, step_name, action,
         action_by_id, previous_status, new_status, notes
-      ) VALUES (?, 11, 'Funds Released', 'released', ?, 'handover_confirmed', 'completed', ?)
+      ) VALUES (?, 12, 'Funds Released', 'released', ?, 'handover_confirmed', 'completed', ?)
     `,
       [
         agreementId,
@@ -1939,8 +2027,8 @@ router.put("/:agreementId/release-funds", async (req, res) => {
           monthlyRent: property_price,
           leaseDurationMonths: rentalMonths,
           paymentSchedule: agreement[0].payment_schedule || 'monthly',
-          brokerCommissionPct: agreement[0].broker_id ? broker_comm_pct : 0,
-          systemFeePct: system_comm_pct,
+          brokerCommissionPct: agreement[0].broker_id ? brokerCommPct : 0,
+          systemFeePct: systemFeePct,
           brokerId: agreement[0].broker_id
         });
         console.log(`📅 Generated ${scheduleCount} rental payment installments for agreement #${agreementId}`);
@@ -1964,7 +2052,7 @@ router.put("/:agreementId/release-funds", async (req, res) => {
       current_step: 12,
       summary: {
         property_price,
-        commission_percentage: broker_comm_pct + system_comm_pct,
+        commission_percentage: (brokerCommPct + systemFeePct) * 100,
         total_commission,
         net_to_owner: net_amount,
       },
@@ -2000,13 +2088,13 @@ router.put("/:agreementId/owner-negotiate-response", async (req, res) => {
     let new_status, next_step;
     if (decision === "accept") {
       new_status = "owner_accepted";
-      next_step = 3;
+      next_step = 6;
     } else if (decision === "reject") {
       new_status = "owner_rejected";
-      next_step = 1;
+      next_step = 5;
     } else {
       new_status = "owner_counter_offered";
-      next_step = 1;
+      next_step = 5;
     }
 
     const updates = [`status = ?`, `current_step = ?`, `owner_decision = ?`, `owner_decision_date = NOW()`, `owner_notes = ?`, `updated_at = NOW()`];
@@ -2031,7 +2119,7 @@ router.put("/:agreementId/owner-negotiate-response", async (req, res) => {
     // Log history
     await db.query(
       `INSERT INTO agreement_workflow_history (agreement_request_id, step_number, step_name, action, action_by_id, previous_status, new_status, notes)
-       VALUES (?, 1, 'Owner Negotiation Response', ?, ?, ?, ?, ?)`,
+       VALUES (?, 5, 'Owner Negotiation Response', ?, ?, ?, ?, ?)`,
       [agreementId, decision, owner_id, agr.status, new_status, owner_notes || (decision === "counter_offer" ? `Counter: ${counter_price} ETB` : decision)]
     );
 
@@ -2074,13 +2162,13 @@ router.put("/:agreementId/buyer-counter-negotiate", async (req, res) => {
     let new_status, next_step;
     if (decision === "accept") {
       new_status = "owner_accepted";
-      next_step = 3;
+      next_step = 6;
     } else if (decision === "reject") {
       new_status = "cancelled";
       next_step = 0;
     } else {
       new_status = "buyer_counter_offered";
-      next_step = 1;
+      next_step = 5;
     }
 
     const updates = [`status = ?`, `current_step = ?`, `customer_notes = ?`, `updated_at = NOW()`];
@@ -2106,7 +2194,7 @@ router.put("/:agreementId/buyer-counter-negotiate", async (req, res) => {
     // Log history
     await db.query(
       `INSERT INTO agreement_workflow_history (agreement_request_id, step_number, step_name, action, action_by_id, previous_status, new_status, notes)
-       VALUES (?, 1, 'Buyer Counter Response', ?, ?, ?, ?, ?)`,
+       VALUES (?, 5, 'Buyer Counter Response', ?, ?, ?, ?, ?)`,
       [agreementId, decision, buyer_id, agr.status, new_status, buyer_notes || (decision === "counter_offer" ? `Counter: ${counter_price} ETB` : decision)]
     );
 
@@ -2365,7 +2453,7 @@ router.get("/:agreementId/property-media", async (req, res) => {
 
     // Get property documents
     const [documents] = await db.query(
-      "SELECT id, document_type, document_name, document_path, uploaded_at FROM property_documents WHERE property_id = ?",
+      "SELECT id, document_type, document_name, document_path, access_key, uploaded_at FROM property_documents WHERE property_id = ?",
       [agreement[0].property_id]
     );
 

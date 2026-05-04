@@ -121,6 +121,57 @@ const templates = {
         <a href="http://localhost:3000/messages" style="background-color: #0d47a1; color: white; padding: 12px 25px; text-decoration: none; border-radius: 5px; font-weight: bold;">View Message</a>
       </div>
     `
+  }),
+  bookingInvitation: (name, propertyTitle, tempPassword, email) => ({
+    subject: 'Property Booking & Invitation - Dire Dawa Real Estate Management system',
+    html: `
+      <h2>Hello ${name},</h2>
+      <p>A property has been reserved for you: <strong>${propertyTitle}</strong>.</p>
+      <p>We have created a temporary account for you. Your login credentials are below:</p>
+      <div style="background-color: #f5f5f5; padding: 20px; border-radius: 10px; margin: 20px 0; border: 1px solid #ddd;">
+        <p><strong>Login Email:</strong> ${email}</p>
+        <p><strong>Temporary Password:</strong> ${tempPassword}</p>
+      </div>
+      <p style="color: #d32f2f; font-weight: bold;">⚠️ Account Status: Pending Activation</p>
+      <p>Our administrator is currently reviewing your reservation. Your account will be activated shortly. Once activated, you can log in to complete your profile and finalize the agreement.</p>
+      <p><strong>Hold Duration:</strong> This property is held for you for <strong>30 minutes</strong>. Please ensure you are ready to proceed once your account is activated.</p>
+      <div style="text-align: center; margin-top: 30px;">
+        <a href="http://localhost:3000/login" style="background-color: #0d47a1; color: white; padding: 14px 30px; text-decoration: none; border-radius: 8px; font-weight: bold;">Go to Login Page</a>
+      </div>
+    `
+  }),
+  bookingConfirmation: (name, propertyTitle, bookingId) => ({
+    subject: 'Booking Confirmation - Dire Dawa Real Estate Management system',
+    html: `
+      <h2>Hello ${name},</h2>
+      <p>Your booking for <strong>${propertyTitle}</strong> has been successfully placed.</p>
+      <p><strong>Booking ID:</strong> ${bookingId}</p>
+      <p>The property is now on hold for 30 minutes. You can view your booking status in your dashboard.</p>
+      <div style="text-align: center; margin-top: 30px;">
+        <a href="http://localhost:3000/my-bookings" style="background-color: #0d47a1; color: white; padding: 14px 30px; text-decoration: none; border-radius: 8px; font-weight: bold;">View My Bookings</a>
+      </div>
+    `
+  }),
+  ownerInvitation: (name, propertyTitle, tempPassword, email) => ({
+    subject: `Invitation to Manage Your Property: ${propertyTitle} - Dire Dawa Real Estate`,
+    html: `
+      <div style="text-align: center; margin-bottom: 20px;">
+        <span style="font-size: 50px;">🏠</span>
+      </div>
+      <h2>Hello ${name},</h2>
+      <p>A professional broker has added your property <strong>"${propertyTitle}"</strong> to the Dire Dawa Real Estate Management system.</p>
+      <p>We have created a secure account for you so you can track potential buyers, review agreements, and manage your property details directly.</p>
+      <div style="background-color: #f8fafc; padding: 25px; border-radius: 12px; margin: 25px 0; border: 1px solid #e2e8f0; box-shadow: inset 0 2px 4px rgba(0,0,0,0.02);">
+        <p style="margin: 0 0 10px; color: #64748b; font-size: 14px;">Your secure login credentials:</p>
+        <p style="margin: 5px 0;"><strong>📧 Login Email:</strong> ${email}</p>
+        <p style="margin: 5px 0;"><strong>🔑 Temp Password:</strong> <span style="font-family: monospace; background: #e0e7ff; padding: 2px 6px; borderRadius: 4px;">${tempPassword}</span></p>
+      </div>
+      <p style="color: #ef4444; font-weight: 600;">⚠️ Action Required: Please log in and change your password to secure your account.</p>
+      <div style="text-align: center; margin-top: 35px; margin-bottom: 20px;">
+        <a href="http://localhost:3000/login" style="background: linear-gradient(135deg, #1a237e 0%, #0d47a1 100%); color: white; padding: 16px 35px; text-decoration: none; border-radius: 10px; font-weight: bold; font-size: 16px; display: inline-block; box-shadow: 0 4px 12px rgba(26,35,126,0.25);">Access Your Property Manager</a>
+      </div>
+      <p style="font-size: 13px; color: #64748b;">If you didn't expect this invitation, please contact our support team.</p>
+    `
   })
 };
 

@@ -3,40 +3,84 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   padding: 20px;
+  position: relative;
+}
+
+.login-container::before {
+  content: "";
+  position: absolute;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(to bottom, rgba(59, 130, 246, 0.2), #0143a5);
+  z-index: 0;
 }
 
 .login-card {
-  background: white;
-  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 20px;
   padding: 40px;
   width: 100%;
   max-width: 450px;
   box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  position: relative;
+  z-index: 1;
+  backdrop-filter: blur(10px);
 }
 
 .login-header {
   text-align: center;
-  margin-bottom: 50px;
-  padding-bottom: 30px;
-  border-bottom: 2px solid #f3f4f6;
+  margin-bottom: 30px;
 }
 
-.login-header h1 {
-  font-size: 48px;
+.auth-logo {
+  width: 80px;
+  height: auto;
   margin-bottom: 10px;
 }
 
-.login-header h2 {
-  font-size: 24px;
-  color: #1f2937;
-  margin-bottom: 5px;
+.auth-title {
+  font-size: 36px;
+  color: #00369a;
+  margin: 0 0 5px 0;
+  font-weight: 800;
+  letter-spacing: 1px;
 }
 
-.login-header p {
-  color: #6b7280;
+.auth-subtitle {
+  color: #374151;
   font-size: 14px;
+  margin: 0 0 15px 0;
+  font-weight: 500;
+}
+
+.auth-slogan-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+
+.auth-slogan-line {
+  height: 1px;
+  background-color: #cbd5e1;
+  flex: 1;
+  max-width: 50px;
+}
+
+.auth-slogan {
+  color: #1d4ed8;
+  font-size: 13px;
+  font-style: italic;
+  margin: 0;
+  font-weight: 600;
+}
+
+.auth-heading {
+  font-size: 28px;
+  color: #0f172a;
+  margin: 20px 0 0 0;
+  font-weight: 700;
 }
 
 .login-form {
@@ -83,7 +127,7 @@
 
 .login-btn {
   padding: 14px;
-  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  background: linear-gradient(to right, #0a4ebd, #033c94);
   color: white;
   border: none;
   border-radius: 8px;
@@ -131,8 +175,8 @@
 
 .btn-show-register {
   background: transparent;
-  color: #667eea;
-  border: 2px solid #667eea;
+  color: #0052cc;
+  border: 2px solid #0052cc;
   padding: 10px 30px;
   border-radius: 8px;
   font-size: 14px;
@@ -142,8 +186,8 @@
 }
 
 .btn-show-register:hover {
-  background: #667eea;
+  background: #0052cc;
   color: white;
   transform: translateY(-2px);
-  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+  box-shadow: 0 4px 12px rgba(0, 82, 204, 0.3);
 }

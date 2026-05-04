@@ -4,6 +4,19 @@ import axios from 'axios';
 
 const API_BASE = `http://${window.location.hostname}:5000/api`;
 
+const countryCodes = [
+  { code: '+251', name: 'Ethiopia' },
+  { code: '+1', name: 'US/Canada' },
+  { code: '+44', name: 'UK' },
+  { code: '+971', name: 'UAE' },
+  { code: '+254', name: 'Kenya' },
+  { code: '+91', name: 'India' },
+  { code: '+86', name: 'China' },
+  { code: '+49', name: 'Germany' },
+  { code: '+33', name: 'France' },
+  { code: '+61', name: 'Australia' }
+];
+
 const CustomerProfile = ({ user, onComplete }) => {
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -26,18 +39,6 @@ const CustomerProfile = ({ user, onComplete }) => {
   const [editReason, setEditReason] = useState('');
   const [activeDetailTab, setActiveDetailTab] = useState('Personal Info');
 
-  const countryCodes = [
-    { code: '+251', name: 'Ethiopia' },
-    { code: '+1', name: 'US/Canada' },
-    { code: '+44', name: 'UK' },
-    { code: '+971', name: 'UAE' },
-    { code: '+254', name: 'Kenya' },
-    { code: '+91', name: 'India' },
-    { code: '+86', name: 'China' },
-    { code: '+49', name: 'Germany' },
-    { code: '+33', name: 'France' },
-    { code: '+61', name: 'Australia' }
-  ];
   const [selectedCountryCode, setSelectedCountryCode] = useState('+251');
 
   const getFileUrl = (path) => {
@@ -122,29 +123,30 @@ const CustomerProfile = ({ user, onComplete }) => {
   }, [fetchProfile, fetchEditRequest]);
 
   const handleChange = (e) => {
-    // Only allow changes if profile hasn't been submitted yet OR if in approved edit request mode
-    if (!!profile && !editMode) {
+    const { name, value } = e.target;
+    console.log(`[CustomerProfile] Changing ${name} to:`, value);
+    
+    // Only allow changes if profile isn't approved OR if in approved edit request mode
+    if (profile?.profile_status === 'approved' && !editMode) {
       return;
     }
     
-    const { name, value } = e.target;
-    
     if (name === 'full_name') {
       const alphabeticValue = value.replace(/[^a-zA-Z\s]/g, '');
-      setFormData({ ...formData, [name]: alphabeticValue });
+      setFormData(prev => ({ ...prev, [name]: alphabeticValue }));
       return;
     }
 
     if (name === 'phone_number') {
       const numericValue = value.replace(/[^0-9]/g, '');
-      setFormData({ ...formData, [name]: numericValue });
+      setFormData(prev => ({ ...prev, [name]: numericValue }));
       return;
     }
 
-    setFormData({
-      ...formData,
+    setFormData(prev => ({
+      ...prev,
       [name]: value
-    });
+    }));
   };
 
   const handleRequestEdit = async () => {
@@ -302,8 +304,8 @@ const CustomerProfile = ({ user, onComplete }) => {
             </div>
           </div>
           <div>
-            <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '4px' }}>Address</label>
-            <textarea name="address" value={formData.address} onChange={handleChange} rows="3" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }} />
+            <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '4px' }}>Address *</label>
+            <textarea name="address" value={formData.address} onChange={handleChange} rows="3" required style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }} />
           </div>
         </div>
       </div>
@@ -334,14 +336,18 @@ const CustomerProfile = ({ user, onComplete }) => {
     </form>
   );
 
-  // Fallback to original form if profile is not completed
-  if (!profile && !loading) {
+  // Show registration form if profile is missing or incomplete (missing ID document)
+  if (!loading && (!profile || !profile.id_document || !profile.profile_photo)) {
     return (
       <div className="unified-profile-container" style={{ padding: '24px' }}>
         <div className="form-registration-view">
-          <div className="profile-info-banner" style={{ background: '#eff6ff', padding: '16px', borderRadius: '8px', marginBottom: '24px' }}>
-            <h3 style={{ margin: '0 0 8px 0', color: '#1e40af' }}>📋 Complete Your Profile</h3>
-            <p style={{ margin: 0, color: '#3b82f6', fontSize: '14px' }}>Please complete your profile information to access all features.</p>
+          <div className="profile-info-banner" style={{ background: 'linear-gradient(135deg, #eff6ff, #dbeafe)', padding: '24px', borderRadius: '16px', marginBottom: '30px', border: '1px solid #bfdbfe', textAlign: 'center' }}>
+            <div style={{ fontSize: '40px', marginBottom: '15px' }}>🛡️</div>
+            <h2 style={{ margin: '0 0 10px 0', color: '#1e40af', fontWeight: '800' }}>Finalize Your Account</h2>
+            <p style={{ margin: 0, color: '#3b82f6', fontSize: '15px', fontWeight: '500', lineHeight: '1.5' }}>
+              Welcome! To access your reserved property and full system features, please provide your identification and address details. 
+              Our administrators will review and approve your profile shortly.
+            </p>
           </div>
           {renderProfileForm()}
         </div>

@@ -11,6 +11,101 @@ const isRentalEng = (eng) => eng?.engagement_type === 'rent';
 const bt = (eng) => isRentalEng(eng) ? 'Tenant' : 'Buyer';
 const ol = (eng) => isRentalEng(eng) ? 'Landlord' : 'Owner';
 
+const getDocumentUrl = (path) => {
+  if (!path) return "";
+  if (path.startsWith("data:") || path.startsWith("http")) return path;
+  
+  // If it's a long string and starts with known Base64 headers, it's data
+  if (path.length > 200 && (
+    path.startsWith('/9j/') || 
+    path.startsWith('/QP7Z/') || 
+    path.startsWith('iVBOR') || 
+    path.startsWith('JVBER')
+  )) {
+    // Detect type from prefix
+    if (path.startsWith('/9j/') || path.startsWith('/QP7Z/')) return `data:image/jpeg;base64,${path}`;
+    if (path.startsWith('iVBOR')) return `data:image/png;base64,${path}`;
+    if (path.startsWith('JVBER')) return `data:application/pdf;base64,${path}`;
+    return `data:image/jpeg;base64,${path}`; // Fallback
+  }
+
+  return `http://${window.location.hostname}:5000${path.startsWith("/") ? "" : "/"}${path}`;
+};
+
+// Commission & Fee Calculation Helpers
+const calculateCommissionFees = (price, commPct, feePayer) => {
+  const p = Number(price || 0);
+  const c = Number(commPct || 0);
+  const systemFee = p * 0.05;
+  const brokerComm = p * (c / 100);
+  
+  let buyerTotal = p;
+  let ownerPayout = p;
+  
+  if (feePayer === 'buyer') {
+    buyerTotal = p + systemFee + brokerComm;
+    ownerPayout = p;
+  } else if (feePayer === 'owner') {
+    buyerTotal = p;
+    ownerPayout = p - systemFee - brokerComm;
+  } else if (feePayer === 'split') {
+    buyerTotal = p + (systemFee / 2) + (brokerComm / 2);
+    ownerPayout = p - (systemFee / 2) - (brokerComm / 2);
+  }
+  
+  return { systemFee, brokerComm, buyerTotal, ownerPayout };
+};
+
+const CommissionFinancialBreakdown = ({ price, commPct, feePayer, engagementType }) => {
+  const { systemFee, brokerComm, buyerTotal, ownerPayout } = calculateCommissionFees(price, commPct, feePayer);
+  const isRent = engagementType === 'rent';
+  
+  return (
+    <div className="financial-breakdown-box" style={{
+      background: 'linear-gradient(135deg, #f8fafc, #f1f5f9)',
+      border: '1px solid #e2e8f0',
+      borderRadius: '12px',
+      padding: '16px',
+      marginTop: '16px',
+      boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.05)'
+    }}>
+      <h5 style={{ margin: '0 0 12px 0', fontSize: '14px', color: '#475569', fontWeight: 700, display: 'flex', alignItems: 'center', gap: '8px' }}>
+        📊 Estimated Financial Impact
+        <span style={{ fontSize: '10px', fontWeight: 400, background: '#e2e8f0', padding: '2px 6px', borderRadius: '4px' }}>
+          Based on {isRent ? 'Rent' : 'Price'}: {Number(price).toLocaleString()} ETB
+        </span>
+      </h5>
+      
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+        <div style={{ padding: '10px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+          <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '2px' }}>System Fee (5%)</div>
+          <div style={{ fontSize: '14px', fontWeight: 700, color: '#1e293b' }}>{systemFee.toLocaleString()} ETB</div>
+        </div>
+        <div style={{ padding: '10px', background: '#fff', borderRadius: '8px', border: '1px solid #e2e8f0' }}>
+          <div style={{ fontSize: '11px', color: '#64748b', marginBottom: '2px' }}>Broker Commission ({commPct}%)</div>
+          <div style={{ fontSize: '14px', fontWeight: 700, color: '#1e293b' }}>{brokerComm.toLocaleString()} ETB</div>
+        </div>
+      </div>
+      
+      <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px dashed #cbd5e1', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b' }}>Total {isRent ? 'Tenant' : 'Buyer'} Pays:</span>
+          <span style={{ fontSize: '16px', fontWeight: 800, color: '#2563eb' }}>{buyerTotal.toLocaleString()} ETB</span>
+        </div>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <span style={{ fontSize: '13px', fontWeight: 600, color: '#1e293b' }}>Total {isRent ? 'Landlord' : 'Owner'} Payout:</span>
+          <span style={{ fontSize: '16px', fontWeight: 800, color: '#059669' }}>{ownerPayout.toLocaleString()} ETB</span>
+        </div>
+      </div>
+      
+      <div style={{ marginTop: '10px', fontSize: '11px', color: '#64748b', fontStyle: 'italic', textAlign: 'center' }}>
+        ⚠️ Final values will be confirmed during property price negotiation (Step 4+).
+      </div>
+    </div>
+  );
+};
+
+
 const STATUS_MAP = {
   pending_broker_acceptance: { emoji: "⏳", label: "Pending Broker Acceptance", color: "#f59e0b", step: 1 },
   broker_declined: { emoji: "❌", label: "Broker Declined", color: "#ef4444", step: 2 },
@@ -181,7 +276,15 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
   const openModal = useCallback(async (type, engagement) => {
     setModalType(type);
     setSelectedEngagement(engagement);
-    setFormData({});
+    setFormData({
+      system_fee_payer: engagement?.system_fee_payer || "buyer",
+      offer_price: engagement?.current_offer || engagement?.starting_offer || "",
+      counter_price: engagement?.owner_counter_price || "",
+      decision: "",
+      message: "",
+      counter_commission: engagement?.agreed_commission_pct || 2.5
+    });
+
 
     if (type === "hire") {
       await fetchBrokers();
@@ -240,6 +343,9 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
     setPropertyMedia(null);
   }, []);
 
+  const [viewDocModal, setViewDocModal] = useState(false);
+  const [viewingDoc, setViewingDoc] = useState(null);
+
   const fetchEngagements = useCallback(async () => {
     try {
       setLoading(true);
@@ -262,19 +368,23 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
     fetchEngagements();
   }, [fetchEngagements]);
 
+  const hasOpenedEngagement = useRef(false);
   useEffect(() => {
     if (openEngagement && engagements.length > 0) {
       const match = engagements.find(e => e.id === openEngagement.id);
-      if (match && (!selectedEngagement || selectedEngagement.id !== match.id)) {
+      if (match && (!selectedEngagement || selectedEngagement.id !== match.id) && !hasOpenedEngagement.current) {
+        hasOpenedEngagement.current = true;
         openModal("details", match);
       }
     }
   }, [openEngagement, engagements, selectedEngagement, openModal]);
 
+  const hasOpenedInitial = useRef(false);
   useEffect(() => {
-    if (initialPropertyId) {
+    if (initialPropertyId && !hasOpenedInitial.current) {
+      hasOpenedInitial.current = true;
       openModal("hire", null);
-      setFormData({ property_id: initialPropertyId });
+      setFormData(prev => ({ ...prev, property_id: initialPropertyId }));
     }
   }, [initialPropertyId, openModal]);
 
@@ -399,8 +509,14 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
         case "broker_negotiate":
           url = `${API}/${id}/broker-negotiate`;
           method = "put";
-          data = { broker_id: user.id, offer_price: formData.offer_price, message: formData.message };
+          data = { 
+            broker_id: user.id, 
+            offer_price: formData.offer_price, 
+            message: formData.message,
+            system_fee_payer: formData.system_fee_payer || selectedEngagement?.system_fee_payer || 'buyer'
+          };
           break;
+
 
         case "buyer_review_draft":
           url = `${API}/${id}/buyer-approve-draft`;
@@ -417,8 +533,10 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
             decision: formData.decision,
             counter_price: formData.counter_price,
             message: formData.message,
+            system_fee_payer: formData.system_fee_payer || selectedEngagement?.system_fee_payer || 'buyer'
           };
           break;
+
 
         case "broker_advise":
           url = `${API}/${id}/broker-advise`;
@@ -434,8 +552,10 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
             authorization: formData.authorization,
             counter_price: formData.counter_price,
             message: formData.message,
+            system_fee_payer: formData.system_fee_payer || selectedEngagement?.system_fee_payer || 'buyer'
           };
           break;
+
 
         case "broker_finalize":
           url = `${API}/${id}/broker-finalize`;
@@ -1143,6 +1263,18 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
                     <option value="split">Split 50/50 (2.5% each)</option>
                   </select>
                 </div>
+
+                <CommissionFinancialBreakdown 
+                  price={selectedEngagement?.current_offer || selectedEngagement?.starting_offer || 0}
+                  commPct={
+                    formData.decision === 'counter_commission' 
+                      ? formData.counter_commission 
+                      : (isBuyer ? brokerCounter : buyerOffer)
+                  }
+                  feePayer={formData.system_fee_payer || selectedEngagement?.system_fee_payer || 'buyer'}
+                  engagementType={selectedEngagement?.engagement_type}
+                />
+
               </>
             )}
           </div>
@@ -1163,63 +1295,31 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
               {renderVideo(propertyMedia?.video_url)}
             </div>
 
+
             {/* Map Section */}
-            <div style={{ marginBottom: 20 }}>
+            <div style={{ marginBottom: 24 }}>
               <h4 style={{ fontSize: 14, fontWeight: 700, color: '#1e293b', marginBottom: 8 }}>🗺️ View on Map</h4>
-              {propertyMedia?.latitude && propertyMedia?.longitude ? (
-                <div style={{ borderRadius: 10, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+              {Number(propertyMedia?.latitude) && Number(propertyMedia?.longitude) ? (
+                <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #e2e8f0', background: '#f8fafc' }}>
                   <iframe
                     title="Property Location"
                     width="100%"
                     height="300"
                     frameBorder="0"
                     scrolling="no"
-                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${propertyMedia.longitude - 0.005},${propertyMedia.latitude - 0.005},${propertyMedia.longitude + 0.005},${propertyMedia.latitude + 0.005}&layer=mapnik&marker=${propertyMedia.latitude},${propertyMedia.longitude}`}
-                    style={{ borderRadius: 10, border: 'none' }}
+                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${Number(propertyMedia.longitude) - 0.002},${Number(propertyMedia.latitude) - 0.002},${Number(propertyMedia.longitude) + 0.002},${Number(propertyMedia.latitude) + 0.002}&layer=mapnik&marker=${propertyMedia.latitude},${propertyMedia.longitude}`}
                   />
-                  <div style={{ padding: 8, background: '#f8fafc', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: 12, color: '#64748b' }}>📍 {propertyMedia.property?.location || selectedEngagement?.property_location}</span>
-                    <a href={`https://www.openstreetmap.org/?mlat=${propertyMedia.latitude}&mlon=${propertyMedia.longitude}#map=16/${propertyMedia.latitude}/${propertyMedia.longitude}`}
-                      target="_blank" rel="noopener noreferrer"
-                      style={{ fontSize: 12, color: '#3b82f6', fontWeight: 600, textDecoration: 'none' }}>
-                      🔗 Open Full Map
-                    </a>
+                  <div style={{ padding: '8px 12px', background: '#fff', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 12, color: '#64748b' }}>📍 {propertyMedia.location_name || 'Dire Dawa, Ethiopia'}</span>
+                    <a href={`https://www.openstreetmap.org/?mlat=${propertyMedia.latitude}&mlon=${propertyMedia.longitude}#map=18/${propertyMedia.latitude}/${propertyMedia.longitude}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#3b82f6', textDecoration: 'none' }}>🔗 Open Full Map</a>
                   </div>
                 </div>
               ) : (
-                <div style={{ padding: 24, textAlign: 'center', background: '#f8fafc', borderRadius: 10, border: '1px dashed #cbd5e1' }}>
-                  <p style={{ color: '#94a3b8', fontSize: 13 }}>🗺️ Map coordinates not available</p>
+                <div style={{ padding: 30, textAlign: 'center', background: '#f8fafc', borderRadius: 12, border: '1px dashed #cbd5e1' }}>
+                  <p style={{ color: '#94a3b8', fontSize: 13 }}>🗺️ Map location not available</p>
                 </div>
               )}
             </div>
-
-            {/* Action to Request Key */}
-            {isBuyer && selectedEngagement?.status === "media_released" && (
-              <div style={{ marginBottom: 20, padding: 15, background: '#f0f9ff', border: '1px solid #bae6fd', borderRadius: 10 }}>
-                <h5 style={{ margin: '0 0 8px 0', fontSize: 14, color: '#0369a1', fontWeight: 700 }}>🔑 Document Access Control</h5>
-                <p style={{ margin: '0 0 12px 0', fontSize: 12, color: '#075985', lineHeight: 1.5 }}>
-                  Property documents are secured. Please click the button below to request your unique access key from the administrator. 
-                  Once the admin releases it, you can view the documents by entering the key.
-                </p>
-                <button 
-                  className="eng-btn eng-btn-primary" 
-                  style={{ fontSize: 12, padding: '8px 20px', borderRadius: 6, fontWeight: 600 }}
-                  onClick={async () => {
-                    try {
-                      await axios.post(`http://localhost:5000/api/key-requests`, {
-                        property_id: selectedEngagement.property_id,
-                        customer_id: user.id
-                      });
-                      alert("✅ Access Key request sent to Administrator. You will be notified once it is released.");
-                    } catch (err) {
-                      alert("⚠️ Request already pending or failed. Please check your notifications.");
-                    }
-                  }}
-                >
-                  🔐 Request Access Key
-                </button>
-              </div>
-            )}
 
             {/* Documents Section */}
             <div style={{ marginBottom: 12 }}>
@@ -1228,65 +1328,71 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {propertyMedia.documents.map((doc) => (
                     <div key={doc.id} style={{
-                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                      padding: '10px 14px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0'
+                      padding: '10px 14px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0',
+                      marginBottom: 10
                     }}>
-                      <div>
-                        <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>📄 {doc.document_name || doc.document_type}</div>
-                        <div style={{ fontSize: 11, color: '#94a3b8' }}>{doc.document_type} • {new Date(doc.uploaded_at).toLocaleDateString()}</div>
-                        
-                        {isBuyer && (
-                          <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
-                            <span style={{ fontSize: 11, color: '#64748b' }}>Enter Key:</span>
-                            <input 
-                              type="text"
-                              placeholder="XXXX-XXXX"
-                              style={{ 
-                                padding: '4px 8px', 
-                                fontSize: '11px', 
-                                border: '1px solid #cbd5e1', 
-                                borderRadius: '4px', 
-                                width: '100px',
-                                fontFamily: 'monospace',
-                                textTransform: 'uppercase'
-                              }}
-                              value={enteredKeys[doc.id] || ''}
-                              onChange={(e) => setEnteredKeys({...enteredKeys, [doc.id]: e.target.value.toUpperCase()})}
-                            />
-                            {enteredKeys[doc.id] === doc.access_key && (
-                              <span style={{ fontSize: 11, color: '#10b981', fontWeight: 'bold' }}>✅ Matched</span>
-                            )}
-                          </div>
-                        )}
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>📄 {doc.document_name || doc.document_type}</div>
+                          <div style={{ fontSize: 11, color: '#94a3b8' }}>{doc.document_type} • {new Date(doc.uploaded_at).toLocaleDateString()}</div>
+                          
+                          {isBuyer && (
+                            <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ fontSize: 11, color: '#64748b' }}>Enter Key:</span>
+                              <input 
+                                type="text"
+                                placeholder="XXXX-XXXX"
+                                style={{ padding: '4px 8px', fontSize: '11px', border: '1px solid #cbd5e1', borderRadius: '4px', width: '100px', fontFamily: 'monospace', textTransform: 'uppercase' }}
+                                value={enteredKeys[doc.id] || ''}
+                                onChange={(e) => setEnteredKeys({...enteredKeys, [doc.id]: e.target.value.toUpperCase()})}
+                              />
+                              {enteredKeys[doc.id] === doc.access_key && (
+                                <span style={{ fontSize: 11, color: '#10b981', fontWeight: 'bold' }}>✅ Matched</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          {(!isBuyer || selectedEngagement?.status === 'media_released' || selectedEngagement?.status === 'completed') ? (
+                            <button 
+                              className="eng-btn eng-btn-outline" 
+                              style={{ fontSize: 11, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
+                              onClick={() => toggleKey(doc.id)}
+                            >
+                              {visibleKeys[doc.id] ? "🙈 Hide Key" : "🔑 Show Key"}
+                            </button>
+                          ) : null}
+
+                           {(!isBuyer || enteredKeys[doc.id] === doc.access_key) ? (
+                             <button 
+                               className="eng-btn eng-btn-outline" 
+                               style={{ fontSize: 11, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
+                               onClick={() => {
+                                 setViewingDoc(doc);
+                                 setViewDocModal(true);
+                               }}
+                             >
+                               👁️ View
+                             </button>
+                           ) : (
+                             <button 
+                               disabled 
+                               className="eng-btn eng-btn-outline" 
+                               style={{ fontSize: 11, padding: '4px 10px', opacity: 0.6, cursor: 'not-allowed' }}
+                             >
+                               🔒 Locked
+                             </button>
+                           )}
+                        </div>
                       </div>
 
-                      <div style={{ display: 'flex', gap: 8 }}>
-                        {/* Owner/Broker/Admin can see Key, Buyer must input it */}
-                        {!isBuyer ? (
-                          <button 
-                            className="eng-btn eng-btn-outline" 
-                            style={{ fontSize: 11, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
-                            onClick={() => toggleKey(doc.id)}
-                          >
-                            {visibleKeys[doc.id] ? "🙈 Hide" : "🔑 Key"}
-                          </button>
-                        ) : null}
-
-                        {(!isBuyer || enteredKeys[doc.id] === doc.access_key) ? (
-                          <a href={doc.document_path} target="_blank" rel="noopener noreferrer"
-                            className="eng-btn eng-btn-outline" style={{ fontSize: 11, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}>
-                            👁️ View
-                          </a>
-                        ) : (
-                          <button 
-                            disabled 
-                            className="eng-btn eng-btn-outline" 
-                            style={{ fontSize: 11, padding: '4px 10px', opacity: 0.6, cursor: 'not-allowed' }}
-                          >
-                            🔒 Locked
-                          </button>
-                        )}
-                      </div>
+                      {visibleKeys[doc.id] && (
+                        <div style={{ marginTop: 6, padding: '4px 8px', background: '#fffbeb', borderRadius: 4, border: '1px solid #fef3c7', fontSize: 11 }}>
+                          <span style={{ color: '#92400e' }}>🔑 Access Key: </span>
+                          <strong style={{ color: '#b45309', fontFamily: 'monospace' }}>{doc.access_key}</strong>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -1355,7 +1461,24 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
               <label>Message to Owner</label>
               <textarea value={formData.message || ""} onChange={(e) => setFormData({ ...formData, message: e.target.value })} placeholder="Negotiation message..." rows="3" />
             </div>
+            <div className="eng-form-group">
+              <label>System Fee (5%) Paid By</label>
+              <select value={formData.system_fee_payer || selectedEngagement?.system_fee_payer || "buyer"}
+                onChange={(e) => setFormData({ ...formData, system_fee_payer: e.target.value })}>
+                <option value="buyer">Buyer pays</option>
+                <option value="owner">Owner pays</option>
+                <option value="split">Split 50/50</option>
+              </select>
+            </div>
+
+            <CommissionFinancialBreakdown 
+              price={formData.offer_price || selectedEngagement?.current_offer || 0}
+              commPct={selectedEngagement?.agreed_commission_pct || 2.5}
+              feePayer={formData.system_fee_payer || selectedEngagement?.system_fee_payer || 'buyer'}
+              engagementType={selectedEngagement?.engagement_type}
+            />
           </>
+
         );
 
       case "buyer_review_draft":
@@ -1378,6 +1501,10 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
                   <strong>Duration:</strong> {selectedEngagement.rental_duration_months} Months &nbsp;|&nbsp; <strong>Schedule:</strong> <span style={{textTransform: 'capitalize'}}>{selectedEngagement.payment_schedule || 'monthly'}</span>
                 </div>
               )}
+              <div style={{ fontSize: 13, color: "#92400e", marginTop: 8 }}>
+                <strong>System Fee Payer:</strong> <span style={{textTransform: 'capitalize'}}>{selectedEngagement?.system_fee_payer || 'Buyer'}</span>
+              </div>
+
             </div>
             <div className="eng-form-group">
               <label>Your Decision *</label>
@@ -1406,7 +1533,10 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
           <>
             <p style={{ color: "#64748b", fontSize: 13, marginBottom: 12 }}>
               Broker's offer: <strong>{Number(selectedEngagement?.current_offer || 0).toLocaleString()} ETB{isRentalEng(selectedEngagement) ? " / month" : ""}</strong>
+              <br/>
+              System Fee Payer: <span style={{textTransform: 'capitalize', fontWeight: 600}}>{selectedEngagement?.system_fee_payer || 'buyer'}</span>
             </p>
+
             {isRentalEng(selectedEngagement) && (
               <div style={{ padding: "10px 14px", background: "#f0fdf4", border: "1px solid #bbf7d0", borderRadius: "8px", marginBottom: "16px", fontSize: "13px", color: "#166534" }}>
                 <p style={{ margin: "0 0 4px" }}><strong>⏳ Lease Duration:</strong> {selectedEngagement.rental_duration_months} Months</p>
@@ -1432,7 +1562,26 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
               <label>Message</label>
               <textarea value={formData.message || ""} onChange={(e) => setFormData({ ...formData, message: e.target.value })} placeholder="Message to the broker..." rows="3" />
             </div>
+            {(formData.decision === "accept" || formData.decision === "counter") && (
+              <div className="eng-form-group">
+                <label>System Fee (5%) Paid By</label>
+                <select value={formData.system_fee_payer || selectedEngagement?.system_fee_payer || "buyer"}
+                  onChange={(e) => setFormData({ ...formData, system_fee_payer: e.target.value })}>
+                  <option value="buyer">Buyer pays</option>
+                  <option value="owner">Owner pays</option>
+                  <option value="split">Split 50/50</option>
+                </select>
+              </div>
+            )}
+
+            <CommissionFinancialBreakdown 
+              price={formData.decision === 'counter' ? formData.counter_price : (selectedEngagement?.current_offer || 0)}
+              commPct={selectedEngagement?.agreed_commission_pct || 2.5}
+              feePayer={formData.system_fee_payer || selectedEngagement?.system_fee_payer || 'buyer'}
+              engagementType={selectedEngagement?.engagement_type}
+            />
           </>
+
         );
 
       case "broker_advise":
@@ -1472,6 +1621,10 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
                 <p style={{ margin: 0, fontSize: 13, fontWeight: 600, color: "#92400e" }}>
                   🏢 Owner's Counter-Offer: {Number(selectedEngagement.owner_counter_price).toLocaleString()} ETB
                 </p>
+                <p style={{ margin: "4px 0 0", fontSize: 12, color: "#92400e" }}>
+                  <strong>System Fee Payer:</strong> <span style={{textTransform: 'capitalize'}}>{selectedEngagement?.system_fee_payer || 'buyer'}</span>
+                </p>
+
                 {selectedEngagement.owner_counter_message && (
                   <p style={{ margin: "4px 0 0", fontSize: 12, color: "#78350f" }}>"{selectedEngagement.owner_counter_message}"</p>
                 )}
@@ -1510,7 +1663,26 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
               <textarea value={formData.message || ""} onChange={(e) => setFormData({ ...formData, message: e.target.value })}
                 placeholder="Any message to your broker..." rows="3" />
             </div>
+            {(formData.authorization === "authorize_accept" || formData.authorization === "authorize_counter") && (
+              <div className="eng-form-group">
+                <label>System Fee (5%) Paid By</label>
+                <select value={formData.system_fee_payer || selectedEngagement?.system_fee_payer || "buyer"}
+                  onChange={(e) => setFormData({ ...formData, system_fee_payer: e.target.value })}>
+                  <option value="buyer">Buyer pays</option>
+                  <option value="owner">Owner pays</option>
+                  <option value="split">Split 50/50</option>
+                </select>
+              </div>
+            )}
+
+            <CommissionFinancialBreakdown 
+              price={formData.authorization === 'authorize_counter' ? formData.counter_price : (selectedEngagement?.owner_counter_price || selectedEngagement?.current_offer || 0)}
+              commPct={selectedEngagement?.agreed_commission_pct || 2.5}
+              feePayer={formData.system_fee_payer || selectedEngagement?.system_fee_payer || 'buyer'}
+              engagementType={selectedEngagement?.engagement_type}
+            />
           </>
+
         );
 
       case "broker_finalize":
@@ -1681,51 +1853,102 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
 
       case "owner_upload_media":
         return (
-          <div style={{ textAlign: "center", padding: 10 }}>
-            <p style={{ fontSize: 48, margin: "0 0 12px" }}>🎥</p>
-            <h4 style={{ margin: "0 0 8px", color: "#1e293b" }}>Upload Property Video Tour</h4>
-            <p style={{ color: "#64748b", fontSize: 13, marginBottom: 16 }}>
-              As the {ol(selectedEngagement)}, please provide a clear video tour of the property and any relevant verification documents for the buyer to review.
+          <div style={{ padding: '10px' }}>
+            <div style={{ textAlign: 'center', marginBottom: 20 }}>
+              <div style={{ fontSize: '40px', marginBottom: '8px' }}>📹</div>
+              <h4 style={{ margin: '0 0 4px', color: '#1e293b', fontSize: 18 }}>Property Video Tour</h4>
+            </div>
+
+            <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+              <button 
+                onClick={() => setFormData({ ...formData, video_input_type: 'file' })}
+                style={{
+                  flex: 1, padding: '10px', borderRadius: 8, border: 'none',
+                  background: (formData.video_input_type !== 'link') ? '#3b82f6' : '#f1f5f9',
+                  color: (formData.video_input_type !== 'link') ? '#fff' : '#64748b',
+                  fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: 'pointer'
+                }}
+              >
+                📁 Upload File
+              </button>
+              <button 
+                onClick={() => setFormData({ ...formData, video_input_type: 'link' })}
+                style={{
+                  flex: 1, padding: '10px', borderRadius: 8, border: 'none',
+                  background: (formData.video_input_type === 'link') ? '#3b82f6' : '#f1f5f9',
+                  color: (formData.video_input_type === 'link') ? '#fff' : '#64748b',
+                  fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: 'pointer'
+                }}
+              >
+                🔗 Video Link
+              </button>
+            </div>
+
+            <p style={{ color: '#64748b', fontSize: 13, marginBottom: 16 }}>
+              Select a video file from your computer. Max size: <strong>10MB</strong>.
             </p>
-            <div className="eng-form-group" style={{ textAlign: "left" }}>
-              <label>Property Video File (MP4, WebM) *</label>
-              <input 
-                type="file" 
-                accept="video/mp4,video/webm,video/ogg" 
-                onChange={(e) => {
-                  const file = e.target.files[0];
-                  if (file) {
-                    if (file.size > 20 * 1024 * 1024) {
-                      alert("❌ Video file too large! Please upload a file smaller than 20MB.");
-                      e.target.value = "";
-                      return;
+
+            {formData.video_input_type === 'link' ? (
+              <div className="eng-form-group">
+                <label>Video Link (YouTube, Vimeo, or Drive URL) *</label>
+                <input
+                  type="text"
+                  placeholder="https://www.youtube.com/watch?v=..."
+                  value={formData.video_url || ''}
+                  onChange={(e) => setFormData({ ...formData, video_url: e.target.value })}
+                  style={{ width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: 8 }}
+                />
+              </div>
+            ) : (
+              <div style={{ 
+                border: '2px dashed #cbd5e1', borderRadius: 12, padding: '30px', textAlign: 'center', 
+                background: '#f8fafc', marginBottom: 20, position: 'relative' 
+              }}>
+                <input 
+                  type="file" 
+                  accept="video/mp4,video/webm" 
+                  onChange={(e) => {
+                    const file = e.target.files[0];
+                    if (file) {
+                      if (file.size > 10 * 1024 * 1024) {
+                        alert("❌ Video file too large! Please upload a file smaller than 10MB.");
+                        e.target.value = "";
+                        return;
+                      }
+                      const reader = new FileReader();
+                      reader.onloadend = () => setFormData({ ...formData, video_file: reader.result, video_file_name: file.name });
+                      reader.readAsDataURL(file);
                     }
-                    const reader = new FileReader();
-                    reader.onloadend = () => setFormData({ ...formData, video_file: reader.result, video_file_name: file.name });
-                    reader.readAsDataURL(file);
-                  }
-                }} 
-                style={{ width: "100%", padding: "10px", border: "1px dashed #cbd5e1", borderRadius: 8, background: "#f8fafc" }}
-              />
-              {formData.video_file_name && <p style={{ fontSize: 12, color: "#059669", marginTop: 4 }}>✅ Selected: {formData.video_file_name}</p>}
+                  }} 
+                  style={{ opacity: 0, position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', cursor: 'pointer' }}
+                />
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                  <div style={{ padding: '8px 16px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: 4, fontSize: 13, fontWeight: 600 }}>
+                    Choose File
+                  </div>
+                  <span style={{ fontSize: 13, color: '#64748b' }}>
+                    {formData.video_file_name || "No file chosen"}
+                  </span>
+                </div>
+              </div>
+            )}
+
+            <div style={{ 
+              background: '#fff7ed', border: '1px solid #ffedd5', borderRadius: 10, padding: '16px', 
+              fontSize: 13, color: '#9a3412', lineHeight: 1.5, display: 'flex', gap: 10 
+            }}>
+              <span style={{ fontSize: 16 }}>💡</span>
+              <div>
+                <strong>Note:</strong> This video will be used during the media release phase of agreements. Ensure it provides a clear tour of the property.
+              </div>
             </div>
 
-            <div className="eng-form-group" style={{ textAlign: "left" }}>
-              <label>OR: Property Video Link (YouTube/Vimeo/Drive)</label>
-              <input 
-                type="text" 
-                value={formData.video_url || ""} 
-                onChange={(e) => setFormData({ ...formData, video_url: e.target.value })} 
-                placeholder="https://..." 
-              />
-            </div>
-
-            <div className="eng-form-group" style={{ textAlign: "left" }}>
-              <label>Additional Property Documents (PDF/Images)</label>
+            <div className="eng-form-group" style={{ marginTop: 24 }}>
+              <label style={{ fontWeight: 600 }}>Additional Property Documents (Ownership Proof, Photos)</label>
               <input 
                 type="file" 
                 multiple
-                accept="application/pdf,image/png,image/jpeg,image/webp" 
+                accept="application/pdf,image/*" 
                 onChange={(e) => {
                   const files = Array.from(e.target.files);
                   const docPromises = files.map(file => {
@@ -1739,14 +1962,8 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
                     setFormData({ ...formData, additional_docs: docs });
                   });
                 }}
-                style={{ width: "100%", padding: "10px", border: "1px dashed #cbd5e1", borderRadius: 8, background: "#f8fafc" }}
+                style={{ width: "100%", padding: "10px", border: "1px solid #cbd5e1", borderRadius: 8, background: "#f8fafc", marginTop: 8 }}
               />
-              <p style={{ fontSize: 11, color: "#94a3b8", marginTop: 4 }}>
-                Upload site plans, ownership proof, or detailed photos.
-              </p>
-            </div>
-            <div style={{ color: "#ef4444", fontSize: 12, background: "#fee2e2", padding: "10px", borderRadius: "8px", marginTop: "16px" }}>
-              ⚠️ Admins must verify this video before the buyer can proceed to payment.
             </div>
           </div>
         );
@@ -2189,6 +2406,62 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
                 </button>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* Document Viewer Modal */}
+      {viewDocModal && viewingDoc && (
+        <div className="eng-modal-overlay" onClick={() => setViewDocModal(false)} style={{ zIndex: 1200 }}>
+          <div className="eng-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '1000px', width: '90%', maxHeight: '90vh' }}>
+            <div className="eng-modal-header" style={{ borderBottom: '1px solid #e2e8f0', padding: '16px 20px' }}>
+              <div>
+                <h3 style={{ margin: 0, fontSize: 18 }}>📄 {viewingDoc.document_name || viewingDoc.document_type}</h3>
+                <p style={{ margin: '4px 0 0', fontSize: 12, color: '#64748b' }}>
+                  {viewingDoc.document_type?.replace('_', ' ').toUpperCase()} • Uploaded: {new Date(viewingDoc.uploaded_at || viewingDoc.created_at).toLocaleDateString()}
+                </p>
+              </div>
+              <button className="eng-modal-close" onClick={() => setViewDocModal(false)}>✕</button>
+            </div>
+            <div className="eng-modal-body" style={{ padding: 0, overflow: 'hidden', height: 'calc(90vh - 120px)', background: '#f1f5f9' }}>
+              <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+                <div style={{ flex: 1, overflow: 'auto', padding: 20, display: 'flex', justifyContent: 'center', alignItems: 'flex-start' }}>
+                  {getDocumentUrl(viewingDoc.document_path).startsWith('data:application/pdf') ? (
+                    <iframe
+                      src={getDocumentUrl(viewingDoc.document_path)}
+                      style={{ width: '100%', height: '100%', border: 'none', borderRadius: 8, background: '#fff', minHeight: '600px' }}
+                      title="Document Preview"
+                    />
+                  ) : getDocumentUrl(viewingDoc.document_path).startsWith('data:image') || getDocumentUrl(viewingDoc.document_path).includes('.jpg') || getDocumentUrl(viewingDoc.document_path).includes('.png') || getDocumentUrl(viewingDoc.document_path).includes('.jpeg') ? (
+                    <img
+                      src={getDocumentUrl(viewingDoc.document_path)}
+                      alt="Document Preview"
+                      style={{ maxWidth: '100%', height: 'auto', borderRadius: 8, boxShadow: '0 4px 12px rgba(0,0,0,0.1)', background: '#fff' }}
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        if (e.target.nextSibling) e.target.nextSibling.style.display = 'block';
+                      }}
+                    />
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '40px', color: '#64748b', background: '#fff', borderRadius: 12, width: '100%' }}>
+                      <div style={{ fontSize: '3rem', marginBottom: '16px' }}>📄</div>
+                      <p>Document preview not available for this file type.</p>
+                      <a 
+                        href={getDocumentUrl(viewingDoc.document_path)} 
+                        download={viewingDoc.document_name}
+                        className="eng-btn eng-btn-primary"
+                        style={{ marginTop: 20, display: 'inline-flex' }}
+                      >
+                        📥 Download Document
+                      </a>
+                    </div>
+                  )}
+                </div>
+                <div style={{ padding: '16px 20px', background: '#fff', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end' }}>
+                  <button className="eng-btn eng-btn-outline" onClick={() => setViewDocModal(false)}>Close Viewer</button>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       )}

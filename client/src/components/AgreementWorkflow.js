@@ -14,16 +14,83 @@ const buyerOrTenant = (agr) => isRental(agr) ? 'Tenant' : 'Buyer';
 const ownerOrLandlord = (agr) => isRental(agr) ? 'Landlord' : 'Owner';
 const priceOrRent = (agr) => isRental(agr) ? 'Rent' : 'Price';
 
+const getDocumentUrl = (path) => {
+  if (!path) return "";
+  if (path.startsWith("data:") || path.startsWith("http")) return path;
+  
+  // If it's a long string and starts with known Base64 headers, it's data
+  if (path.length > 200 && (
+    path.startsWith('/9j/') || 
+    path.startsWith('/QP7Z/') || 
+    path.startsWith('iVBOR') || 
+    path.startsWith('JVBER')
+  )) {
+    // Detect type from prefix
+    if (path.startsWith('/9j/') || path.startsWith('/QP7Z/')) return `data:image/jpeg;base64,${path}`;
+    if (path.startsWith('iVBOR')) return `data:image/png;base64,${path}`;
+    if (path.startsWith('JVBER')) return `data:application/pdf;base64,${path}`;
+    return `data:image/jpeg;base64,${path}`; // Fallback
+  }
+
+  return `http://${window.location.hostname}:5000${path.startsWith("/") ? "" : "/"}${path}`;
+};
+
+const toggleKey = (docId, setVisibleKeys) => {
+  setVisibleKeys(prev => ({ ...prev, [docId]: !prev[docId] }));
+};
+
+
+
+// ── Reusable Financial Breakdown Component ──
+const FinancialBreakdown = ({ agr, formData = {}, compact = false }) => {
+  const price = Number(
+    formData.counter_price || 
+    formData.proposed_price || 
+    agr?.counter_offer_price || 
+    agr?.proposed_price || 
+    agr?.property_price || 
+    0
+  );
+  const hasBroker = !!agr?.broker_id;
+  const feePayer = formData.system_fee_payer || agr?.system_fee_payer || 'buyer';
+  const sysRate = agr?.system_fee_percentage ? agr.system_fee_percentage / 100 : 0.05;
+  const sysFee = price * sysRate;
+  const brokerRate = hasBroker ? (agr?.commission_percentage || 2.5) / 100 : 0;
+  const brokerFee = price * brokerRate;
+  let buyerSys = 0, buyerBrk = 0, ownerSys = 0, ownerBrk = 0;
+  if (feePayer === 'buyer') { buyerSys = sysFee; buyerBrk = brokerFee; }
+  else if (feePayer === 'owner') { ownerSys = sysFee; ownerBrk = brokerFee; }
+  else { buyerSys = sysFee / 2; buyerBrk = brokerFee / 2; ownerSys = sysFee / 2; ownerBrk = brokerFee / 2; }
+  const buyerTotal = price + buyerSys + buyerBrk;
+  const ownerNet = price - ownerSys - ownerBrk;
+  const payerLabel = feePayer === 'buyer' ? 'Buyer pays' : feePayer === 'owner' ? 'Owner pays' : 'Split 50/50';
+
+  const boxStyle = { background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: compact ? 10 : 14, marginTop: compact ? 8 : 12 };
+  const rowStyle = { display: 'flex', justifyContent: 'space-between', fontSize: compact ? 12 : 13, padding: '3px 0' };
+  const totalStyle = { ...rowStyle, fontWeight: 700, borderTop: '1px dashed #cbd5e1', paddingTop: 6, marginTop: 4, fontSize: compact ? 13 : 14 };
+  return (
+    <div style={boxStyle}>
+      <div style={{ fontSize: compact ? 11 : 12, fontWeight: 700, color: '#475569', marginBottom: 6, textTransform: 'uppercase', letterSpacing: 0.5 }}>💰 Financial Summary</div>
+      <div style={rowStyle}><span>Agreed {isRental(agr) ? 'Rent' : 'Price'}:</span><strong>{price.toLocaleString()} ETB</strong></div>
+      <div style={rowStyle}><span>System Fee ({(sysRate * 100).toFixed(0)}%) — {payerLabel}:</span><strong>{sysFee.toLocaleString()} ETB</strong></div>
+      {hasBroker && <div style={rowStyle}><span>Broker Commission ({(brokerRate * 100).toFixed(1)}%):</span><strong>{brokerFee.toLocaleString()} ETB</strong></div>}
+      <div style={{ ...rowStyle, color: '#1e40af' }}><span>Buyer Total:</span><strong>{buyerTotal.toLocaleString()} ETB</strong></div>
+      <div style={{ ...totalStyle, color: '#059669' }}><span>Net to {isRental(agr) ? 'Landlord' : 'Owner'}:</span><strong>{ownerNet.toLocaleString()} ETB</strong></div>
+    </div>
+  );
+};
+
+
 const getSteps = (agr) => [
   { num: 1, label: "Request", icon: "📝" },
-  { num: 2, label: "Negotiate", icon: "🤝" },
-  { num: 3, label: "Finalize", icon: "⚖️" },
-  { num: 4, label: "Review", icon: "🔍" },
-  { num: 5, label: "Contract", icon: "📄" },
-  { num: 6, label: "Buyer Sign", icon: "✍️" },
-  { num: 7, label: "Owner Sign", icon: "✍️" },
-  { num: 8, label: "Tour Upload", icon: "🎥" },
-  { num: 9, label: "Property Review", icon: "👀" },
+  { num: 2, label: "Admin Review", icon: "⏳" },
+  { num: 3, label: "Negotiation", icon: "🤝" },
+  { num: 4, label: "Forwarded", icon: "➡️" },
+  { num: 5, label: "Owner Decision", icon: "⚖️" },
+  { num: 6, label: "Finalize Deal", icon: "✅" },
+  { num: 7, label: "Generate Contract", icon: "📄" },
+  { num: 8, label: "Sign Agreement", icon: "✍️" },
+  { num: 9, label: "Property Review", icon: "🔍" },
   { num: 10, label: "Payment", icon: "💰" },
   { num: 11, label: "Handover", icon: "🔑" },
   { num: 12, label: "Complete", icon: "🎉" },
@@ -33,37 +100,37 @@ const getSteps = (agr) => [
 
 const STATUS_MAP = {
   price_negotiation: {
-    emoji: "🤝", label: "Price Negotiation", color: "#3b82f6", step: 1
+    emoji: "🤝", label: "Price Negotiation", color: "#3b82f6", step: 3
   },
   owner_counter_offered: {
-    emoji: "🔄", label: "Owner Counter Offer", color: "#f97316", step: 2
+    emoji: "🔄", label: "Owner Counter Offer", color: "#f97316", step: 5
   },
   buyer_counter_offered: {
-    emoji: "🔄", label: "Buyer Counter Offer", color: "#8b5cf6", step: 2
+    emoji: "🔄", label: "Buyer Counter Offer", color: "#8b5cf6", step: 5
   },
   waiting_owner_response: {
-    emoji: "⏳", label: "Waiting Owner", color: "#6366f1", step: 2
+    emoji: "⏳", label: "Waiting Owner", color: "#6366f1", step: 5
   },
   owner_accepted: {
-    emoji: "✅", label: "Price Agreed", color: "#10b981", step: 3
+    emoji: "✅", label: "Price Agreed", color: "#10b981", step: 6
   },
   pending_admin_review: {
-    emoji: "⏳", label: "Pending Admin Review", color: "#f59e0b", step: 3
+    emoji: "⏳", label: "Pending Admin Review", color: "#f59e0b", step: 2
   },
   owner_rejected: {
-    emoji: "❌", label: "Owner Rejected", color: "#ef4444", step: 3
+    emoji: "❌", label: "Owner Rejected", color: "#ef4444", step: 5
   },
   agreement_generated: {
-    emoji: "📄", label: "Agreement Ready", color: "#0891b2", step: 5
+    emoji: "📄", label: "Agreement Ready", color: "#0891b2", step: 7
   },
   buyer_signed: {
-    emoji: "✍️", label: "Buyer Signed", color: "#8b5cf6", step: 6
+    emoji: "✍️", label: "Buyer Signed", color: "#8b5cf6", step: 8
   },
   fully_signed: {
-    emoji: "🔒", label: "Fully Signed", color: "#059669", step: 7
+    emoji: "🔒", label: "Fully Signed", color: "#059669", step: 8
   },
   video_submitted: {
-    emoji: "🎥", label: "Video Uploaded", color: "#8b5cf6", step: 8
+    emoji: "🎥", label: "Video Uploaded", color: "#8b5cf6", step: 9
   },
   media_released: {
     emoji: "🔑", label: "Media Released", color: "#0891b2", step: 9
@@ -91,6 +158,8 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
   const [selectedAgreement, setSelectedAgreement] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState("");
+  const [viewDocModal, setViewDocModal] = useState(false);
+  const [viewingDoc, setViewingDoc] = useState(null);
   const [formData, setFormData] = useState({});
   const [actionLoading, setActionLoading] = useState(false);
   const [activeProperties, setActiveProperties] = useState([]);
@@ -99,6 +168,9 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
   const [contractError, setContractError] = useState(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [propertyMedia, setPropertyMedia] = useState(null);
+  const [visibleKeys, setVisibleKeys] = useState({});
+  const [enteredKeys, setEnteredKeys] = useState({});
+
   const contractRef = useRef(null);
 
   const isAdmin = user.role === "property_admin" || user.role === "system_admin" || user.role === "admin";
@@ -141,7 +213,14 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
   const openModal = useCallback(async (agreement, type) => {
     setSelectedAgreement(agreement);
     setModalType(type);
-    setFormData({});
+    setFormData({
+      system_fee_payer: agreement?.system_fee_payer || "buyer",
+      proposed_price: agreement?.proposed_price || "",
+      counter_price: agreement?.counter_offer_price || "",
+      decision: "",
+      notes: ""
+    });
+
     if (type === "view_property_media" || type === "verify_video") {
       try {
         const mRes = await axios.get(`${API}/${agreement.id}/property-media`);
@@ -269,8 +348,9 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
           data = {
             buyer_id: user.id,
             decision: formData.decision,
-            customer_notes: formData.notes,
+            buyer_notes: formData.notes,
             counter_price: formData.counter_price,
+            system_fee_payer: formData.system_fee_payer,
           };
           break;
         case "decision":
@@ -281,6 +361,7 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
             decision: formData.decision,
             owner_notes: formData.notes,
             counter_price: formData.counter_price,
+            system_fee_payer: formData.system_fee_payer,
           };
           break;
         case "generate":
@@ -568,21 +649,18 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
           </button>
         )}
 
-        {/* ── Owner Actions ── */}
-        {isOwner && (agr.status === "waiting_owner_response" || agr.status === "price_negotiation") && (
+        {isOwner && (
+          agr.status === "waiting_owner_response" || 
+          agr.status === "price_negotiation" || 
+          agr.status === "buyer_counter_offer_forwarded" || 
+          agr.status === "buyer_counter_offered"
+        ) && (
           <button
             className="btn-primary"
+            style={{ background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)' }}
             onClick={() => openModal(agr, "decision")}
           >
-            📋 Review & Decide
-          </button>
-        )}
-        {isOwner && agr.status === "buyer_counter_offer_forwarded" && (
-          <button
-            className="btn-warning"
-            onClick={() => openModal(agr, "decision")}
-          >
-            🔄 Respond to {buyerOrTenant(agr)} Counter Offer
+            👁️ View & Decide
           </button>
         )}
         {isOwner && agr.status === "buyer_signed" && (
@@ -632,12 +710,14 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
         {/* ── Tenant/Buyer Actions ── */}
         {isBuyer &&
           (agr.status === "counter_offer" ||
-            agr.status === "counter_offer_forwarded") && (
+            agr.status === "counter_offer_forwarded" ||
+            agr.status === "owner_counter_offered") && (
             <button
-              className="btn-warning"
+              className="btn-primary"
+              style={{ background: 'linear-gradient(135deg, #f97316, #ea580c)' }}
               onClick={() => openModal(agr, "buyer_counter_response")}
             >
-              🔄 Respond to Counter Offer
+              👁️ View & Decide
             </button>
           )}
         {isBuyer && agr.status === "agreement_generated" && (
@@ -725,7 +805,7 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
             >
               {badge.emoji} {badge.label}
             </span>
-            <span>Step {a.current_step} / 11</span>
+            <span>Step {a.current_step} / 12</span>
           </div>
           <div className="detail-grid">
             <div>
@@ -819,10 +899,20 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
               </div>
             )}
             <div>
+              <strong>System Fee Payer</strong>
+              <span style={{ textTransform: 'capitalize', fontWeight: 600, color: '#1e40af' }}>
+                {a.system_fee_payer === 'both' || a.system_fee_payer === 'split' ? '50/50 Split' : (a.system_fee_payer || 'buyer')}
+              </span>
+            </div>
+            <div>
               <strong>Created</strong>
               <span>{new Date(a.created_at).toLocaleString()}</span>
             </div>
           </div>
+
+          {/* ── Financial Breakdown ── */}
+          <FinancialBreakdown agr={a} formData={formData} />
+
           {a.customer_notes && (
             <div className="note-box">
               <strong>{buyerOrTenant(a)} Notes:</strong> {a.customer_notes}
@@ -934,6 +1024,22 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
                       />
                     </div>
                   )}
+                  {formData.decision === "counter_offer" && (
+                    <div className="form-group" style={{ marginBottom: "12px" }}>
+                      <label style={{ display: "block", fontWeight: 600, marginBottom: "6px", fontSize: "13px" }}>
+                        System Fee Payer (Total 5%)
+                      </label>
+                      <select
+                        value={formData.system_fee_payer || a.system_fee_payer || "buyer"}
+                        onChange={(e) => setFormData({ ...formData, system_fee_payer: e.target.value })}
+                        style={{ width: "100%", padding: "9px 12px", border: "1px solid #e2e8f0", borderRadius: "8px", fontSize: "14px" }}
+                      >
+                        <option value="buyer">Buyer pays</option>
+                        <option value="owner">Owner pays</option>
+                        <option value="split">Split 50/50</option>
+                      </select>
+                    </div>
+                  )}
                   <div className="form-group" style={{ marginBottom: "12px" }}>
                     <label
                       style={{
@@ -985,6 +1091,7 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
                           response: formData.decision,
                           counter_price: formData.counter_price,
                           buyer_notes: formData.notes,
+                          system_fee_payer: formData.system_fee_payer
                         });
                         alert(`✅ ${res.data.message}`);
                         closeModal();
@@ -1354,6 +1461,7 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
               </p>
             )}
           </div>
+          <FinancialBreakdown agr={selectedAgreement} formData={formData} compact />
           <div className="form-group">
             <label>Admin Notes (optional)</label>
             <textarea
@@ -1475,21 +1583,32 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
             style={{ borderLeft: "4px solid #f97316", background: "#fff7ed" }}
           >
             <p>
-              🔄 <strong>Counter Offer from Owner</strong>
+              🏠 <strong>Property:</strong> {selectedAgreement?.property_title}
             </p>
             <p>
-              📋 <strong>Property:</strong> {selectedAgreement?.property_title}
+              👤 <strong>{ownerOrLandlord(selectedAgreement)}:</strong> {selectedAgreement?.owner_name}
             </p>
             <p>
               💰 <strong>Original Price:</strong>{" "}
               {Number(selectedAgreement?.property_price || 0).toLocaleString()}{" "}
               ETB
             </p>
-            <p style={{ marginTop: "8px", fontWeight: 600, color: "#c2410c" }}>
-              Owner's Terms:{" "}
-              {selectedAgreement?.owner_notes || "No additional notes"}
+            {selectedAgreement?.counter_offer_price && (
+              <p style={{ fontWeight: 700, color: "#c2410c" }}>
+                🔄 Owner's Counter: {Number(selectedAgreement.counter_offer_price).toLocaleString()} ETB
+              </p>
+            )}
+            {selectedAgreement?.move_in_date && (
+              <p>
+                📅 <strong>Move-in:</strong>{" "}
+                {new Date(selectedAgreement.move_in_date).toLocaleDateString()}
+              </p>
+            )}
+            <p style={{ gridColumn: '1 / -1', marginTop: "4px", color: "#92400e", fontSize: '13px' }}>
+              <strong>Owner's Note:</strong> {selectedAgreement?.owner_notes || "No additional terms."}
             </p>
           </div>
+          <FinancialBreakdown agr={selectedAgreement} formData={formData} compact />
           <div className="form-group">
             <label>Your Response *</label>
             <select
@@ -1522,6 +1641,21 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
               />
             </div>
           )}
+          {(formData.decision === "accept" || formData.decision === "counter_offer") && (
+            <div className="form-group">
+              <label>System Fee Payer (Total 5%)</label>
+              <select
+                value={formData.system_fee_payer || selectedAgreement?.system_fee_payer || "buyer"}
+                onChange={(e) =>
+                  setFormData({ ...formData, system_fee_payer: e.target.value })
+                }
+              >
+                <option value="buyer">Buyer pays</option>
+                <option value="owner">Owner pays</option>
+                <option value="split">Split 50/50</option>
+              </select>
+            </div>
+          )}
           <div className="form-group">
             <label>
               {formData.decision === "counter_offer"
@@ -1547,7 +1681,8 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
 
     if (modalType === "decision") {
       const isBuyerCounter =
-        selectedAgreement?.status === "buyer_counter_offer_forwarded";
+        selectedAgreement?.status === "buyer_counter_offer_forwarded" ||
+        selectedAgreement?.status === "buyer_counter_offered";
       const buyerNotes = selectedAgreement?.customer_notes || "";
       const priceMatch = buyerNotes.match(/Price:\s*([\d,]+)\s*ETB/);
       const buyerCounterPrice = priceMatch ? priceMatch[1] : null;
@@ -1626,6 +1761,7 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
               </>
             )}
           </div>
+          <FinancialBreakdown agr={selectedAgreement} formData={formData} compact />
           <div className="form-group">
             <label>Your Decision *</label>
             <select
@@ -1656,6 +1792,21 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
                 }
                 placeholder="e.g. 4500000"
               />
+            </div>
+          )}
+          {(formData.decision === "accept" || formData.decision === "counter_offer") && (
+            <div className="form-group">
+              <label>System Fee Payer (Total 5%)</label>
+              <select
+                value={formData.system_fee_payer || selectedAgreement?.system_fee_payer || "buyer"}
+                onChange={(e) =>
+                  setFormData({ ...formData, system_fee_payer: e.target.value })
+                }
+              >
+                <option value="buyer">Buyer pays</option>
+                <option value="owner">Owner pays</option>
+                <option value="split">Split 50/50</option>
+              </select>
             </div>
           )}
           <div className="form-group">
@@ -1697,15 +1848,15 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
                 {selectedAgreement?.property_title}
               </p>
               <p>
-                💰 <strong>Price:</strong>{" "}
-                {Number(
-                  selectedAgreement?.proposed_price ||
-                  selectedAgreement?.property_price ||
-                  0,
-                ).toLocaleString()}{" "}
-                ETB
+                👤 <strong>{buyerOrTenant(selectedAgreement)}:</strong>{" "}
+                {selectedAgreement?.customer_name}
+              </p>
+              <p>
+                🏢 <strong>{ownerOrLandlord(selectedAgreement)}:</strong>{" "}
+                {selectedAgreement?.owner_name}
               </p>
             </div>
+            <FinancialBreakdown agr={selectedAgreement} formData={formData} />
           </div>
         </div>
       );
@@ -1719,23 +1870,15 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
             <h3>Digitally Sign Agreement</h3>
             <p>
               By clicking confirm, you digitally sign this agreement. After you
-              sign, the owner will be notified to add their signature.
+              sign, the {ownerOrLandlord(selectedAgreement)} will be notified to add their signature.
             </p>
             <div className="info-banner">
               <p>
                 📋 <strong>Property:</strong>{" "}
                 {selectedAgreement?.property_title}
               </p>
-              <p>
-                💰 <strong>Price:</strong>{" "}
-                {Number(
-                  selectedAgreement?.proposed_price ||
-                  selectedAgreement?.property_price ||
-                  0,
-                ).toLocaleString()}{" "}
-                ETB
-              </p>
             </div>
+            <FinancialBreakdown agr={selectedAgreement} formData={formData} compact />
             {!viewedAgreements[selectedAgreement?.id] && (
               <div className="warning-text" style={{ color: '#dc2626' }}>
                 ⚠️ You must view the PDF agreement before you can sign.
@@ -1752,30 +1895,22 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
         <div className="modal-form">
           <div className="confirm-box">
             <div className="confirm-icon">✍️</div>
-            <h3>Sign as Owner</h3>
+            <h3>Sign as {ownerOrLandlord(selectedAgreement)}</h3>
             <p>
-              The buyer has already signed. By signing, the contract becomes
-              legally binding and the buyer can proceed to make payment.
+              The {buyerOrTenant(selectedAgreement)} has already signed. By signing, the contract becomes
+              legally binding and the {buyerOrTenant(selectedAgreement)} can proceed to make payment.
             </p>
             <div className="info-banner">
               <p>
-                ✅ <strong>Buyer Signed:</strong>{" "}
+                ✅ <strong>{buyerOrTenant(selectedAgreement)} Signed:</strong>{" "}
                 {selectedAgreement?.buyer_signed_date
                   ? new Date(
                     selectedAgreement.buyer_signed_date,
                   ).toLocaleDateString()
                   : "Yes"}
               </p>
-              <p>
-                💰 <strong>Price:</strong>{" "}
-                {Number(
-                  selectedAgreement?.proposed_price ||
-                  selectedAgreement?.property_price ||
-                  0,
-                ).toLocaleString()}{" "}
-                ETB
-              </p>
             </div>
+            <FinancialBreakdown agr={selectedAgreement} formData={formData} compact />
             <div className="warning-text">
               ⚠️ After both signatures, the contract is locked.
             </div>
@@ -1790,11 +1925,26 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
     }
 
     if (modalType === "submit_payment") {
+      // Calculate full amount for buyer (Price + System Fee + Broker Comm based on payer)
+      const price = Number(selectedAgreement?.proposed_price || selectedAgreement?.property_price || 0);
+      const hasBroker = !!selectedAgreement?.broker_id;
+      const feePayer = selectedAgreement?.system_fee_payer || 'buyer';
+      const sysRate = hasBroker ? 0.02 : 0.05;
+      const sysFee = price * sysRate;
+      const brokerRate = hasBroker ? (selectedAgreement?.commission_percentage || 2.5) / 100 : 0;
+      const brokerFee = price * brokerRate;
+      
+      let buyerFee = 0;
+      if (feePayer === 'buyer') buyerFee = sysFee + brokerFee;
+      else if (feePayer === 'split') buyerFee = (sysFee + brokerFee) / 2;
+      
+      const totalAmount = price + buyerFee;
+
       // If M-Pesa selected, show the dedicated M-Pesa component
       if (formData.payment_method === "mpesa") {
         return (
           <MpesaPayment
-            agreement={selectedAgreement}
+            agreement={{ ...selectedAgreement, total_payment_amount: totalAmount }}
             user={user}
             onSuccess={() => { closeModal(); fetchAgreements(); }}
             onCancel={() => setFormData({ ...formData, payment_method: "" })}
@@ -1828,10 +1978,14 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
                 <label>Payment Amount (ETB) *</label>
                 <input
                   type="number"
-                  value={formData.payment_amount || selectedAgreement?.proposed_price || selectedAgreement?.property_price || ""}
-                  onChange={(e) => setFormData({ ...formData, payment_amount: e.target.value })}
+                  value={formData.payment_amount || totalAmount || ""}
+                  readOnly
+                  style={{ background: '#f1f5f9', cursor: 'not-allowed', fontWeight: 'bold', color: '#1e293b' }}
                   required
                 />
+                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
+                  Includes agreed {isRental(selectedAgreement) ? 'rent' : 'price'} + your share of system/broker fees.
+                </div>
               </div>
               <div className="form-group">
                 <label>Transaction Reference / Receipt Number *</label>
@@ -2081,16 +2235,17 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
             {/* Map Preview */}
             <div style={{ marginBottom: 24 }}>
               <h4 style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', marginBottom: 10 }}>🗺️ Location Preview (Will be released)</h4>
-              {propertyMedia?.latitude && propertyMedia?.longitude ? (
+              {Number(propertyMedia?.latitude) && Number(propertyMedia?.longitude) ? (
                 <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
                   <iframe
                     title="Property Location"
                     width="100%"
                     height="200"
                     frameBorder="0"
-                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${propertyMedia.longitude - 0.005},${propertyMedia.latitude - 0.005},${propertyMedia.longitude + 0.005},${propertyMedia.latitude + 0.005}&layer=mapnik&marker=${propertyMedia.latitude},${propertyMedia.longitude}`}
+                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${Number(propertyMedia.longitude) - 0.002},${Number(propertyMedia.latitude) - 0.002},${Number(propertyMedia.longitude) + 0.002},${Number(propertyMedia.latitude) + 0.002}&layer=mapnik&marker=${propertyMedia.latitude},${propertyMedia.longitude}`}
                   />
                 </div>
+
               ) : (
                 <div style={{ padding: 20, textAlign: 'center', background: '#fff1f2', borderRadius: 12, border: '1px dashed #fda4af' }}>
                   <p style={{ color: '#e11d48', fontSize: 13 }}>🗺️ Location coordinates missing!</p>
@@ -2104,11 +2259,28 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
               {propertyMedia?.documents && propertyMedia.documents.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {propertyMedia.documents.map((doc) => (
-                    <div key={doc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '8px 12px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0' }}>
-                      <span style={{ fontSize: 13, color: '#475569' }}>📄 {doc.document_name || doc.document_type}</span>
-                      <a href={doc.document_path} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#3b82f6', fontWeight: 600 }}>Preview</a>
+                    <div key={doc.id} style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '12px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>📄 {doc.document_name || doc.document_type}</span>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button 
+                            className="btn btn-outline-secondary btn-sm" 
+                            style={{ fontSize: 10, padding: '2px 8px' }}
+                            onClick={() => toggleKey(doc.id, setVisibleKeys)}
+                          >
+                            {visibleKeys[doc.id] ? "🙈 Hide Key" : "🔑 Show Key"}
+                          </button>
+                          <a href={getDocumentUrl(doc.document_path)} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#3b82f6', fontWeight: 600 }}>Preview</a>
+                        </div>
+                      </div>
+                      {visibleKeys[doc.id] && (
+                        <div style={{ fontSize: 11, color: '#64748b', background: '#f1f5f9', padding: '4px 8px', borderRadius: 4, display: 'flex', justifyContent: 'space-between' }}>
+                          <span>Access Key: <strong>{doc.access_key}</strong></span>
+                        </div>
+                      )}
                     </div>
                   ))}
+
                 </div>
               ) : (
                 <div style={{ padding: 20, textAlign: 'center', background: '#fff1f2', borderRadius: 12, border: '1px dashed #fda4af' }}>
@@ -2153,7 +2325,7 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
             {/* Map */}
             <div style={{ marginBottom: 24 }}>
               <h4 style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', marginBottom: 10 }}>🗺️ View on Map</h4>
-              {propertyMedia?.latitude && propertyMedia?.longitude ? (
+              {Number(propertyMedia?.latitude) && Number(propertyMedia?.longitude) ? (
                 <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
                   <iframe
                     title="Property Location"
@@ -2161,12 +2333,12 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
                     height="300"
                     frameBorder="0"
                     scrolling="no"
-                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${propertyMedia.longitude - 0.01},${propertyMedia.latitude - 0.01},${propertyMedia.longitude + 0.01},${propertyMedia.latitude + 0.01}&layer=mapnik&marker=${propertyMedia.latitude},${propertyMedia.longitude}`}
+                    src={`https://www.openstreetmap.org/export/embed.html?bbox=${Number(propertyMedia.longitude) - 0.002},${Number(propertyMedia.latitude) - 0.002},${Number(propertyMedia.longitude) + 0.002},${Number(propertyMedia.latitude) + 0.002}&layer=mapnik&marker=${propertyMedia.latitude},${propertyMedia.longitude}`}
                   />
                 </div>
               ) : (
-                <div style={{ padding: 30, textAlign: 'center', background: '#f8fafc', borderRadius: 12, border: '1px dashed #cbd5e1' }}>
-                  <p style={{ color: '#94a3b8', fontSize: 14 }}>🗺️ Map location not available</p>
+                <div style={{ padding: '30px', textAlign: 'center', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
+                  <p style={{ color: '#94a3b8', fontSize: '14px' }}>🗺️ Map location not available</p>
                 </div>
               )}
             </div>
@@ -2177,14 +2349,57 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
               {propertyMedia?.documents && propertyMedia.documents.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {propertyMedia.documents.map((doc) => (
-                    <div key={doc.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px 16px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
-                      <div>
-                        <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>📄 {doc.document_name || doc.document_type}</div>
-                        <div style={{ fontSize: 12, color: '#94a3b8' }}>{doc.document_type} • {new Date(doc.uploaded_at).toLocaleDateString()}</div>
+                    <div key={doc.id} style={{ padding: '12px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0', marginBottom: 10 }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                        <div>
+                          <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>📄 {doc.document_name || doc.document_type}</div>
+                          <div style={{ fontSize: 12, color: '#94a3b8' }}>{doc.document_type}</div>
+                        </div>
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          <button 
+                            className="btn btn-outline-primary btn-sm" 
+                            style={{ fontSize: 11, padding: '4px 10px' }}
+                            onClick={() => toggleKey(doc.id, setVisibleKeys)}
+                          >
+                            {visibleKeys[doc.id] ? "🙈 Hide Key" : "🔑 Show Key"}
+                          </button>
+                          
+                          {enteredKeys[doc.id] === doc.access_key ? (
+                            <button 
+                              onClick={() => {
+                                setViewingDoc(doc);
+                                setViewDocModal(true);
+                              }}
+                              style={{ fontSize: 13, padding: '6px 14px', borderRadius: 6, border: '1px solid #3b82f6', background: '#3b82f6', color: '#fff', fontWeight: 600, cursor: 'pointer' }}
+                            >
+                              👁️ View
+                            </button>
+                          ) : (
+                            <button disabled style={{ fontSize: 13, padding: '6px 14px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#f1f5f9', color: '#94a3b8', fontWeight: 600, cursor: 'not-allowed' }}>
+                              🔒 Locked
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <a href={doc.document_path} target="_blank" rel="noopener noreferrer" style={{ fontSize: 13, padding: '6px 14px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#fff', textDecoration: 'none', color: '#475569', fontWeight: 600 }}>
-                        👁️ View
-                      </a>
+                      
+                      {visibleKeys[doc.id] && (
+                        <div style={{ marginTop: 8, padding: 8, background: '#fffbeb', borderRadius: 6, border: '1px solid #fef3c7' }}>
+                          <p style={{ margin: '0 0 6px', fontSize: 11, color: '#92400e', fontWeight: 600 }}>🔑 Document Access Key:</p>
+                          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                            <span style={{ fontSize: 14, fontWeight: 700, color: '#b45309', fontFamily: 'monospace', letterSpacing: 2 }}>{doc.access_key}</span>
+                            <div style={{ flex: 1 }}>
+                              <input 
+                                type="text" 
+                                placeholder="Enter Key to Unlock" 
+                                style={{ width: '100%', padding: '4px 8px', fontSize: 12, borderRadius: 4, border: '1px solid #d1d5db' }}
+                                value={enteredKeys[doc.id] || ''}
+                                onChange={(e) => setEnteredKeys({...enteredKeys, [doc.id]: e.target.value.toUpperCase()})}
+                              />
+                            </div>
+                            {enteredKeys[doc.id] === doc.access_key && <span style={{ fontSize: 12, color: '#059669' }}>✅</span>}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -2193,6 +2408,7 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
                   <p style={{ color: '#94a3b8', fontSize: 14 }}>📄 No documents available</p>
                 </div>
               )}
+
             </div>
             
             <div className="warning-text" style={{ marginTop: 24 }}>
@@ -2205,16 +2421,61 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
 
     if (modalType === "upload_video") {
       return (
-        <div className="modal-form">
-          <div className="confirm-box">
-            <div className="confirm-icon">🎥</div>
-            <h3>Upload Property Video Tour</h3>
-            <p>Please upload a clear video tour of the property. Max file size: 10MB.</p>
-            <div className="form-group" style={{ marginTop: 20 }}>
-              <label>Video File (MP4, WebM) *</label>
+        <div style={{ padding: '10px' }}>
+          <div style={{ textAlign: 'center', marginBottom: 20 }}>
+            <div style={{ fontSize: '40px', marginBottom: '8px' }}>📹</div>
+            <h4 style={{ margin: '0 0 4px', color: '#1e293b', fontSize: 18 }}>Property Video Tour</h4>
+            <p style={{ color: '#64748b', fontSize: 14 }}>Upload a tour or provide a link for the buyer to review</p>
+          </div>
+
+          <div style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
+            <button 
+              onClick={() => setFormData({ ...formData, video_input_type: 'file' })}
+              style={{
+                flex: 1, padding: '12px', borderRadius: 8, border: 'none',
+                background: (formData.video_input_type !== 'link') ? '#3b82f6' : '#f1f5f9',
+                color: (formData.video_input_type !== 'link') ? '#fff' : '#64748b',
+                fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: 'pointer'
+              }}
+            >
+              📁 Upload File
+            </button>
+            <button 
+              onClick={() => setFormData({ ...formData, video_input_type: 'link' })}
+              style={{
+                flex: 1, padding: '12px', borderRadius: 8, border: 'none',
+                background: (formData.video_input_type === 'link') ? '#3b82f6' : '#f1f5f9',
+                color: (formData.video_input_type === 'link') ? '#fff' : '#64748b',
+                fontWeight: 600, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, cursor: 'pointer'
+              }}
+            >
+              🔗 Video Link
+            </button>
+          </div>
+
+          <p style={{ color: '#64748b', fontSize: 13, marginBottom: 16 }}>
+            Select a video file from your computer. Max size: <strong>10MB</strong>.
+          </p>
+
+          {formData.video_input_type === 'link' ? (
+            <div className="form-group" style={{ marginBottom: 20 }}>
+              <label style={{ fontWeight: 600, color: '#1e293b' }}>Video Link (YouTube, Vimeo, or Drive) *</label>
               <input
-                type="file"
-                accept="video/*"
+                type="text"
+                placeholder="https://www.youtube.com/watch?v=..."
+                value={formData.video_url || ''}
+                onChange={(e) => setFormData({ ...formData, video_url: e.target.value })}
+                style={{ width: '100%', padding: '12px', border: '1px solid #cbd5e1', borderRadius: 8 }}
+              />
+            </div>
+          ) : (
+            <div style={{ 
+              border: '2px dashed #cbd5e1', borderRadius: 12, padding: '30px', textAlign: 'center', 
+              background: '#f8fafc', marginBottom: 20, position: 'relative' 
+            }}>
+              <input 
+                type="file" 
+                accept="video/mp4,video/webm" 
                 onChange={(e) => {
                   const file = e.target.files[0];
                   if (file) {
@@ -2227,16 +2488,32 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
                     reader.onloadend = () => setFormData({ ...formData, video_url: reader.result, video_file_name: file.name });
                     reader.readAsDataURL(file);
                   }
-                }}
-                required
+                }} 
+                style={{ opacity: 0, position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', cursor: 'pointer' }}
               />
-              {formData.video_file_name && (
-                <div style={{ marginTop: 8, fontSize: 12, color: '#059669', fontWeight: 600 }}>
-                  ✅ Selected: {formData.video_file_name}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                <div style={{ padding: '8px 16px', background: '#fff', border: '1px solid #cbd5e1', borderRadius: 4, fontSize: 13, fontWeight: 600 }}>
+                  Choose File
                 </div>
-              )}
+                <span style={{ fontSize: 13, color: '#64748b' }}>
+                  {formData.video_file_name || "No file chosen"}
+                </span>
+              </div>
             </div>
-            <div className="warning-text">⚠️ Admins must verify this video before the buyer can proceed to payment.</div>
+          )}
+
+          <div style={{ 
+            background: '#fff7ed', border: '1px solid #ffedd5', borderRadius: 10, padding: '16px', 
+            fontSize: 13, color: '#9a3412', lineHeight: 1.5, display: 'flex', gap: 10 
+          }}>
+            <span style={{ fontSize: 16 }}>💡</span>
+            <div>
+              <strong>Note:</strong> This video will be used during the media release phase of agreements. Ensure it provides a clear tour of the property.
+            </div>
+          </div>
+
+          <div className="warning-text" style={{ marginTop: 24, padding: 12, background: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', borderRadius: 8 }}>
+            ⚠️ Admins must verify this video before the buyer can proceed to payment.
           </div>
         </div>
       );
@@ -2334,6 +2611,63 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
                   {actionLoading ? "⏳ Processing..." : "✅ Confirm"}
                 </button>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Document Viewer Modal */}
+      {viewDocModal && viewingDoc && (
+        <div className="modal-overlay" onClick={() => setViewDocModal(false)} style={{ zIndex: 1200 }}>
+          <div className="modal-content extra-large" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '1000px', width: '90%', maxHeight: '90vh' }}>
+            <div className="modal-header">
+              <div>
+                <h2>📄 {viewingDoc.document_name || viewingDoc.document_type}</h2>
+                <p style={{ margin: '5px 0', color: '#64748b', fontSize: '14px' }}>
+                  {viewingDoc.document_type?.replace('_', ' ').toUpperCase()} • Uploaded: {new Date(viewingDoc.uploaded_at || viewingDoc.created_at).toLocaleDateString()}
+                </p>
+              </div>
+              <button className="close-btn" onClick={() => setViewDocModal(false)}>✕</button>
+            </div>
+            
+            <div className="modal-body" style={{ padding: '0', maxHeight: 'calc(90vh - 120px)', overflow: 'hidden' }}>
+              <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#f8fafc' }}>
+                <div style={{ flex: 1, padding: '20px', overflow: 'auto', display: 'flex', justifyContent: 'center' }}>
+                  {getDocumentUrl(viewingDoc.document_path).startsWith('data:application/pdf') ? (
+                    <iframe
+                      src={getDocumentUrl(viewingDoc.document_path)}
+                      style={{ width: '100%', height: '100%', minHeight: '600px', border: 'none', borderRadius: '8px', background: '#fff' }}
+                      title="Document Preview"
+                    />
+                  ) : getDocumentUrl(viewingDoc.document_path).startsWith('data:image') || getDocumentUrl(viewingDoc.document_path).includes('.jpg') || getDocumentUrl(viewingDoc.document_path).includes('.png') || getDocumentUrl(viewingDoc.document_path).includes('.jpeg') ? (
+                    <img
+                      src={getDocumentUrl(viewingDoc.document_path)}
+                      alt="Document Preview"
+                      style={{ maxWidth: '100%', height: 'auto', borderRadius: '8px', boxShadow: '0 4px 12px rgba(0,0,0,0.1)', background: '#fff' }}
+                      onError={(e) => {
+                        e.target.style.display = 'none';
+                        if (e.target.nextSibling) e.target.nextSibling.style.display = 'block';
+                      }}
+                    />
+                  ) : (
+                    <div style={{ textAlign: 'center', padding: '40px', color: '#64748b', background: '#fff', borderRadius: 12, width: '100%' }}>
+                      <div style={{ fontSize: '3rem', marginBottom: '20px' }}>📄</div>
+                      <p>Document preview not available for this file type.</p>
+                      <a 
+                        href={getDocumentUrl(viewingDoc.document_path)} 
+                        download={viewingDoc.document_name}
+                        className="btn btn-primary"
+                        style={{ marginTop: '20px', display: 'inline-block' }}
+                      >
+                        📥 Download Document
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+            <div className="modal-actions" style={{ padding: '15px 20px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', justifyContent: 'flex-end' }}>
+              <button className="btn btn-secondary" onClick={() => setViewDocModal(false)}>Close Viewer</button>
             </div>
           </div>
         </div>

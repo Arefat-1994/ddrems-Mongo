@@ -33,7 +33,7 @@ router.get('/active', async (req, res) => {
     const [properties] = await db.query(`
       SELECT p.*, b.name as broker_name, u.name as owner_name,
         (SELECT COUNT(*) FROM property_images WHERE property_id = p.id) as image_count,
-        (SELECT image_url FROM property_images WHERE property_id = p.id AND image_type = 'main' LIMIT 1) as main_image,
+        COALESCE(p.main_image, (SELECT image_url FROM property_images WHERE property_id = p.id LIMIT 1)) as main_image,
         COALESCE(p.views, 0) as views
       FROM properties p 
       LEFT JOIN users b ON p.broker_id = b.id AND b.role = 'broker'
@@ -55,7 +55,7 @@ router.get('/', async (req, res) => {
     const [properties] = await db.query(`
       SELECT p.*, b.name as broker_name, u.name as owner_name,
         (SELECT COUNT(*) FROM property_images WHERE property_id = p.id) as image_count,
-        (SELECT image_url FROM property_images WHERE property_id = p.id AND image_type = 'main' LIMIT 1) as main_image
+        COALESCE(p.main_image, (SELECT image_url FROM property_images WHERE property_id = p.id LIMIT 1)) as main_image
       FROM properties p 
       LEFT JOIN users b ON p.broker_id = b.id AND b.role = 'broker'
       LEFT JOIN users u ON p.owner_id = u.id
@@ -187,7 +187,7 @@ router.get('/pending-verification', async (req, res) => {
       SELECT p.*, u.name as owner_name, u.email as owner_email,
         b.name as broker_name, b.email as broker_email,
         (SELECT COUNT(*) FROM property_images WHERE property_id = p.id) as image_count,
-        (SELECT image_url FROM property_images WHERE property_id = p.id AND image_type = 'main' LIMIT 1) as main_image
+        COALESCE(p.main_image, (SELECT image_url FROM property_images WHERE property_id = p.id LIMIT 1)) as main_image
       FROM properties p
       LEFT JOIN users u ON p.owner_id = u.id
       LEFT JOIN users b ON p.broker_id = b.id AND b.role = 'broker'
@@ -208,7 +208,7 @@ router.get('/all-with-status', async (req, res) => {
         pv.verification_status, pv.verification_notes, pv.verified_at,
         vu.name as verified_by_name,
         (SELECT COUNT(*) FROM property_images WHERE property_id = p.id) as image_count,
-        (SELECT image_url FROM property_images WHERE property_id = p.id AND image_type = 'main' LIMIT 1) as main_image
+        COALESCE(p.main_image, (SELECT image_url FROM property_images WHERE property_id = p.id LIMIT 1)) as main_image
       FROM properties p
       LEFT JOIN users u ON p.owner_id = u.id
       LEFT JOIN users b ON p.broker_id = b.id AND b.role = 'broker'
@@ -338,6 +338,46 @@ router.post('/', async (req, res) => {
       return res.status(400).json({ message: 'Missing required fields: title, price, location, type' });
     }
 
+    let finalOwnerId = owner_id;
+
+    // Handle Owner Invitation if broker is adding for a new owner
+    if (req.body.invite_name && req.body.invite_email) {
+      const { invite_name, invite_email } = req.body;
+      
+      // Check if user already exists
+      const [existing] = await db.query('SELECT id FROM users WHERE email = ?', [invite_email]);
+      
+      if (existing.length > 0) {
+        finalOwnerId = existing[0].id;
+      } else {
+        // Create new user (Owner role, pending_invite status)
+        const bcrypt = require('bcryptjs');
+        const tempPassword = Math.random().toString(36).slice(-8); // Random 8-char password
+        const hashedPassword = await bcrypt.hash(tempPassword, 10);
+        
+        const [userResult] = await db.query(
+          'INSERT INTO users (name, email, password, role, status, profile_approved, profile_completed) VALUES (?, ?, ?, ?, ?, ?, ?)',
+          [invite_name, invite_email, hashedPassword, 'owner', 'active', false, false]
+        );
+        
+        finalOwnerId = userResult.insertId;
+
+        // Send Invitation Email
+        try {
+          const emailData = emailService.templates.ownerInvitation(invite_name, title, tempPassword, invite_email);
+          await emailService.sendEmail(invite_email, emailData.subject, emailData.html);
+          
+          // Add notification for the new owner
+          await db.query(
+            'INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)',
+            [finalOwnerId, 'Welcome to DDREMS', `A broker has added your property "${title}" and invited you to manage it.`, 'info']
+          );
+        } catch (emailErr) {
+          console.error('Failed to send owner invitation email:', emailErr);
+        }
+      }
+    }
+
     // Helper to handle numeric inputs safely preventing PostgreSQL 22P02 NaN crashes
     const parseNum = (val) => {
       if (val === '' || val === undefined || val === null || val === 'undefined' || val === 'null') return null;
@@ -353,7 +393,7 @@ router.post('/', async (req, res) => {
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), NOW())`,
       [
         title, description, parseNum(price), location, type, status || 'pending', 
-        parseNum(broker_id) || null, parseNum(owner_id) || null,
+        parseNum(broker_id) || null, parseNum(finalOwnerId) || null,
         parseNum(bedrooms) || null, parseNum(bathrooms) || null, parseNum(area) || null, 
         listing_type || 'sale',
         address || null, city || null, state || null, zip_code || null,

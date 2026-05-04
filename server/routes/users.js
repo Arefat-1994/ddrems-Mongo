@@ -45,6 +45,40 @@ router.get('/', async (req, res) => {
   }
 });
 
+// Search users by name, email, phone, or ID
+router.get('/search', async (req, res) => {
+  try {
+    const { q, role } = req.query;
+    let query = 'SELECT id, name, email, phone, role, status FROM users WHERE 1=1';
+    const params = [];
+
+    if (q) {
+      // Check if the search term is a numeric ID
+      const isNumeric = /^\d+$/.test(q.trim());
+      if (isNumeric) {
+        query += ' AND (id = ? OR name ILIKE ? OR email ILIKE ? OR phone ILIKE ?)';
+        params.push(q.trim(), `%${q}%`, `%${q}%`, `%${q}%`);
+      } else {
+        query += ' AND (name ILIKE ? OR email ILIKE ? OR phone ILIKE ?)';
+        params.push(`%${q}%`, `%${q}%`, `%${q}%`);
+      }
+    }
+
+    if (role) {
+      query += ' AND role = ?';
+      params.push(role);
+    }
+
+    query += ' LIMIT 20';
+
+    const [users] = await db.query(query, params);
+    res.json(users);
+  } catch (error) {
+    console.error('[USER-API] Search failed:', error.message);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 // Get user by ID (with role-specific profile data)
 router.get('/:id', async (req, res) => {
   try {
@@ -83,37 +117,6 @@ router.get('/:id', async (req, res) => {
     res.json(user);
   } catch (error) {
     console.error(`[USER-API] Get by ID failed:`, error.message);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-
-// Search users by name, email, phone, or ID
-router.get('/search', async (req, res) => {
-  try {
-    const { q, role } = req.query;
-    let query = 'SELECT id, name, email, phone, role, status FROM users WHERE 1=1';
-    const params = [];
-
-    if (q) {
-      // Check if the search term is a numeric ID
-      const isNumeric = /^\d+$/.test(q.trim());
-      if (isNumeric) {
-        query += ' AND (id = ? OR name ILIKE ? OR email ILIKE ? OR phone ILIKE ?)';
-        params.push(parseInt(q.trim()), `%${q}%`, `%${q}%`, `%${q}%`);
-      } else {
-        query += ' AND (name ILIKE ? OR email ILIKE ? OR phone ILIKE ?)';
-        params.push(`%${q}%`, `%${q}%`, `%${q}%`);
-      }
-    }
-    if (role && role !== 'all') {
-      query += ' AND role = ?';
-      params.push(role);
-    }
-
-    query += ' ORDER BY name ASC LIMIT 50';
-    const [users] = await db.query(query, params);
-    res.json(users);
-  } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });

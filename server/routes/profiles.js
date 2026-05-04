@@ -91,6 +91,14 @@ router.put('/customer/:id', async (req, res) => {
       [full_name, phone_number, address, profile_photo, id_document, req.params.id]
     );
 
+    // If they provided both photo and ID, mark profile as completed in users table
+    if (profile_photo && id_document) {
+      const [profile] = await db.query('SELECT user_id FROM customer_profiles WHERE id = ?', [req.params.id]);
+      if (profile.length > 0) {
+        await db.query('UPDATE users SET profile_completed = TRUE WHERE id = ?', [profile[0].user_id]);
+      }
+    }
+
     res.json({ message: 'Profile updated successfully' });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });

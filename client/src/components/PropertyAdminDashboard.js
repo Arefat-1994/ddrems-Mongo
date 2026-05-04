@@ -15,6 +15,7 @@ import SendMessage from './SendMessage';
 import PropertyMap from './shared/PropertyMap';
 import SystemAdminTransactions from './SystemAdminTransactions';
 import MpesaDashboard from './MpesaDashboard';
+import BookedLists from './BookedLists';
 
 const API_BASE = `http://${window.location.hostname}:5000/api`;
 
@@ -33,7 +34,8 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
     pendingProfiles: 0,
     pendingKeyRequests: 0,
     pendingAgreementRequests: 0,
-    suspiciousProperties: 0
+    suspiciousProperties: 0,
+    totalBookings: 0
   });
 
   // Suspicious activity state
@@ -57,34 +59,6 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
   const [searchTerm, setSearchTerm] = useState('');
   const [notification, setNotification] = useState(null);
 
-  // Broker Holds state
-  const [brokerHolds, setBrokerHolds] = useState([]);
-  
-  const fetchBrokerHolds = useCallback(async () => {
-    try {
-      const response = await axios.get(`${API_BASE}/broker-bookings?property_admin_id=${user.id}`);
-      setBrokerHolds(response.data);
-    } catch (error) {
-      console.error('Error fetching broker holds:', error);
-    }
-  }, [user.id]);
-
-  useEffect(() => {
-    if (currentView === 'broker-holds') {
-      fetchBrokerHolds();
-    }
-  }, [currentView, fetchBrokerHolds]);
-
-  const handleBrokerHoldAction = async (id, action) => {
-    try {
-      await axios.put(`${API_BASE}/broker-bookings/${id}/${action}`);
-      showNotification(`Booking ${action}ed successfully`, 'success');
-      fetchBrokerHolds();
-    } catch (error) {
-      showNotification(`Failed to ${action} booking`, 'error');
-    }
-  };
-
   const showNotification = (message, type = 'success') => {
     setNotification({ message, type });
     setTimeout(() => setNotification(null), 5000);
@@ -103,11 +77,12 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
         }
       };
 
-      const [statsData, pendingProfilesData, pendingAgreementsData, pendingKeysData] = await Promise.all([
+      const [statsData, pendingProfilesData, pendingAgreementsData, pendingKeysData, brokerHoldsData] = await Promise.all([
         safeFetch(`/properties/stats?admin_id=${user.id}`, { verified: 0, inactive: 0, suspended: 0, total: 0 }),
         safeFetch('/profiles/pending', { total: 0 }),
         safeFetch(`/agreement-requests/admin/pending?admin_id=${user.id}`, []),
-        safeFetch(`/key-requests/admin/pending?admin_id=${user.id}`, [])
+        safeFetch(`/key-requests/admin/pending?admin_id=${user.id}`, []),
+        safeFetch(`/broker-bookings?property_admin_id=${user.id}`, [])
       ]);
 
       // Fetch suspicious properties count
@@ -125,7 +100,8 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
         totalProperties: statsData.total || 0,
         pendingProfiles: pendingProfilesData.total || 0,
         pendingAgreementRequests: (pendingAgreementsData.length || 0) + (pendingKeysData.length || 0),
-        suspiciousProperties: suspiciousCount
+        suspiciousProperties: suspiciousCount,
+        totalBookings: Array.isArray(brokerHoldsData) ? brokerHoldsData.length : 0
       });
 
       // Always set pending requests for dashboard display
@@ -460,47 +436,7 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
     return (
       <div className="property-admin-dashboard">
         <PageHeader title="Booked Lists" subtitle="Manage properties temporarily reserved by buyers and brokers" user={user} onLogout={onLogout} onSettingsClick={() => setCurrentPage('settings')} actions={<button className="btn-secondary" onClick={() => setCurrentView('dashboard')}>← Back to Dashboard</button>} />
-        <div style={{ padding: '20px' }}>
-          <div className="dashboard-card">
-            <div className="card-header">
-              <h3>⏱️ Booked Lists ({brokerHolds.length})</h3>
-            </div>
-            <div style={{ padding: '20px' }}>
-              {brokerHolds.length === 0 ? (
-                <p>No active broker holds.</p>
-              ) : (
-                <div style={{ display: 'grid', gap: '15px' }}>
-                  {brokerHolds.map(hold => (
-                    <div key={hold.id} style={{ padding: '15px', border: '1px solid #e2e8f0', borderRadius: '8px', background: '#fff' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px' }}>
-                        <h4 style={{ margin: 0 }}>{hold.property_title}</h4>
-                        <span style={{ 
-                          padding: '4px 8px', borderRadius: '4px', fontSize: '12px', fontWeight: 'bold',
-                          background: hold.status === 'reserved' ? '#fef3c7' : hold.status === 'confirmed' ? '#d1fae5' : '#fee2e2',
-                          color: hold.status === 'reserved' ? '#d97706' : hold.status === 'confirmed' ? '#059669' : '#dc2626'
-                        }}>
-                          {hold.status.toUpperCase()}
-                        </span>
-                      </div>
-                      <p style={{ margin: '5px 0', fontSize: '14px' }}><strong>Broker:</strong> {hold.broker_name} ({hold.broker_phone})</p>
-                      <p style={{ margin: '5px 0', fontSize: '14px' }}><strong>Buyer:</strong> {hold.buyer_name} ({hold.phone}) - {hold.id_type}: {hold.id_number}</p>
-                      <p style={{ margin: '5px 0', fontSize: '14px' }}><strong>Visit Time:</strong> {new Date(hold.preferred_visit_time).toLocaleString()}</p>
-                      <p style={{ margin: '5px 0', fontSize: '14px' }}><strong>Expiry:</strong> {new Date(hold.hold_expiry_time).toLocaleString()}</p>
-                      
-                      {hold.status === 'reserved' && (
-                        <div style={{ marginTop: '15px', display: 'flex', gap: '10px' }}>
-                          <button onClick={() => handleBrokerHoldAction(hold.id, 'confirm')} style={{ padding: '8px 16px', background: '#10b981', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>✅ Confirm</button>
-                          <button onClick={() => handleBrokerHoldAction(hold.id, 'extend')} style={{ padding: '8px 16px', background: '#3b82f6', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>⏱️ Extend (+30m)</button>
-                          <button onClick={() => handleBrokerHoldAction(hold.id, 'cancel')} style={{ padding: '8px 16px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>❌ Cancel</button>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
+        <BookedLists user={user} showNotification={showNotification} />
       </div>
     );
   }
@@ -1580,6 +1516,13 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
           <div className="stat-content">
             <h3>{stats.pendingAgreementRequests}</h3>
             <p>Agreements Needed</p>
+          </div>
+        </div>
+        <div className="stat-card clickable" onClick={() => setCurrentView('broker-holds')}>
+          <div className="stat-icon" style={{ background: '#fef3c7', color: '#d97706' }}>⏱️</div>
+          <div className="stat-content">
+            <h3>{stats.totalBookings}</h3>
+            <p>Booked Lists</p>
           </div>
         </div>
       </div>

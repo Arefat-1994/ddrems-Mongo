@@ -41,6 +41,7 @@ const Sidebar = ({
         { id: "transactions", icon: "💰", label: "Transactions" },
         { id: "announcements", icon: "📢", label: "Announcements" },
         { id: "send-message", icon: "📤", label: "Send Message" },
+        { id: "broker-holds", icon: "⏱️", label: "Booked Lists" },
         { id: "reports", icon: "📊", label: "Reports" },
         { id: "complaints-admin", icon: "📋", label: "Complaints" },
         { id: "password-resets", icon: "🔑", label: "Password Resets" },

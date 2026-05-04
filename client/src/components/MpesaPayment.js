@@ -10,7 +10,7 @@ const MpesaPayment = ({ agreement, user, onSuccess, onCancel }) => {
   const [message, setMessage] = useState('');
   const [txRef, setTxRef] = useState('');
 
-  const amount = Number(agreement?.proposed_price || agreement?.property_price || 0);
+  const amount = Number(agreement?.total_payment_amount || agreement?.proposed_price || agreement?.property_price || 0);
 
   const normalizePhone = (p) => {
     let n = p.replace(/\s+/g, '').replace(/^\+/, '');

@@ -15,14 +15,18 @@ let fallbackData = null;
 
 function loadFallbackData() {
     try {
-        const csvPath = path.join(__dirname, '../../AI/dire_dawa_real_estate_dataset.csv');
+        const csvPath = path.join(__dirname, '../../ML price/dataset for sale 1.csv');
+        if (!fs.existsSync(csvPath)) {
+            console.warn('[AI] Fallback CSV not found at:', csvPath);
+            return;
+        }
         const raw = fs.readFileSync(csvPath, 'utf8');
         const lines = raw.trim().split('\n').map(l => l.replace(/\r/g, ''));
-        const headers = lines[0].split('\t');
+        const headers = lines[0].split(',');
 
         const rows = [];
         for (let i = 1; i < lines.length; i++) {
-            const cols = lines[i].split('\t');
+            const cols = lines[i].split(',');
             if (cols.length < headers.length) continue;
             const row = {};
             headers.forEach((h, idx) => { row[h.trim()] = cols[idx]?.trim(); });
@@ -115,8 +119,8 @@ function jsFallbackPredict(location, bedrooms, area, modelType) {
 const runPythonPrediction = (location, bedrooms, area, modelType) => {
     return new Promise((resolve, reject) => {
         try {
-            const aiDir = path.join(__dirname, '../../AI');
-            const scriptPath = path.join(aiDir, 'predict_bedrooms.py');
+            const aiDir = path.join(__dirname, '../../ML price');
+            const scriptPath = path.join(aiDir, 'predict_price.py');
 
             // Verify directory and script exist
             if (!fs.existsSync(aiDir)) {
@@ -229,20 +233,181 @@ router.get('/predict', async (req, res) => {
             typeStr
         );
 
+        // Normalize response from predict_price.py vs old script
+        const totalPrice = pyResult.predicted_price || pyResult.totalPrice || 0;
+        const lowEstimate = pyResult.low_estimate || pyResult.lowEstimate || (totalPrice * 0.85);
+        const highEstimate = pyResult.high_estimate || pyResult.highEstimate || (totalPrice * 1.15);
+
         res.json({
-            predictedPrice: Math.round(pyResult.totalPrice),
-            lowEstimate: Math.round(pyResult.lowEstimate),
-            highEstimate: Math.round(pyResult.highEstimate),
+            predictedPrice: Math.round(totalPrice),
+            lowEstimate: Math.round(lowEstimate),
+            highEstimate: Math.round(highEstimate),
             currency: 'ETB',
-            pricePerSqm: Math.round(pyResult.pricePerSqm),
-            confidence: pyResult.confidence,
-            modelType: pyResult.modelType,
-            modelName: pyResult.fallback ? 'Statistical Fallback Engine' : 'Scikit-Learn Pipeline',
-            accuracyR2: pyResult.confidence,
-            fallback: !!pyResult.fallback
+            pricePerSqm: pyResult.pricePerSqm || Math.round(totalPrice / (parseFloat(size_m2) || 120)),
+            confidence: pyResult.confidence || 85,
+            modelType: pyResult.listing_type || pyResult.modelType || typeStr,
+            modelName: pyResult.fallback ? 'Statistical Fallback Engine' : (pyResult.model_name || 'RandomForest ML Engine'),
+            accuracyR2: pyResult.confidence || 85,
+            fallback: !!pyResult.fallback,
+            location_stats: pyResult.location_stats || {}
         });
     } catch (error) {
         res.status(500).json({ message: 'Prediction error', error: error.message });
+    }
+});
+
+// POST /api/ai/predict-property - ML Price Prediction using RandomForest from ML price/ datasets
+router.post('/predict-property', async (req, res) => {
+    try {
+        const {
+            latitude, longitude, location_name,
+            bedrooms, bathrooms, property_type, condition,
+            near_school, near_hospital, near_market,
+            parking, security_rating, listing_type, size_m2
+        } = req.body;
+
+        // Validate minimum required fields
+        if (!bedrooms && !location_name) {
+            return res.status(400).json({
+                success: false,
+                message: 'At least bedrooms or location_name is required'
+            });
+        }
+
+        const inputData = {
+            latitude: parseFloat(latitude) || 9.6009,
+            longitude: parseFloat(longitude) || 41.8596,
+            location_name: location_name || 'Kezira',
+            bedrooms: parseInt(bedrooms) || 2,
+            bathrooms: parseInt(bathrooms) || 1,
+            property_type: (property_type || 'apartment').toLowerCase(),
+            condition: (condition || 'good').toLowerCase(),
+            near_school: near_school ? 1 : 0,
+            near_hospital: near_hospital ? 1 : 0,
+            near_market: near_market ? 1 : 0,
+            parking: parking ? 1 : 0,
+            security_rating: parseInt(security_rating) || 3,
+            listing_type: (listing_type || 'sale').toLowerCase() === 'rent' ? 'rent' : 'sale',
+            size_m2: parseFloat(size_m2) || 120
+        };
+
+        // Try ML prediction via Python script first
+        const mlPriceDir = path.join(__dirname, '../../ML price');
+        const scriptPath = path.join(mlPriceDir, 'predict_price.py');
+
+        if (fs.existsSync(scriptPath)) {
+            try {
+                const mlResult = await new Promise((resolve, reject) => {
+                    const pythonCommands = ['python', 'py', 'python3'];
+                    
+                    const trySpawn = (index) => {
+                        if (index >= pythonCommands.length) {
+                            return reject(new Error('No python executable found'));
+                        }
+                        
+                        const cmd = pythonCommands[index];
+                        const proc = spawn(cmd, [scriptPath], {
+                            cwd: mlPriceDir,
+                            timeout: 30000
+                        });
+
+                        let stdout = '';
+                        let stderr = '';
+
+                        proc.stdin.write(JSON.stringify(inputData));
+                        proc.stdin.end();
+
+                        proc.stdout.on('data', (data) => { stdout += data.toString(); });
+                        proc.stderr.on('data', (data) => { stderr += data.toString(); });
+
+                        proc.on('close', (code) => {
+                            if (code !== 0) {
+                                reject(new Error(`Python exited with code ${code}: ${stderr}`));
+                            } else {
+                                try {
+                                    resolve(JSON.parse(stdout));
+                                } catch (e) {
+                                    reject(new Error(`Failed to parse ML output: ${stdout}`));
+                                }
+                            }
+                        });
+
+                        proc.on('error', (err) => {
+                            if (err.code === 'ENOENT') {
+                                trySpawn(index + 1);
+                            } else {
+                                reject(err);
+                            }
+                        });
+                    };
+                    
+                    trySpawn(0);
+                });
+
+                if (mlResult.success) {
+                    return res.json({
+                        success: true,
+                        predicted_price: Math.round(mlResult.total_price || mlResult.predicted_price),
+                        low_estimate: Math.round(mlResult.low_estimate),
+                        high_estimate: Math.round(mlResult.high_estimate),
+                        price_per_sqm: Math.round(mlResult.final_price_per_sqm || mlResult.predicted_price_per_sqm),
+                        gis_price_per_sqm: Math.round(mlResult.gis_adjusted_price_per_sqm),
+                        ml_base_price_per_sqm: Math.round(mlResult.predicted_price_per_sqm),
+                        amenity_multiplier: mlResult.amenity_multiplier,
+                        distance_to_center: mlResult.distance_to_center_km,
+                        neighborhood_avg: mlResult.neighborhood_avg_price,
+                        confidence: mlResult.confidence,
+                        listing_type: mlResult.listing_type,
+                        model_name: mlResult.model_name || 'Hybrid ML+GIS RandomForest',
+                        dataset_size: mlResult.dataset_size,
+                        location_stats: mlResult.location_stats || {},
+                        is_ml: true,
+                        is_gis: true,
+                        currency: 'ETB'
+                    });
+                }
+            } catch (pyError) {
+                console.warn('[AI] ML price prediction failed, falling back to CSV engine:', pyError.message);
+            }
+        }
+
+        // Fallback to JS CSV-based prediction
+        const listingType = inputData.listing_type === 'rent' ? 'rent' : 'sell';
+        const fallbackResult = jsFallbackPredict(
+            inputData.location_name,
+            inputData.bedrooms,
+            size_m2 || 120,
+            listingType
+        );
+
+        return res.json({
+            success: true,
+            predicted_price: Math.round(fallbackResult.totalPrice),
+            low_estimate: Math.round(fallbackResult.lowEstimate),
+            high_estimate: Math.round(fallbackResult.highEstimate),
+            confidence: fallbackResult.confidence,
+            listing_type: inputData.listing_type,
+            model_name: 'Statistical Fallback Engine',
+            dataset_size: 0,
+            location_stats: {},
+            is_ml: false,
+            is_gis: false,
+            price_per_sqm: Math.round(fallbackResult.totalPrice / (parseFloat(size_m2) || 120)),
+            ml_base_price_per_sqm: Math.round(fallbackResult.totalPrice / (parseFloat(size_m2) || 120)),
+            gis_price_per_sqm: 0,
+            amenity_multiplier: 1.0,
+            distance_to_center: 0,
+            neighborhood_avg: 0,
+            currency: 'ETB'
+        });
+
+    } catch (error) {
+        console.error('[AI] Prediction error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Prediction error',
+            error: error.message
+        });
     }
 });
 

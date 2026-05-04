@@ -25,10 +25,15 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack }) => {
   
   const [showBrokerBookingModal, setShowBrokerBookingModal] = useState(false);
   const [bookingFormData, setBookingFormData] = useState({
-    buyer_name: '', phone: '', id_type: 'National ID', id_number: '',
+    buyer_name: '', phone: '', email: '', profile_photo: '', 
+    country_code: '+251', id_type: 'National ID', id_number: '',
     document_status: 'Yes', preferred_visit_time: '', notes: ''
   });
+  const [bookingErrors, setBookingErrors] = useState({});
+  const [actionLoading, setActionLoading] = useState(false);
   const [imageErrors, setImageErrors] = useState({});
+  const [propertyPredictions, setPropertyPredictions] = useState({}); // { propertyId: predictionData }
+  const [loadingAiModal, setLoadingAiModal] = useState(false);
 
   useEffect(() => {
     fetchApprovedProperties();
@@ -42,17 +47,47 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack }) => {
 
   const fetchApprovedProperties = async () => {
     try {
-      // Add timestamp to bypass any caching
       const response = await axios.get('http://localhost:5000/api/properties/active?t=' + Date.now());
-      // Backend already filters for active status, but ensure only active properties are displayed
-      const activeProperties = response.data.filter(property => 
-        property.status === 'active'
-      );
-      console.log('Fetched properties:', response.data.length, 'Active properties:', activeProperties.length);
+      const activeProperties = response.data.filter(property => property.status === 'active');
       setProperties(activeProperties);
+      
+      // Audit properties for AI prices in background (sequentially)
+      runAuditsSequentially(activeProperties);
     } catch (error) {
       console.error('Error fetching approved properties:', error);
       setProperties([]);
+    }
+  };
+
+  const runAuditsSequentially = async (props) => {
+    for (const prop of props) {
+      await fetchAuditForProperty(prop);
+    }
+  };
+
+  const fetchAuditForProperty = async (property) => {
+    try {
+      const locationName = property.location ? property.location.split(',')[0].trim() : 'Dire Dawa';
+      const response = await axios.post(`http://localhost:5000/api/ai/predict-property`, {
+        latitude: property.latitude,
+        longitude: property.longitude,
+        location_name: locationName,
+        bedrooms: property.bedrooms || 2,
+        bathrooms: property.bathrooms || 1,
+        property_type: property.type || 'apartment',
+        condition: property.condition || 'good',
+        size_m2: property.area || 120,
+        listing_type: property.listing_type || 'sale',
+        near_school: property.near_school ? 1 : 0,
+        near_hospital: property.near_hospital ? 1 : 0,
+        near_market: property.near_market ? 1 : 0,
+        parking: property.parking ? 1 : 0,
+        security_rating: property.security_rating || 3
+      });
+      setPropertyPredictions(prev => ({ ...prev, [property.id]: response.data }));
+      return response.data;
+    } catch (err) {
+      console.error(`Error auditing property ${property.id}:`, err);
     }
   };
 
@@ -123,9 +158,52 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack }) => {
     setShowAgreementFlowModal(true);
   };
 
+  const validateBookingField = (name, value) => {
+    let error = '';
+    if (name === 'buyer_name') {
+      if (!value) error = 'Full name is required';
+      else if (!/^[a-zA-Z\s]+$/.test(value)) error = 'Letters and spaces only';
+    } else if (name === 'email') {
+      if (!value) error = 'Email is required';
+      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) error = 'Invalid email format';
+    } else if (name === 'phone') {
+      if (!value) error = 'Phone number is required';
+      else if (!/^\d+$/.test(value)) error = 'Numbers only';
+      else {
+        const length = bookingFormData.country_code === '+251' ? 9 : 10;
+        if (value.length !== length) error = `Must be ${length} digits`;
+      }
+    } else if (name === 'id_number') {
+      if (!value) error = 'ID number is required';
+    } else if (name === 'preferred_visit_time') {
+      if (!value) error = 'Visit time is required';
+    } else if (name === 'profile_photo') {
+      if (!value && user?.role === 'broker') error = 'Profile photo is required for new customers';
+    }
+    setBookingErrors(prev => ({ ...prev, [name]: error }));
+    return error;
+  };
+
   const handleBrokerBookingSubmit = async (e) => {
     e.preventDefault();
+    
+    // Validate all fields
+    const errors = {};
+    const fieldsToValidate = ['buyer_name', 'email', 'phone', 'id_number', 'preferred_visit_time'];
+    if (user?.role === 'broker') fieldsToValidate.push('profile_photo');
+    
+    fieldsToValidate.forEach(field => {
+      const err = validateBookingField(field, bookingFormData[field]);
+      if (err) errors[field] = err;
+    });
+
+    if (Object.values(errors).some(e => e)) {
+      setBookingErrors(errors);
+      return;
+    }
+
     try {
+      setActionLoading(true);
       await axios.post('http://localhost:5000/api/broker-bookings', {
         property_id: selectedProperty.id,
         broker_id: user.role === 'broker' ? user.id : null,
@@ -135,13 +213,17 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack }) => {
       alert('Property successfully reserved for 30 minutes!');
       setShowBrokerBookingModal(false);
       setBookingFormData({
-        buyer_name: '', phone: '', id_type: 'National ID', id_number: '',
+        buyer_name: '', phone: '', email: '', profile_photo: '', 
+        country_code: '+251', id_type: 'National ID', id_number: '',
         document_status: 'Yes', preferred_visit_time: '', notes: ''
       });
+      setBookingErrors({});
       fetchApprovedProperties();
     } catch (error) {
       console.error('Error booking property:', error);
-      alert(error.response?.data?.message || 'Failed to book property');
+      alert(error.response?.data?.error || error.response?.data?.message || 'Failed to book property');
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -295,6 +377,37 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack }) => {
                 {(property.price / 1000000).toFixed(2)}M ETB
               </div>
 
+              {/* AI Comparison Row (Public View) */}
+              <div style={{ 
+                margin: '12px -15px', 
+                padding: '10px 15px', 
+                background: '#f8fafc', 
+                borderTop: '1px solid #e2e8f0',
+                borderBottom: '1px solid #e2e8f0',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: '5px'
+              }}>
+                <div>
+                  <div style={{ fontSize: '8px', color: '#64748b', fontWeight: 'bold' }}>LISTED</div>
+                  <div style={{ fontSize: '10px', fontWeight: '700' }}>{(property.price / 1000).toLocaleString()}K</div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '8px', color: '#64748b', fontWeight: 'bold' }}>ML BASE</div>
+                  <div style={{ fontSize: '10px', fontWeight: '700', color: '#475569' }}>
+                    {propertyPredictions[property.id] ? 
+                      `${(Number(propertyPredictions[property.id].ml_base_price_per_sqm) * (Number(property.area) || 1) / 1000).toFixed(0)}K` : '⏳'}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '8px', color: '#7c3aed', fontWeight: 'bold' }}>HYBRID AI</div>
+                  <div style={{ fontSize: '10px', fontWeight: '800', color: '#7c3aed' }}>
+                    {propertyPredictions[property.id] ? 
+                      `${(propertyPredictions[property.id].predicted_price / 1000).toFixed(0)}K` : '⏳'}
+                  </div>
+                </div>
+              </div>
+
               {/* Display Added Person Name */}
               <div className="property-owner">
                 <span>👤 {property.owner_name ? `Owner: ${property.owner_name}` : property.broker_name ? `Broker: ${property.broker_name}` : 'Listed by Admin'}</span>
@@ -435,6 +548,67 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack }) => {
                       <label>Status:</label>
                       <span className="status-badge active">ACTIVE</span>
                     </div>
+                  </div>
+
+                  {/* AI Price Breakdown for Users */}
+                  <div style={{ 
+                    marginTop: '20px', 
+                    padding: '20px', 
+                    background: '#f1f5f9', 
+                    borderRadius: '12px',
+                    border: '1px solid #e2e8f0'
+                  }}>
+                    <h4 style={{ margin: '0 0 15px 0', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      🤖 AI Market Valuation Analysis
+                    </h4>
+                    
+                    {propertyPredictions[selectedProperty.id] ? (
+                      <>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
+                          <div>
+                            <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase' }}>Listed Price</div>
+                            <div style={{ fontSize: '18px', fontWeight: '800' }}>{(selectedProperty.price / 1000000).toFixed(2)}M</div>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: '11px', color: '#7c3aed', textTransform: 'uppercase' }}>Hybrid Market Value</div>
+                            <div style={{ fontSize: '18px', fontWeight: '800', color: '#7c3aed' }}>
+                              {(propertyPredictions[selectedProperty.id].predicted_price / 1000000).toFixed(2)}M ETB
+                            </div>
+                          </div>
+                        </div>
+
+                        <div style={{ 
+                          display: 'grid', 
+                          gridTemplateColumns: 'repeat(2, 1fr)', 
+                          gap: '10px', 
+                          background: 'white', 
+                          padding: '15px', 
+                          borderRadius: '10px',
+                          border: '1px solid #cbd5e1'
+                        }}>
+                          <div style={{ fontSize: '11px' }}>
+                            <div style={{ color: '#64748b' }}>ML Base/m²</div>
+                            <div style={{ fontWeight: '700' }}>{Number(propertyPredictions[selectedProperty.id].ml_base_price_per_sqm || 0).toLocaleString()} ETB</div>
+                          </div>
+                          <div style={{ fontSize: '11px' }}>
+                            <div style={{ color: '#64748b' }}>GIS Adj./m²</div>
+                            <div style={{ fontWeight: '700' }}>{Number(propertyPredictions[selectedProperty.id].gis_price_per_sqm || 0).toLocaleString()} ETB</div>
+                          </div>
+                          <div style={{ fontSize: '11px' }}>
+                            <div style={{ color: '#64748b' }}>Amenity Multiplier</div>
+                            <div style={{ fontWeight: '700', color: '#059669' }}>× {propertyPredictions[selectedProperty.id].amenity_multiplier || '1.0'}</div>
+                          </div>
+                          <div style={{ fontSize: '11px' }}>
+                            <div style={{ color: '#64748b' }}>Confidence</div>
+                            <div style={{ fontWeight: '700', color: '#3b82f6' }}>{propertyPredictions[selectedProperty.id].confidence}%</div>
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <div style={{ textAlign: 'center', padding: '20px', color: '#64748b' }}>
+                        ⏳ Fetching AI Market Data...
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
@@ -588,48 +762,131 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack }) => {
         </div>
       )}
 
-      {/* Broker Booking Modal */}
       {showBrokerBookingModal && selectedProperty && (
         <div className="modal-overlay" onClick={() => setShowBrokerBookingModal(false)} style={{ zIndex: 1300 }}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px', padding: '30px' }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '550px', padding: '30px', borderRadius: '16px' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2 style={{ margin: 0, fontSize: '20px', color: '#1e293b' }}>⏱️ Book for Buyer (30 Min Hold)</h2>
-              <button onClick={() => setShowBrokerBookingModal(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>✕</button>
+              <h2 style={{ margin: 0, fontSize: '22px', color: '#1e293b', fontWeight: '800' }}>
+                ⏱️ {user?.role === 'broker' ? 'Book for Buyer' : 'Book Property'} (30 Min Hold)
+              </h2>
+              <button onClick={() => setShowBrokerBookingModal(false)} style={{ background: '#f1f5f9', border: 'none', width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b' }}>✕</button>
             </div>
             
-            <form onSubmit={handleBrokerBookingSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-              <div style={{ padding: '10px', background: '#f8fafc', borderRadius: '8px', fontSize: '14px' }}>
-                <strong>Property:</strong> {selectedProperty.title} <br/>
-                <strong>Type:</strong> {selectedProperty.type} | <strong>Beds:</strong> {selectedProperty.bedrooms} | <strong>Baths:</strong> {selectedProperty.bathrooms}
+            <form onSubmit={handleBrokerBookingSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{ padding: '15px', background: 'linear-gradient(135deg, #f8fafc, #f1f5f9)', borderRadius: '12px', fontSize: '14px', border: '1px solid #e2e8f0' }}>
+                <div style={{ color: '#64748b', marginBottom: '4px', textTransform: 'uppercase', fontSize: '11px', fontWeight: '700', letterSpacing: '0.5px' }}>Property Details</div>
+                <strong style={{ fontSize: '16px', color: '#0f172a' }}>{selectedProperty.title}</strong> <br/>
+                <div style={{ marginTop: '4px', color: '#475569' }}>
+                  {getPropertyTypeIcon(selectedProperty.type)} {selectedProperty.type} | 🛏️ {selectedProperty.bedrooms} | 🚿 {selectedProperty.bathrooms}
+                </div>
+              </div>
+
+              {/* Profile Photo (Only for Broker booking for new customer) */}
+              {user?.role === 'broker' && (
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#334155' }}>
+                    Profile Photo <span style={{ color: '#ef4444' }}>*</span>
+                  </label>
+                  <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                    <div style={{ 
+                      width: '80px', height: '80px', borderRadius: '12px', background: '#f1f5f9', 
+                      border: '2px dashed #cbd5e1', display: 'flex', alignItems: 'center', 
+                      justifyContent: 'center', overflow: 'hidden', flexShrink: 0 
+                    }}>
+                      {bookingFormData.profile_photo ? (
+                        <img src={bookingFormData.profile_photo} alt="Preview" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        <span style={{ fontSize: '24px', color: '#94a3b8' }}>👤</span>
+                      )}
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <input 
+                        type="file" 
+                        accept="image/*"
+                        onChange={e => {
+                          const file = e.target.files[0];
+                          if (file) {
+                            const reader = new FileReader();
+                            reader.onloadend = () => {
+                              setBookingFormData({ ...bookingFormData, profile_photo: reader.result });
+                              validateBookingField('profile_photo', reader.result);
+                            };
+                            reader.readAsDataURL(file);
+                          }
+                        }}
+                        style={{ fontSize: '13px' }}
+                      />
+                      <p style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>PNG, JPG up to 2MB. This will be the buyer's profile photo.</p>
+                    </div>
+                  </div>
+                  {bookingErrors.profile_photo && <div style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px', animation: 'fadeIn 0.3s' }}>{bookingErrors.profile_photo}</div>}
+                </div>
+              )}
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#334155' }}>Full Name <span style={{ color: '#ef4444' }}>*</span></label>
+                  <input 
+                    type="text" 
+                    className={bookingErrors.buyer_name ? 'input-error' : ''}
+                    style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1.5px solid #e2e8f0', outline: 'none', transition: 'all 0.2s' }}
+                    value={bookingFormData.buyer_name} 
+                    onChange={e => {
+                      setBookingFormData({...bookingFormData, buyer_name: e.target.value});
+                      validateBookingField('buyer_name', e.target.value);
+                    }} 
+                    placeholder="Enter full name"
+                  />
+                  {bookingErrors.buyer_name && <div style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>{bookingErrors.buyer_name}</div>}
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#334155' }}>Email Address <span style={{ color: '#ef4444' }}>*</span></label>
+                  <input 
+                    type="email" 
+                    className={bookingErrors.email ? 'input-error' : ''}
+                    style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1.5px solid #e2e8f0', outline: 'none' }}
+                    value={bookingFormData.email} 
+                    onChange={e => {
+                      setBookingFormData({...bookingFormData, email: e.target.value});
+                      validateBookingField('email', e.target.value);
+                    }} 
+                    placeholder="google@email.com"
+                  />
+                  {bookingErrors.email && <div style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>{bookingErrors.email}</div>}
+                </div>
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px' }}>Buyer Full Name</label>
-                <input 
-                  type="text" 
-                  required 
-                  style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                  value={bookingFormData.buyer_name} 
-                  onChange={e => {
-                    const val = e.target.value;
-                    if (val === '' || /^[a-zA-Z\s]*$/.test(val)) {
-                      setBookingFormData({...bookingFormData, buyer_name: val});
-                    }
-                  }} 
-                  placeholder="Enter buyer's full name (letters only)"
-                />
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#334155' }}>Phone Number <span style={{ color: '#ef4444' }}>*</span></label>
+                <div style={{ display: 'flex', gap: '0', borderRadius: '10px', overflow: 'hidden', border: '1.5px solid #e2e8f0' }}>
+                  <select 
+                    style={{ padding: '12px', background: '#f8fafc', border: 'none', borderRight: '1.5px solid #e2e8f0', outline: 'none', fontWeight: '600' }}
+                    value={bookingFormData.country_code}
+                    onChange={e => setBookingFormData({...bookingFormData, country_code: e.target.value})}
+                  >
+                    <option value="+251">🇪🇹 +251</option>
+                    <option value="+254">🇰🇪 +254</option>
+                    <option value="+1">🇺🇸 +1</option>
+                  </select>
+                  <input 
+                    type="tel" 
+                    style={{ flex: 1, padding: '12px', border: 'none', outline: 'none' }}
+                    value={bookingFormData.phone} 
+                    onChange={e => {
+                      const val = e.target.value.replace(/\D/g, '');
+                      setBookingFormData({...bookingFormData, phone: val});
+                      validateBookingField('phone', val);
+                    }} 
+                    placeholder="912345678"
+                  />
+                </div>
+                {bookingErrors.phone && <div style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>{bookingErrors.phone}</div>}
               </div>
 
-              <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px' }}>Phone Number</label>
-                <input type="tel" required style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                  value={bookingFormData.phone} onChange={e => setBookingFormData({...bookingFormData, phone: e.target.value})} />
-              </div>
-
-              <div style={{ display: 'flex', gap: '10px' }}>
+              <div style={{ display: 'flex', gap: '15px' }}>
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px' }}>ID Type</label>
-                  <select style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#334155' }}>ID Type <span style={{ color: '#ef4444' }}>*</span></label>
+                  <select style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1.5px solid #e2e8f0', outline: 'none' }}
                     value={bookingFormData.id_type} onChange={e => setBookingFormData({...bookingFormData, id_type: e.target.value})}>
                     <option value="National ID">National ID</option>
                     <option value="Passport">Passport</option>
@@ -637,45 +894,53 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack }) => {
                   </select>
                 </div>
                 <div style={{ flex: 1 }}>
-                  <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px' }}>ID Number</label>
-                  <input type="text" required style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                    value={bookingFormData.id_number} onChange={e => setBookingFormData({...bookingFormData, id_number: e.target.value})} />
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#334155' }}>ID Number <span style={{ color: '#ef4444' }}>*</span></label>
+                  <input 
+                    type="text" 
+                    style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1.5px solid #e2e8f0', outline: 'none' }}
+                    value={bookingFormData.id_number} 
+                    onChange={e => {
+                      setBookingFormData({...bookingFormData, id_number: e.target.value});
+                      validateBookingField('id_number', e.target.value);
+                    }} 
+                    placeholder="ID number"
+                  />
+                  {bookingErrors.id_number && <div style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>{bookingErrors.id_number}</div>}
                 </div>
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px' }}>Preferred Visit Time</label>
-                <input type="datetime-local" required style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                  value={bookingFormData.preferred_visit_time} onChange={e => setBookingFormData({...bookingFormData, preferred_visit_time: e.target.value})} />
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#334155' }}>Preferred Visit Time <span style={{ color: '#ef4444' }}>*</span></label>
+                <input 
+                  type="datetime-local" 
+                  style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1.5px solid #e2e8f0', outline: 'none' }}
+                  value={bookingFormData.preferred_visit_time} 
+                  onChange={e => {
+                    setBookingFormData({...bookingFormData, preferred_visit_time: e.target.value});
+                    validateBookingField('preferred_visit_time', e.target.value);
+                  }} 
+                />
+                {bookingErrors.preferred_visit_time && <div style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>{bookingErrors.preferred_visit_time}</div>}
               </div>
 
               <div>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px' }}>Notes (Optional)</label>
-                <textarea rows="2" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #cbd5e1' }}
-                  value={bookingFormData.notes} onChange={e => setBookingFormData({...bookingFormData, notes: e.target.value})}></textarea>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#334155' }}>Notes (Optional)</label>
+                <textarea rows="2" style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1.5px solid #e2e8f0', outline: 'none', resize: 'none' }}
+                  value={bookingFormData.notes} onChange={e => setBookingFormData({...bookingFormData, notes: e.target.value})} placeholder="Any special requests..."></textarea>
               </div>
 
-              <div style={{ padding: '15px', background: '#eff6ff', border: '1px solid #bfdbfe', borderRadius: '8px' }}>
-                <label style={{ display: 'block', marginBottom: '5px', fontWeight: 'bold', fontSize: '14px', color: '#1e40af' }}>Property has legal documents?</label>
-                <div style={{ display: 'flex', gap: '15px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
-                    <input type="radio" name="document_status" value="Yes" checked={bookingFormData.document_status === 'Yes'} onChange={e => setBookingFormData({...bookingFormData, document_status: e.target.value})} />
-                    Yes — Available
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
-                    <input type="radio" name="document_status" value="No" checked={bookingFormData.document_status === 'No'} onChange={e => setBookingFormData({...bookingFormData, document_status: e.target.value})} />
-                    No — Not uploaded
-                  </label>
-                </div>
-                {bookingFormData.document_status === 'No' && (
-                  <p style={{ margin: '10px 0 0 0', color: '#ef4444', fontSize: '13px', fontWeight: 'bold' }}>
-                    ⚠️ Buyer must upload documents before agreement
-                  </p>
-                )}
-              </div>
-
-              <button type="submit" style={{ width: '100%', padding: '12px', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '8px', fontWeight: 'bold', fontSize: '16px', cursor: 'pointer', marginTop: '10px' }}>
-                Confirm Booking (Locks for 30 Mins)
+              <button 
+                type="submit" 
+                disabled={actionLoading}
+                style={{ 
+                  width: '100%', padding: '16px', background: 'linear-gradient(135deg, #f59e0b, #d97706)', 
+                  color: 'white', border: 'none', borderRadius: '12px', fontWeight: '800', 
+                  fontSize: '16px', cursor: 'pointer', marginTop: '5px', transition: 'all 0.2s',
+                  boxShadow: '0 4px 15px rgba(245,158,11,0.3)',
+                  opacity: actionLoading ? 0.7 : 1
+                }}
+              >
+                {actionLoading ? '⏳ Processing...' : `Confirm Booking (Locks for 30 Mins)`}
               </button>
             </form>
           </div>

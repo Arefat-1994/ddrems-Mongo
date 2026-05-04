@@ -25,7 +25,7 @@ CREATE TABLE IF NOT EXISTS property_images (
   id INT PRIMARY KEY AUTO_INCREMENT,
   property_id INT NOT NULL,
   image_url LONGTEXT NOT NULL,
-  image_type ENUM('main', 'gallery', 'document') DEFAULT 'gallery',
+  image_type ENUM('main', 'gallery', 'document', 'front', 'back', 'left', 'right') DEFAULT 'gallery',
   uploaded_by INT,
   created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (property_id) REFERENCES properties(id) ON DELETE CASCADE,

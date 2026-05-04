@@ -143,8 +143,9 @@ router.post("/hire", async (req, res) => {
     }
 
     // Notify broker
+    const offerType = resolvedType === 'rent' ? 'Monthly Rent' : 'Offer Price';
     await notifyUser(broker_id, "🤝 Step 1/12: New Broker Engagement Request",
-      `A buyer has requested you to represent them. Commission offer: ${commissionOffer}%. Please review and accept/decline.`, "info");
+      `A buyer has requested you to represent them. ${offerType}: ${Number(offer).toLocaleString()} ETB. Commission offer: ${commissionOffer}%. Please review and accept/decline.`, "info");
 
     res.json({
       success: true,
@@ -390,7 +391,7 @@ router.get("/:id/property-media", async (req, res) => {
 router.put("/:id/broker-negotiate", async (req, res) => {
   try {
     const { id } = req.params;
-    const { broker_id, offer_price, message } = req.body;
+    const { broker_id, offer_price, message, system_fee_payer } = req.body;
 
     const [engagement] = await db.query("SELECT * FROM broker_engagements WHERE id = ?", [id]);
     if (engagement.length === 0) return res.status(404).json({ success: false, message: "Engagement not found" });
@@ -407,9 +408,10 @@ router.put("/:id/broker-negotiate", async (req, res) => {
 
     // Save draft offer price and set pending_buyer_approval
     await db.query(
-      `UPDATE broker_engagements SET draft_offer_price = ?, status = 'pending_buyer_approval', updated_at = NOW() WHERE id = ?`,
-      [price, id]
+      `UPDATE broker_engagements SET draft_offer_price = ?, system_fee_payer = ?, status = 'pending_buyer_approval', updated_at = NOW() WHERE id = ?`,
+      [price, system_fee_payer || eng.system_fee_payer, id]
     );
+
 
     // Record draft message (private — advice type so owner can't see it)
     await db.query(
@@ -522,7 +524,7 @@ router.put("/:id/buyer-approve-draft", async (req, res) => {
 router.put("/:id/owner-respond", async (req, res) => {
   try {
     const { id } = req.params;
-    const { owner_id, decision, counter_price, message } = req.body;
+    const { owner_id, decision, counter_price, message, system_fee_payer } = req.body;
 
     const [engagement] = await db.query("SELECT * FROM broker_engagements WHERE id = ?", [id]);
     if (engagement.length === 0) return res.status(404).json({ success: false, message: "Engagement not found" });
@@ -539,10 +541,11 @@ router.put("/:id/owner-respond", async (req, res) => {
       // Owner accepted the broker's offer
       await db.query(
         `UPDATE broker_engagements SET
-           status = 'broker_finalizing', agreed_price = ?, owner_responded_at = NOW(), updated_at = NOW()
+           status = 'broker_finalizing', agreed_price = ?, system_fee_payer = ?, owner_responded_at = NOW(), updated_at = NOW()
          WHERE id = ?`,
-        [eng.current_offer, id]
+        [eng.current_offer, system_fee_payer || eng.system_fee_payer, id]
       );
+
 
       await db.query(
         `INSERT INTO broker_engagement_messages
@@ -573,10 +576,11 @@ router.put("/:id/owner-respond", async (req, res) => {
       await db.query(
         `UPDATE broker_engagements SET
            status = 'broker_reviewing_counter', owner_counter_price = ?, owner_counter_message = ?,
-           owner_responded_at = NOW(), updated_at = NOW()
+           system_fee_payer = ?, owner_responded_at = NOW(), updated_at = NOW()
          WHERE id = ?`,
-        [counter_price, message || null, id]
+        [counter_price, message || null, system_fee_payer || eng.system_fee_payer, id]
       );
+
 
       await db.query(
         `INSERT INTO broker_engagement_messages
@@ -699,7 +703,7 @@ router.put("/:id/broker-advise", async (req, res) => {
 router.put("/:id/buyer-authorize", async (req, res) => {
   try {
     const { id } = req.params;
-    const { buyer_id, authorization, counter_price, message } = req.body;
+    const { buyer_id, authorization, counter_price, message, system_fee_payer } = req.body;
 
     const [engagement] = await db.query("SELECT * FROM broker_engagements WHERE id = ?", [id]);
     if (engagement.length === 0) return res.status(404).json({ success: false, message: "Engagement not found" });
@@ -720,11 +724,12 @@ router.put("/:id/buyer-authorize", async (req, res) => {
       await db.query(
         `UPDATE broker_engagements SET
            status = 'broker_finalizing', buyer_authorization = 'authorize_accept',
-           agreed_price = ?, current_offer = ?,
+           agreed_price = ?, current_offer = ?, system_fee_payer = ?,
            buyer_auth_message = ?, buyer_authorized_at = NOW(), updated_at = NOW()
          WHERE id = ?`,
-        [eng.owner_counter_price, eng.owner_counter_price, message || null, id]
+        [eng.owner_counter_price, eng.owner_counter_price, system_fee_payer || eng.system_fee_payer, message || null, id]
       );
+
 
       await db.query(
         `INSERT INTO broker_engagement_messages
@@ -752,10 +757,10 @@ router.put("/:id/buyer-authorize", async (req, res) => {
       await db.query(
         `UPDATE broker_engagements SET
            status = 'broker_negotiating', buyer_authorization = 'authorize_counter',
-           buyer_auth_counter_price = ?, current_offer = ?,
+           buyer_auth_counter_price = ?, current_offer = ?, system_fee_payer = ?,
            buyer_auth_message = ?, buyer_authorized_at = NOW(), updated_at = NOW()
          WHERE id = ?`,
-        [counter_price, counter_price, message || null, id]
+        [counter_price, counter_price, system_fee_payer || eng.system_fee_payer, message || null, id]
       );
 
       await db.query(
@@ -877,10 +882,24 @@ router.post("/:id/generate-contract", async (req, res) => {
     const today = new Date().toLocaleDateString("en-US", { year: "numeric", month: "long", day: "numeric" });
     const agreedPrice = Number(eng.agreed_price || 0);
     const commPct = Number(eng.agreed_commission_pct || eng.commission_percentage || 2);
-    const commissionAmount = (agreedPrice * commPct / 100).toFixed(2);
-    const systemFee = (agreedPrice * 0.05).toFixed(2);
+    const commissionAmount = Number((agreedPrice * commPct / 100).toFixed(2));
+    const systemFee = Number((agreedPrice * 0.05).toFixed(2));
     const feePayer = eng.system_fee_payer || 'buyer';
-    const ownerNet = (agreedPrice - Number(commissionAmount) - Number(systemFee)).toFixed(2);
+    
+    let buyerTotal = agreedPrice;
+    let ownerPayout = agreedPrice;
+    
+    if (feePayer === 'buyer') {
+      buyerTotal = agreedPrice + systemFee + commissionAmount;
+      ownerPayout = agreedPrice;
+    } else if (feePayer === 'owner') {
+      buyerTotal = agreedPrice;
+      ownerPayout = agreedPrice - systemFee - commissionAmount;
+    } else if (feePayer === 'split') {
+      buyerTotal = agreedPrice + (systemFee / 2) + (commissionAmount / 2);
+      ownerPayout = agreedPrice - (systemFee / 2) - (commissionAmount / 2);
+    }
+
     const isRental = eng.engagement_type === 'rent';
     const rentalMonths = eng.rental_duration_months || 12;
     const paymentSchedule = eng.payment_schedule || 'monthly';
@@ -1017,13 +1036,13 @@ router.post("/:id/generate-contract", async (req, res) => {
       <thead><tr><th>Description</th><th style="text-align:right">Amount</th></tr></thead>
       <tbody>
         <tr><td>Monthly Rent</td><td class="amount">${agreedPrice.toLocaleString()} ETB</td></tr>
-        <tr><td>Lease Duration</td><td class="amount">${rentalMonths} months</td></tr>
-        ${securityDeposit > 0 ? `<tr><td>Security Deposit (refundable)</td><td class="amount">${securityDeposit.toLocaleString()} ETB</td></tr>` : ''}
-        <tr><td>Broker Commission (${commPct}%)</td><td class="amount">- ${Number(commissionAmount).toLocaleString()} ETB (from first payment)</td></tr>
-        <tr><td>System Service Fee (5%)</td><td class="amount">- ${Number(systemFee).toLocaleString()} ETB (paid by ${feePayer})</td></tr>
-        <tr class="total"><td>Total Lease Contract Value</td><td class="amount">${Number(totalRent).toLocaleString()} ETB</td></tr>
+        <tr><td>Broker Commission (${commPct}%)</td><td class="amount">${feePayer === 'owner' ? '-' : feePayer === 'split' ? '-' : '+'} ${Number(feePayer === 'split' ? commissionAmount/2 : commissionAmount).toLocaleString()} ETB</td></tr>
+        <tr><td>System Service Fee (5%)</td><td class="amount">${feePayer === 'owner' ? '-' : feePayer === 'split' ? '-' : '+'} ${Number(feePayer === 'split' ? systemFee/2 : systemFee).toLocaleString()} ETB</td></tr>
+        <tr class="total"><td>Total Monthly Tenant Payment</td><td class="amount">${Number(buyerTotal).toLocaleString()} ETB</td></tr>
+        <tr class="total" style="color: #059669; border-top: none;"><td>Net Monthly Landlord Payout</td><td class="amount">${Number(ownerPayout).toLocaleString()} ETB</td></tr>
       </tbody>
     </table>
+
   </div>
 
   <div class="section">
@@ -1142,11 +1161,13 @@ router.post("/:id/generate-contract", async (req, res) => {
       <thead><tr><th>Description</th><th style="text-align:right">Amount</th></tr></thead>
       <tbody>
         <tr><td>Agreed Purchase Price</td><td class="amount">${agreedPrice.toLocaleString()} ETB</td></tr>
-        <tr><td>Broker Commission (${commPct}%)</td><td class="amount">- ${Number(commissionAmount).toLocaleString()} ETB</td></tr>
-        <tr><td>System Service Fee (5%)</td><td class="amount">- ${Number(systemFee).toLocaleString()} ETB (paid by ${feePayer})</td></tr>
-        <tr class="total"><td>Net Amount to Owner</td><td class="amount">${Number(ownerNet).toLocaleString()} ETB</td></tr>
+        <tr><td>Broker Commission (${commPct}%)</td><td class="amount">${feePayer === 'owner' ? '-' : feePayer === 'split' ? '-' : '+'} ${Number(feePayer === 'split' ? commissionAmount/2 : commissionAmount).toLocaleString()} ETB</td></tr>
+        <tr><td>System Service Fee (5%)</td><td class="amount">${feePayer === 'owner' ? '-' : feePayer === 'split' ? '-' : '+'} ${Number(feePayer === 'split' ? systemFee/2 : systemFee).toLocaleString()} ETB</td></tr>
+        <tr class="total"><td>Total Buyer Payment</td><td class="amount">${Number(buyerTotal).toLocaleString()} ETB</td></tr>
+        <tr class="total" style="color: #059669; border-top: none;"><td>Net Amount to Owner</td><td class="amount">${Number(ownerPayout).toLocaleString()} ETB</td></tr>
       </tbody>
     </table>
+
   </div>
 
   <div class="section">

@@ -22,6 +22,7 @@ import AgreementManagement from './AgreementManagement';
 import SystemAdminTransactions from './SystemAdminTransactions';
 import SiteCheckAdmin from './SiteCheckAdmin';
 import BrokerApplicationsAdmin from './BrokerApplicationsAdmin';
+import BookedLists from './BookedLists';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
@@ -42,7 +43,7 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage, initialView }) =
     apiCalls: 0,
     storageUsed: 0,
     errorRate: 0,
-    
+    totalBookings: 0
   });
 
   useEffect(() => {
@@ -71,13 +72,14 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage, initialView }) =
         }
       };
 
-      const [statsData, logsData, activityData, configData, propStatsData, pendingProfilesData] = await Promise.all([
+      const [statsData, logsData, activityData, configData, propStatsData, pendingProfilesData, brokerHoldsData] = await Promise.all([
         safeFetch('/dashboard/stats', { totalUsers: 0, activeListings: 0, pendingProfiles: 0, totalRevenue: 0 }),
         safeFetch('/system/logs', []),
         safeFetch('/system/user-activity', []),
         safeFetch('/system/config', []),
         safeFetch('/properties/stats', {}),
-        safeFetch('/profiles/pending', { total: 0 })
+        safeFetch('/profiles/pending', { total: 0 }),
+        safeFetch('/broker-bookings', [])
       ]);
 
       setSystemLogs(logsData);
@@ -93,7 +95,7 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage, initialView }) =
         apiCalls: 12450,
         storageUsed: 65,
         errorRate: 0.5,
-        
+        totalBookings: Array.isArray(brokerHoldsData) ? brokerHoldsData.length : 0
       });
 
       // Fetch suspicious count
@@ -258,6 +260,14 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage, initialView }) =
       </div>
     );
   }
+  if (currentView === 'broker-holds') {
+    return (
+      <div className="system-admin-dashboard">
+        <PageHeader title="Booked Lists (System-Wide)" subtitle="Monitor all property reservations across the platform" user={user} onLogout={onLogout} onSettingsClick={() => setCurrentPage('settings')} actions={<button className="btn-secondary" onClick={() => setCurrentView('dashboard')}>← Back to Analytics</button>} />
+        <BookedLists user={user} />
+      </div>
+    );
+  }
 
   return (
     <div className="system-admin-dashboard">
@@ -275,6 +285,9 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage, initialView }) =
             />
             <button className="btn-secondary" onClick={() => setCurrentView('agreements')}>
               🤝 Agreements
+            </button>
+            <button className="btn-secondary" onClick={() => setCurrentView('broker-holds')}>
+              ⏱️ Booked Lists
             </button>
             <button className="btn-primary" onClick={() => setCurrentView('site-checks')} style={{ background: 'linear-gradient(135deg, #0ea5e9, #6366f1)' }}>
               📍 Site Checks
@@ -367,7 +380,13 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage, initialView }) =
             <p>Revenue (ETB)</p>
           </div>
         </div>
-        
+        <div className="stat-card clickable" onClick={() => setCurrentView('broker-holds')}>
+          <div className="stat-icon" style={{ background: '#fef3c7', color: '#d97706' }}>⏱️</div>
+          <div className="stat-content">
+            <h3>{stats.totalBookings}</h3>
+            <p>Total Bookings</p>
+          </div>
+        </div>
       </div>
 
       <div className="dashboard-grid">

@@ -1,0 +1,1001 @@
+latitude,longitude,location_name,size_m2,price,bedrooms,bathrooms,property_type,condition,near_school,near_hospital,near_market,parking,security_rating,listing_type
+9.628072,41.773308,Dire Dawa Railway Station,1,179.0,3,5,Villa,needs renovation,0,1,0,0,1,rent
+9.58437,41.866243,Kefira Market,1,436.0,3,2,Apartment,new,1,0,1,0,1,rent
+9.584943,41.866328,Dechatu River,1,907.0,7,2,Villa,new,1,0,1,0,1,rent
+9.605645,41.858603,Addis Ketema,1,829.0,6,3,House,new,0,1,0,1,5,rent
+9.628743,41.772785,Dire Dawa Railway Station,1,288.0,5,2,House,new,0,0,0,0,1,rent
+9.60399,41.857618,Addis Ketema,1,841.0,7,5,House,new,0,0,1,1,3,rent
+9.629177,41.772758,Dire Dawa Railway Station,1,220.0,4,4,Villa,needs renovation,0,1,0,1,2,rent
+9.614252,41.723938,Dire Dawa Industrial Park,1,142.0,3,4,House,good,1,1,1,1,2,rent
+9.591425,41.860436,Kezira,1,820.0,5,5,Villa,new,1,1,0,1,3,rent
+9.616728,41.781693,Melka Jebdu,1,145.0,1,2,Apartment,new,1,0,1,1,1,rent
+9.591976,41.859794,Sabian,1,575.0,4,3,House,new,1,1,1,1,1,rent
+9.591003,41.866127,Megala,1,307.0,1,3,Apartment,new,0,1,1,0,1,rent
+9.617319,41.780349,Melka Jebdu,1,175.0,3,3,Apartment,needs renovation,1,0,0,0,3,rent
+9.591276,41.86168,Sabian,1,761.0,5,4,House,new,1,1,1,1,4,rent
+9.595741,41.877977,Legehare,1,602.0,6,4,Villa,needs renovation,1,0,0,0,2,rent
+9.598909,41.869666,Ashewa Downtown Market Dire Dawa,1,508.0,3,3,Apartment,new,1,1,0,1,4,rent
+9.596988,41.877901,Legehare,1,423.0,2,1,Apartment,new,1,0,1,1,5,rent
+9.605209,41.859063,Addis Ketema,1,662.0,7,3,Villa,needs renovation,0,0,1,0,2,rent
+9.584754,41.864605,Kefira Market,1,334.0,3,3,Apartment,needs renovation,1,1,0,0,2,rent
+9.604819,41.858593,Addis Ketema,1,291.0,2,1,Apartment,needs renovation,1,0,1,1,4,rent
+9.585005,41.867352,Dechatu River,1,508.0,4,1,Apartment,new,0,0,0,0,1,rent
+9.6151,41.723492,Dire Dawa Industrial Park,1,213.0,6,3,Villa,needs renovation,0,0,1,1,4,rent
+9.584713,41.867479,Dechatu River,1,677.0,4,4,House,new,0,1,0,0,5,rent
+9.583724,41.866688,Dechatu River,1,369.0,4,3,Apartment,needs renovation,1,0,0,0,1,rent
+9.604432,41.858033,Addis Ketema,1,331.0,2,1,Apartment,good,1,1,1,0,2,rent
+9.587508,41.856628,Gende Kore Market,1,702.0,6,3,House,new,1,1,0,1,1,rent
+9.614849,41.725038,Dire Dawa Industrial Park,1,119.0,3,4,House,needs renovation,0,0,1,1,3,rent
+9.616907,41.781514,Melka Jebdu,1,328.0,3,4,Villa,new,0,1,1,1,5,rent
+9.587933,41.855125,Gende Kore Market,1,374.0,3,2,Apartment,needs renovation,1,0,0,1,5,rent
+9.589835,41.865868,Megala,1,294.0,2,3,Apartment,needs renovation,1,1,0,1,2,rent
+9.615573,41.72515,Dire Dawa Industrial Park,1,225.0,5,2,Villa,new,0,1,1,0,1,rent
+9.61476,41.723766,Dire Dawa Industrial Park,1,226.0,7,3,Villa,needs renovation,1,0,1,1,3,rent
+9.583961,41.864739,Kefira Market,1,578.0,4,2,Villa,good,1,1,0,1,1,rent
+9.587258,41.856478,Gende Kore Market,1,653.0,4,2,Villa,new,1,1,0,1,2,rent
+9.595687,41.878732,Legehare,1,699.0,5,3,Villa,new,0,1,1,0,1,rent
+9.599781,41.871081,Ashewa Downtown Market Dire Dawa,1,247.0,1,1,Apartment,needs renovation,1,0,0,1,4,rent
+9.589956,41.865992,Megala,1,771.0,5,5,Villa,good,0,0,1,0,3,rent
+9.585123,41.865996,Kefira Market,1,803.0,5,2,Villa,new,1,0,1,1,3,rent
+9.614424,41.72383,Dire Dawa Industrial Park,1,129.0,3,2,Villa,needs renovation,1,1,1,1,2,rent
+9.613927,41.724891,Dire Dawa Industrial Park,1,82.0,2,1,Apartment,needs renovation,1,1,0,1,1,rent
+9.599281,41.870577,Ashewa Downtown Market Dire Dawa,1,468.0,5,5,House,needs renovation,1,0,1,0,1,rent
+9.584695,41.867076,Dechatu River,1,406.0,4,3,House,needs renovation,0,1,0,1,1,rent
+9.588439,41.855178,Gende Kore Market,1,497.0,4,3,House,good,1,1,0,1,1,rent
+9.591273,41.866076,Megala,1,446.0,3,5,House,needs renovation,0,1,1,1,5,rent
+9.614796,41.723619,Dire Dawa Industrial Park,1,205.0,5,5,Villa,good,0,0,0,1,1,rent
+9.591309,41.860912,Kezira,1,216.0,1,2,Apartment,needs renovation,0,1,0,1,1,rent
+9.628003,41.772005,Dire Dawa Railway Station,1,266.0,4,2,Apartment,new,1,1,0,1,4,rent
+9.595478,41.878994,Legehare,1,279.0,1,2,Apartment,new,0,1,1,1,1,rent
+9.590561,41.865508,Megala,1,507.0,3,3,Apartment,good,1,1,0,1,5,rent
+9.58397,41.864793,Kefira Market,1,482.0,3,4,House,good,0,0,0,1,3,rent
+9.587437,41.855437,Gende Kore Market,1,532.0,3,5,Villa,new,1,1,1,0,1,rent
+9.614138,41.724494,Dire Dawa Industrial Park,1,190.0,4,3,Apartment,new,0,0,1,0,5,rent
+9.591207,41.865583,Megala,1,640.0,6,4,House,needs renovation,1,0,1,0,4,rent
+9.613765,41.723634,Dire Dawa Industrial Park,1,69.0,1,2,Apartment,needs renovation,1,0,0,1,2,rent
+9.614191,41.724789,Dire Dawa Industrial Park,1,158.0,4,3,Apartment,good,0,1,1,1,3,rent
+9.593109,41.860949,Sabian,1,395.0,3,2,Apartment,needs renovation,0,0,1,1,5,rent
+9.588211,41.85623,Gende Kore Market,1,322.0,2,2,Apartment,good,1,1,1,0,1,rent
+9.584751,41.866081,Kefira Market,1,774.0,5,4,House,new,1,1,1,1,5,rent
+9.604729,41.858887,Addis Ketema,1,463.0,4,1,Apartment,good,0,1,0,0,2,rent
+9.589932,41.866877,Megala,1,446.0,3,5,House,needs renovation,1,0,0,0,5,rent
+9.591307,41.861515,Sabian,1,339.0,2,1,Apartment,good,0,1,1,1,1,rent
+9.591228,41.860369,Kezira,1,572.0,4,4,House,new,0,0,1,1,1,rent
+9.591527,41.86597,Megala,1,950.0,6,5,Villa,good,1,0,0,0,5,rent
+9.58559,41.864518,Kefira Market,1,363.0,2,2,Apartment,new,0,1,1,1,1,rent
+9.59647,41.879656,Legehare,1,203.0,1,3,Apartment,needs renovation,1,0,0,0,1,rent
+9.627581,41.772249,Dire Dawa Railway Station,1,144.0,1,3,Apartment,good,0,0,1,1,5,rent
+9.592299,41.860915,Sabian,1,566.0,6,2,House,needs renovation,1,1,1,0,2,rent
+9.596253,41.879626,Legehare,1,468.0,4,1,Apartment,good,0,0,0,1,2,rent
+9.59143,41.860121,Sabian,1,315.0,2,2,Apartment,needs renovation,1,1,1,1,4,rent
+9.587856,41.856892,Gende Kore Market,1,624.0,5,4,Villa,needs renovation,0,0,0,0,5,rent
+9.613727,41.725274,Dire Dawa Industrial Park,1,142.0,3,2,Apartment,new,0,0,0,1,2,rent
+9.61698,41.780602,Melka Jebdu,1,217.0,3,3,Apartment,new,0,0,0,1,1,rent
+9.599586,41.869813,Ashewa Downtown Market Dire Dawa,1,560.0,5,2,Villa,needs renovation,1,0,1,1,2,rent
+9.617082,41.781075,Melka Jebdu,1,158.0,3,1,Apartment,needs renovation,0,1,0,1,1,rent
+9.583556,41.866976,Dechatu River,1,449.0,4,4,House,needs renovation,0,0,1,1,3,rent
+9.5912,41.860725,Sabian,1,550.0,4,2,House,good,0,1,1,1,2,rent
+9.590541,41.866499,Megala,1,844.0,7,4,House,new,0,1,0,1,1,rent
+9.590332,41.865049,Megala,1,465.0,2,1,Apartment,new,0,1,1,0,5,rent
+9.588384,41.856028,Gende Kore Market,1,328.0,1,1,Apartment,new,1,0,1,0,4,rent
+9.613768,41.724395,Dire Dawa Industrial Park,1,164.0,5,4,Villa,needs renovation,1,0,0,0,1,rent
+9.60572,41.859036,Addis Ketema,1,685.0,6,5,House,new,1,0,0,0,1,rent
+9.591386,41.86002,Kezira,1,447.0,3,2,Apartment,good,1,0,1,1,3,rent
+9.584111,41.866389,Dechatu River,1,798.0,5,3,Villa,good,0,1,1,1,5,rent
+9.599889,41.869708,Ashewa Downtown Market Dire Dawa,1,678.0,7,3,House,needs renovation,0,1,0,0,4,rent
+9.585338,41.866686,Dechatu River,1,945.0,6,5,Villa,new,1,1,1,1,4,rent
+9.615616,41.724258,Dire Dawa Industrial Park,1,209.0,4,3,House,new,1,1,1,1,5,rent
+9.584432,41.865315,Kefira Market,1,562.0,4,3,House,good,0,1,1,0,3,rent
+9.587692,41.856773,Gende Kore Market,1,387.0,3,1,Apartment,good,1,1,0,1,1,rent
+9.588227,41.855063,Gende Kore Market,1,746.0,5,4,Villa,new,1,1,0,0,2,rent
+9.604622,41.858011,Addis Ketema,1,499.0,6,2,House,needs renovation,1,1,1,0,1,rent
+9.60549,41.859051,Addis Ketema,1,278.0,1,2,Apartment,good,1,1,1,0,3,rent
+9.628312,41.773369,Dire Dawa Railway Station,1,279.0,4,4,House,new,1,1,0,0,3,rent
+9.592808,41.859785,Sabian,1,360.0,3,3,Apartment,needs renovation,1,1,0,1,3,rent
+9.59312,41.860007,Sabian,1,722.0,4,2,Villa,new,1,1,0,0,3,rent
+9.592977,41.859163,Kezira,1,547.0,4,1,Apartment,good,1,0,1,1,4,rent
+9.60002,41.869918,Ashewa Downtown Market Dire Dawa,1,805.0,7,3,Villa,needs renovation,1,0,1,1,5,rent
+9.617634,41.781284,Melka Jebdu,1,230.0,4,2,Apartment,good,0,0,0,1,1,rent
+9.587752,41.855741,Gende Kore Market,1,285.0,1,2,Apartment,good,1,0,0,0,3,rent
+9.617851,41.780487,Melka Jebdu,1,296.0,6,5,Villa,needs renovation,1,0,0,0,1,rent
+9.584827,41.866149,Kefira Market,1,495.0,3,3,Villa,good,1,0,1,1,1,rent
+9.628159,41.772786,Dire Dawa Railway Station,1,125.0,2,1,Apartment,needs renovation,1,1,0,0,2,rent
+9.627506,41.771918,Dire Dawa Railway Station,1,232.0,5,3,House,needs renovation,1,1,0,1,3,rent
+9.588758,41.855669,Gende Kore Market,1,343.0,1,3,Apartment,new,0,0,1,0,5,rent
+9.613863,41.723736,Dire Dawa Industrial Park,1,272.0,7,3,House,good,0,1,1,0,5,rent
+9.604751,41.859089,Addis Ketema,1,510.0,4,3,Apartment,good,0,1,1,0,4,rent
+9.616582,41.780788,Melka Jebdu,1,166.0,3,3,Apartment,needs renovation,0,1,1,0,2,rent
+9.598472,41.869709,Ashewa Downtown Market Dire Dawa,1,636.0,3,3,Villa,new,1,0,0,1,4,rent
+9.591972,41.860457,Sabian,1,629.0,7,3,House,needs renovation,0,1,1,0,2,rent
+9.596339,41.879577,Legehare,1,728.0,6,2,House,new,0,0,0,1,2,rent
+9.604211,41.857815,Addis Ketema,1,233.0,1,1,Apartment,needs renovation,1,1,0,1,4,rent
+9.618129,41.781085,Melka Jebdu,1,407.0,6,5,Villa,new,1,0,1,0,1,rent
+9.614457,41.724963,Dire Dawa Industrial Park,1,172.0,3,3,House,new,0,0,0,0,4,rent
+9.604904,41.858996,Addis Ketema,1,673.0,5,3,House,new,1,1,0,0,3,rent
+9.590305,41.865433,Megala,1,537.0,4,2,Apartment,new,0,0,1,1,1,rent
+9.592863,41.860476,Sabian,1,904.0,5,2,Villa,new,1,0,1,1,5,rent
+9.583712,41.866943,Dechatu River,1,550.0,6,5,House,needs renovation,0,1,1,0,2,rent
+9.584005,41.86593,Dechatu River,1,635.0,4,3,Villa,new,1,0,0,0,1,rent
+9.587851,41.855149,Gende Kore Market,1,217.0,1,2,Apartment,needs renovation,1,1,1,1,2,rent
+9.596177,41.879032,Legehare,1,558.0,3,4,House,new,1,0,1,0,5,rent
+9.588353,41.856866,Gende Kore Market,1,627.0,5,3,House,good,1,1,0,0,3,rent
+9.591974,41.860262,Sabian,1,726.0,5,2,House,new,1,0,0,1,3,rent
+9.605427,41.859378,Addis Ketema,1,629.0,7,2,Villa,needs renovation,1,0,1,0,1,rent
+9.59627,41.878119,Legehare,1,334.0,2,2,Apartment,good,0,0,0,1,2,rent
+9.617019,41.781394,Melka Jebdu,1,238.0,3,4,House,new,1,1,1,1,1,rent
+9.591443,41.860568,Kezira,1,492.0,3,3,Apartment,new,1,1,0,1,3,rent
+9.584814,41.867518,Dechatu River,1,437.0,3,1,Apartment,good,0,0,1,0,3,rent
+9.591986,41.861416,Sabian,1,326.0,3,2,Apartment,needs renovation,0,1,1,1,1,rent
+9.628613,41.77246,Dire Dawa Railway Station,1,288.0,5,2,House,new,1,1,1,1,1,rent
+9.627503,41.772418,Dire Dawa Railway Station,1,329.0,5,2,Villa,good,1,0,0,0,3,rent
+9.61507,41.724776,Dire Dawa Industrial Park,1,127.0,4,2,Apartment,needs renovation,1,1,1,0,3,rent
+9.59145,41.860282,Sabian,1,825.0,5,2,Villa,new,0,0,0,0,3,rent
+9.627401,41.771844,Dire Dawa Railway Station,1,138.0,2,3,Apartment,needs renovation,1,1,1,1,4,rent
+9.59203,41.860469,Kezira,1,539.0,3,2,Apartment,new,1,0,1,0,5,rent
+9.627574,41.772325,Dire Dawa Railway Station,1,358.0,6,5,House,new,1,0,0,0,3,rent
+9.585326,41.865698,Kefira Market,1,264.0,2,2,Apartment,needs renovation,0,0,1,1,1,rent
+9.599337,41.871046,Ashewa Downtown Market Dire Dawa,1,919.0,7,2,Villa,good,0,0,0,0,3,rent
+9.584448,41.867622,Dechatu River,1,825.0,7,2,Villa,good,1,1,0,1,1,rent
+9.591927,41.859888,Sabian,1,550.0,4,1,Apartment,new,1,0,1,0,2,rent
+9.627802,41.773539,Dire Dawa Railway Station,1,208.0,4,2,Apartment,good,1,0,0,0,1,rent
+9.591245,41.860897,Kezira,1,687.0,5,3,House,good,0,0,1,1,4,rent
+9.592292,41.859798,Kezira,1,519.0,4,3,House,good,0,1,0,0,1,rent
+9.617738,41.780213,Melka Jebdu,1,333.0,4,3,Villa,new,1,1,1,1,2,rent
+9.627597,41.771917,Dire Dawa Railway Station,1,188.0,3,1,Apartment,good,1,1,1,1,2,rent
+9.617345,41.781031,Melka Jebdu,1,362.0,5,2,Villa,new,1,1,0,0,1,rent
+9.584726,41.867222,Dechatu River,1,698.0,4,2,Villa,good,0,0,1,0,5,rent
+9.592771,41.860388,Sabian,1,462.0,4,5,House,needs renovation,1,0,0,0,3,rent
+9.595813,41.878945,Legehare,1,386.0,2,2,Apartment,new,0,1,0,0,3,rent
+9.627738,41.771896,Dire Dawa Railway Station,1,266.0,4,4,House,good,0,0,0,1,4,rent
+9.599862,41.871096,Ashewa Downtown Market Dire Dawa,1,564.0,4,2,Villa,needs renovation,1,1,1,1,5,rent
+9.584117,41.865496,Kefira Market,1,639.0,4,4,Villa,good,0,0,1,1,3,rent
+9.59148,41.866533,Megala,1,422.0,2,1,Apartment,good,1,0,1,1,5,rent
+9.588463,41.856216,Gende Kore Market,1,374.0,3,3,Apartment,needs renovation,1,0,0,0,5,rent
+9.584482,41.865296,Kefira Market,1,581.0,3,2,House,new,1,0,1,0,5,rent
+9.605741,41.858883,Addis Ketema,1,463.0,4,4,Villa,needs renovation,1,0,1,1,2,rent
+9.591636,41.860625,Kezira,1,668.0,6,4,House,good,0,1,0,1,1,rent
+9.584097,41.864591,Kefira Market,1,367.0,3,1,Apartment,needs renovation,1,0,0,1,4,rent
+9.590896,41.866738,Megala,1,727.0,6,2,House,good,1,0,0,1,2,rent
+9.596654,41.879317,Legehare,1,235.0,1,3,Apartment,needs renovation,0,0,1,1,4,rent
+9.591277,41.859452,Kezira,1,541.0,3,2,House,new,1,0,0,1,3,rent
+9.603897,41.859341,Addis Ketema,1,688.0,6,2,House,good,0,0,1,1,3,rent
+9.585318,41.865773,Kefira Market,1,548.0,3,3,Villa,good,1,1,0,1,3,rent
+9.627633,41.772177,Dire Dawa Railway Station,1,297.0,7,4,Villa,needs renovation,1,0,1,0,1,rent
+9.590183,41.866456,Megala,1,1010.0,7,3,Villa,new,1,0,0,0,2,rent
+9.592543,41.86022,Sabian,1,571.0,3,2,House,new,1,0,0,1,4,rent
+9.59126,41.861248,Sabian,1,471.0,3,3,Villa,needs renovation,0,1,1,1,4,rent
+9.583712,41.866284,Dechatu River,1,581.0,5,5,House,good,1,1,1,1,1,rent
+9.600017,41.869759,Ashewa Downtown Market Dire Dawa,1,647.0,5,5,House,good,1,1,0,1,3,rent
+9.58418,41.864737,Kefira Market,1,505.0,3,2,House,new,0,1,1,1,2,rent
+9.603988,41.858339,Addis Ketema,1,402.0,3,4,House,needs renovation,0,1,0,0,5,rent
+9.617068,41.781414,Melka Jebdu,1,322.0,4,3,House,new,1,0,1,1,4,rent
+9.584194,41.865263,Kefira Market,1,264.0,2,2,Apartment,needs renovation,0,0,1,0,1,rent
+9.583956,41.865258,Kefira Market,1,402.0,2,3,Apartment,new,1,1,1,0,3,rent
+9.584309,41.865628,Kefira Market,1,514.0,5,2,House,needs renovation,0,1,0,0,3,rent
+9.591739,41.865815,Megala,1,557.0,3,2,Apartment,new,0,1,0,1,5,rent
+9.617415,41.780449,Melka Jebdu,1,145.0,1,3,Apartment,good,1,1,0,1,3,rent
+9.614757,41.723909,Dire Dawa Industrial Park,1,69.0,1,2,Apartment,needs renovation,0,1,1,1,2,rent
+9.587091,41.85638,Gende Kore Market,1,719.0,4,3,Villa,new,0,0,1,0,4,rent
+9.628715,41.771644,Dire Dawa Railway Station,1,379.0,5,5,Villa,new,1,1,0,1,4,rent
+9.604065,41.859438,Addis Ketema,1,457.0,3,2,Villa,needs renovation,1,1,0,1,5,rent
+9.592398,41.859745,Kezira,1,590.0,6,2,House,needs renovation,0,0,0,0,3,rent
+9.617856,41.78019,Melka Jebdu,1,245.0,4,2,House,needs renovation,1,1,0,0,5,rent
+9.605408,41.859237,Addis Ketema,1,729.0,7,4,Villa,needs renovation,1,0,0,1,4,rent
+9.59114,41.866987,Megala,1,582.0,6,4,House,needs renovation,0,0,1,1,2,rent
+9.617562,41.780342,Melka Jebdu,1,131.0,1,1,Apartment,good,1,1,0,0,1,rent
+9.591406,41.866585,Megala,1,606.0,3,2,Villa,good,1,0,1,1,4,rent
+9.591644,41.860462,Sabian,1,786.0,5,2,Villa,new,1,1,0,0,2,rent
+9.59678,41.878787,Legehare,1,535.0,5,4,Villa,needs renovation,1,1,0,1,2,rent
+9.604227,41.858785,Addis Ketema,1,291.0,1,1,Apartment,good,1,1,0,1,4,rent
+9.589888,41.865594,Megala,1,247.0,1,2,Apartment,needs renovation,0,1,0,1,3,rent
+9.584127,41.867814,Dechatu River,1,396.0,3,2,Apartment,good,0,1,0,0,1,rent
+9.584755,41.864707,Kefira Market,1,370.0,4,1,Apartment,needs renovation,0,1,0,0,1,rent
+9.595283,41.878178,Legehare,1,930.0,7,2,House,new,0,0,1,0,5,rent
+9.584562,41.866571,Dechatu River,1,291.0,2,2,Apartment,needs renovation,0,0,1,1,3,rent
+9.591907,41.860596,Sabian,1,600.0,5,3,Villa,needs renovation,0,0,1,0,3,rent
+9.593079,41.860085,Sabian,1,672.0,6,5,House,good,1,0,1,0,1,rent
+9.627932,41.771691,Dire Dawa Railway Station,1,357.0,6,2,House,good,1,0,0,0,5,rent
+9.59147,41.865899,Megala,1,424.0,2,2,Apartment,new,0,0,1,1,3,rent
+9.604156,41.858852,Addis Ketema,1,779.0,6,2,Villa,new,0,0,0,0,1,rent
+9.586975,41.856726,Gende Kore Market,1,850.0,6,5,House,new,1,0,1,0,5,rent
+9.604376,41.858631,Addis Ketema,1,641.0,7,4,House,needs renovation,1,0,0,0,4,rent
+9.614932,41.724684,Dire Dawa Industrial Park,1,157.0,4,1,Apartment,new,0,0,1,1,1,rent
+9.60414,41.858778,Addis Ketema,1,685.0,6,5,House,new,0,1,1,1,1,rent
+9.618024,41.781656,Melka Jebdu,1,289.0,7,3,House,needs renovation,0,0,1,0,1,rent
+9.599668,41.869755,Ashewa Downtown Market Dire Dawa,1,551.0,3,2,Villa,good,1,1,1,1,3,rent
+9.583834,41.867535,Dechatu River,1,458.0,3,3,Apartment,good,1,1,0,1,4,rent
+9.605102,41.85812,Addis Ketema,1,801.0,7,5,House,new,1,0,1,0,2,rent
+9.587934,41.855724,Gende Kore Market,1,644.0,3,4,Villa,new,1,1,1,0,5,rent
+9.591673,41.860601,Kezira,1,809.0,6,5,House,good,1,0,0,1,5,rent
+9.588558,41.856174,Gende Kore Market,1,862.0,7,2,House,new,1,1,1,0,3,rent
+9.596921,41.878008,Legehare,1,735.0,5,2,Villa,good,1,1,0,1,4,rent
+9.598734,41.871166,Ashewa Downtown Market Dire Dawa,1,636.0,3,3,Villa,new,1,0,1,1,4,rent
+9.595522,41.879745,Legehare,1,485.0,3,3,House,new,0,0,1,0,2,rent
+9.591916,41.860804,Kezira,1,270.0,1,3,Apartment,good,1,1,1,1,1,rent
+9.628943,41.773622,Dire Dawa Railway Station,1,302.0,4,4,Villa,new,1,0,0,1,2,rent
+9.598777,41.869674,Ashewa Downtown Market Dire Dawa,1,566.0,4,3,Apartment,new,1,0,0,1,3,rent
+9.591149,41.866899,Megala,1,407.0,3,4,House,needs renovation,0,0,0,0,3,rent
+9.628748,41.772826,Dire Dawa Railway Station,1,179.0,3,2,Apartment,good,0,1,0,0,1,rent
+9.618309,41.7807,Melka Jebdu,1,289.0,3,2,House,new,1,1,1,0,5,rent
+9.599738,41.870693,Ashewa Downtown Market Dire Dawa,1,294.0,1,2,Apartment,good,0,0,1,1,3,rent
+9.584844,41.865025,Kefira Market,1,578.0,6,4,House,needs renovation,1,1,0,1,3,rent
+9.616494,41.781044,Melka Jebdu,1,167.0,1,3,Apartment,new,0,1,0,1,4,rent
+9.61471,41.724874,Dire Dawa Industrial Park,1,164.0,3,5,House,new,1,0,1,0,3,rent
+9.58539,41.866255,Kefira Market,1,560.0,4,4,House,new,1,1,1,1,1,rent
+9.585196,41.865091,Kefira Market,1,677.0,4,5,House,new,1,0,0,0,5,rent
+9.590106,41.866094,Megala,1,418.0,3,1,Apartment,good,0,0,0,1,1,rent
+9.59162,41.861022,Sabian,1,1032.0,7,3,Villa,new,0,1,0,1,3,rent
+9.629231,41.772341,Dire Dawa Railway Station,1,232.0,5,3,House,needs renovation,1,1,0,0,3,rent
+9.61382,41.723757,Dire Dawa Industrial Park,1,119.0,3,3,Apartment,needs renovation,1,1,0,1,5,rent
+9.618371,41.781584,Melka Jebdu,1,395.0,6,4,House,new,1,1,1,1,3,rent
+9.599611,41.870507,Ashewa Downtown Market Dire Dawa,1,451.0,4,1,Apartment,needs renovation,1,0,1,0,5,rent
+9.584905,41.867874,Dechatu River,1,528.0,5,2,Villa,needs renovation,1,0,1,1,1,rent
+9.590144,41.866157,Megala,1,517.0,5,2,House,needs renovation,1,1,0,1,2,rent
+9.59179,41.859295,Kezira,1,356.0,3,5,House,needs renovation,1,1,0,1,1,rent
+9.5993,41.870129,Ashewa Downtown Market Dire Dawa,1,805.0,7,2,Villa,needs renovation,0,0,1,0,5,rent
+9.585654,41.865892,Kefira Market,1,803.0,7,5,House,good,1,0,1,1,3,rent
+9.618417,41.781103,Melka Jebdu,1,475.0,7,3,Villa,new,1,1,1,1,2,rent
+9.604565,41.857746,Addis Ketema,1,244.0,1,2,Apartment,needs renovation,0,0,0,1,5,rent
+9.587873,41.856368,Gende Kore Market,1,392.0,2,1,Apartment,new,1,1,1,1,3,rent
+9.592812,41.859536,Kezira,1,431.0,3,3,House,needs renovation,0,0,1,1,5,rent
+9.592345,41.860155,Kezira,1,261.0,1,1,Apartment,needs renovation,0,0,0,1,5,rent
+9.618178,41.781678,Melka Jebdu,1,428.0,6,2,Villa,good,1,1,1,0,4,rent
+9.584589,41.867866,Dechatu River,1,527.0,3,3,Apartment,new,0,0,1,1,5,rent
+9.592205,41.860058,Sabian,1,747.0,7,4,House,good,1,0,1,0,1,rent
+9.587783,41.855912,Gende Kore Market,1,719.0,4,4,Villa,new,0,0,0,0,4,rent
+9.584829,41.865768,Kefira Market,1,487.0,4,5,Villa,needs renovation,1,0,0,0,2,rent
+9.605894,41.85932,Addis Ketema,1,397.0,3,3,Apartment,good,1,1,1,0,2,rent
+9.591749,41.866568,Megala,1,507.0,3,1,Apartment,good,0,1,1,1,5,rent
+9.614713,41.725422,Dire Dawa Industrial Park,1,246.0,6,2,House,new,1,0,1,0,3,rent
+9.587702,41.855512,Gende Kore Market,1,575.0,4,2,Apartment,new,1,0,1,0,4,rent
+9.595883,41.879268,Legehare,1,735.0,7,3,House,good,1,1,1,1,2,rent
+9.592068,41.859308,Kezira,1,879.0,6,4,Villa,new,0,1,1,0,2,rent
+9.592879,41.85934,Kezira,1,469.0,3,1,Apartment,new,1,0,1,0,2,rent
+9.58757,41.855288,Gende Kore Market,1,328.0,1,3,Apartment,new,0,1,1,0,4,rent
+9.62755,41.772186,Dire Dawa Railway Station,1,417.0,7,2,House,new,0,0,0,1,4,rent
+9.604785,41.85827,Addis Ketema,1,291.0,1,1,Apartment,good,0,1,0,0,4,rent
+9.583953,41.866852,Dechatu River,1,573.0,3,2,Villa,new,1,0,1,0,2,rent
+9.596153,41.878238,Legehare,1,441.0,3,3,Apartment,good,0,0,1,0,4,rent
+9.59555,41.878963,Legehare,1,676.0,4,2,Villa,new,1,0,1,1,3,rent
+9.618232,41.781775,Melka Jebdu,1,138.0,1,1,Apartment,good,0,1,1,1,2,rent
+9.591645,41.860176,Kezira,1,644.0,3,3,Villa,new,1,1,1,1,4,rent
+9.59253,41.860827,Sabian,1,329.0,1,1,Apartment,good,0,1,0,0,5,rent
+9.591928,41.860824,Sabian,1,545.0,3,5,House,new,0,0,0,0,3,rent
+9.614864,41.725472,Dire Dawa Industrial Park,1,256.0,7,3,Villa,good,1,0,1,0,1,rent
+9.593047,41.861457,Sabian,1,893.0,7,2,Villa,good,0,0,0,1,2,rent
+9.596322,41.877878,Legehare,1,618.0,7,2,House,needs renovation,0,1,1,1,3,rent
+9.58395,41.864602,Kefira Market,1,860.0,6,2,Villa,new,0,1,0,0,2,rent
+9.627294,41.772498,Dire Dawa Railway Station,1,315.0,4,3,Villa,good,0,0,1,1,5,rent
+9.592395,41.859998,Sabian,1,625.0,4,4,Villa,good,0,0,1,0,2,rent
+9.592922,41.860737,Kezira,1,503.0,4,4,House,needs renovation,1,1,1,0,5,rent
+9.58873,41.854998,Gende Kore Market,1,709.0,7,2,House,good,1,0,0,1,1,rent
+9.596297,41.878803,Legehare,1,419.0,3,3,House,good,1,1,1,0,1,rent
+9.58571,41.864575,Kefira Market,1,528.0,5,2,Villa,needs renovation,1,1,0,0,1,rent
+9.592003,41.860939,Kezira,1,1020.0,7,3,Villa,good,1,0,1,0,5,rent
+9.6172,41.780699,Melka Jebdu,1,329.0,5,3,Villa,good,0,1,0,1,1,rent
+9.599835,41.870788,Ashewa Downtown Market Dire Dawa,1,732.0,7,2,House,good,1,0,1,1,1,rent
+9.615047,41.723679,Dire Dawa Industrial Park,1,174.0,4,1,Apartment,new,0,0,1,1,3,rent
+9.5959,41.878546,Legehare,1,447.0,5,2,House,needs renovation,1,1,1,0,1,rent
+9.605275,41.85774,Addis Ketema,1,389.0,4,2,Apartment,needs renovation,0,0,0,1,3,rent
+9.616609,41.780559,Melka Jebdu,1,260.0,3,3,Villa,good,1,1,0,1,2,rent
+9.591255,41.859959,Kezira,1,516.0,3,5,House,new,1,1,0,0,2,rent
+9.613783,41.724413,Dire Dawa Industrial Park,1,158.0,4,5,Villa,needs renovation,1,1,1,0,3,rent
+9.591933,41.860931,Kezira,1,922.0,6,4,Villa,new,0,0,0,0,3,rent
+9.587035,41.85495,Gende Kore Market,1,722.0,5,2,House,new,0,0,0,1,4,rent
+9.627737,41.771811,Dire Dawa Railway Station,1,157.0,2,1,Apartment,good,1,1,0,1,2,rent
+9.595686,41.879734,Legehare,1,254.0,1,2,Apartment,good,0,1,0,1,1,rent
+9.591663,41.861253,Sabian,1,550.0,4,3,Apartment,new,1,1,0,0,2,rent
+9.61387,41.724766,Dire Dawa Industrial Park,1,149.0,3,2,Apartment,new,1,0,1,0,3,rent
+9.584765,41.864885,Kefira Market,1,654.0,6,5,House,good,1,1,1,1,1,rent
+9.583565,41.867393,Dechatu River,1,508.0,4,3,Apartment,new,0,1,0,0,1,rent
+9.614968,41.724595,Dire Dawa Industrial Park,1,223.0,6,4,House,new,0,1,1,0,1,rent
+9.617714,41.780376,Melka Jebdu,1,290.0,5,4,Villa,needs renovation,0,1,1,0,3,rent
+9.590369,41.865327,Megala,1,929.0,7,3,House,good,0,1,0,0,5,rent
+9.591237,41.86606,Megala,1,307.0,1,1,Apartment,new,0,1,1,1,1,rent
+9.596282,41.877868,Legehare,1,321.0,3,2,Apartment,needs renovation,0,1,1,0,2,rent
+9.591758,41.860482,Kezira,1,497.0,4,3,Villa,needs renovation,1,1,0,0,2,rent
+9.588506,41.856808,Gende Kore Market,1,678.0,7,3,Villa,needs renovation,0,1,1,0,2,rent
+9.590753,41.865829,Megala,1,800.0,6,3,House,new,0,0,1,0,2,rent
+9.627651,41.772674,Dire Dawa Railway Station,1,184.0,4,3,House,needs renovation,0,0,0,0,1,rent
+9.591544,41.86043,Kezira,1,298.0,2,2,Apartment,needs renovation,1,1,0,0,3,rent
+9.588701,41.856222,Gende Kore Market,1,821.0,5,4,Villa,new,1,1,1,0,4,rent
+9.592849,41.860264,Sabian,1,448.0,3,2,Apartment,new,0,1,1,0,1,rent
+9.584429,41.867466,Dechatu River,1,639.0,5,4,House,new,1,0,1,0,1,rent
+9.595921,41.879425,Legehare,1,1011.0,7,5,Villa,new,0,0,0,1,4,rent
+9.584905,41.866193,Dechatu River,1,278.0,2,1,Apartment,needs renovation,1,1,1,1,2,rent
+9.591109,41.866883,Megala,1,1022.0,7,3,House,new,0,0,0,0,5,rent
+9.615143,41.725133,Dire Dawa Industrial Park,1,260.0,7,5,House,good,1,1,1,0,4,rent
+9.587743,41.854947,Gende Kore Market,1,683.0,4,4,Villa,good,1,0,1,1,5,rent
+9.58447,41.866498,Dechatu River,1,639.0,5,4,House,new,0,1,1,0,1,rent
+9.595668,41.87903,Legehare,1,386.0,2,1,Apartment,new,0,0,0,1,3,rent
+9.591986,41.860721,Kezira,1,472.0,4,2,Villa,needs renovation,0,0,1,0,1,rent
+9.615237,41.724754,Dire Dawa Industrial Park,1,260.0,5,2,Villa,new,0,0,0,0,4,rent
+9.627732,41.771658,Dire Dawa Railway Station,1,329.0,7,2,Villa,needs renovation,1,0,1,0,3,rent
+9.605583,41.859338,Addis Ketema,1,348.0,2,3,Apartment,good,1,0,1,1,3,rent
+9.600282,41.870826,Ashewa Downtown Market Dire Dawa,1,953.0,6,5,Villa,new,1,0,1,0,4,rent
+9.584521,41.866136,Dechatu River,1,998.0,7,2,Villa,good,1,1,1,0,5,rent
+9.592741,41.859282,Kezira,1,375.0,3,3,House,needs renovation,1,0,1,1,2,rent
+9.628943,41.773187,Dire Dawa Railway Station,1,273.0,6,4,House,needs renovation,1,1,1,1,4,rent
+9.592486,41.860444,Sabian,1,528.0,5,2,House,needs renovation,0,0,1,1,3,rent
+9.605142,41.858914,Addis Ketema,1,377.0,3,1,Apartment,good,1,0,0,1,1,rent
+9.585183,41.866161,Kefira Market,1,600.0,3,4,Villa,good,0,1,1,0,5,rent
+9.599514,41.870001,Ashewa Downtown Market Dire Dawa,1,247.0,1,1,Apartment,needs renovation,1,0,0,0,4,rent
+9.584959,41.86483,Kefira Market,1,904.0,6,2,Villa,new,1,0,1,0,3,rent
+9.628007,41.7719,Dire Dawa Railway Station,1,217.0,3,5,House,good,1,1,1,1,3,rent
+9.614274,41.724391,Dire Dawa Industrial Park,1,113.0,2,2,Apartment,good,0,0,1,1,3,rent
+9.59314,41.861656,Sabian,1,1017.0,6,3,Villa,new,0,1,1,1,5,rent
+9.5839,41.864994,Kefira Market,1,1100.0,7,5,Villa,new,1,1,0,0,5,rent
+9.584135,41.867373,Dechatu River,1,642.0,7,4,House,needs renovation,0,1,1,0,3,rent
+9.627607,41.773168,Dire Dawa Railway Station,1,332.0,4,3,Villa,new,1,0,1,0,4,rent
+9.60535,41.858023,Addis Ketema,1,579.0,4,5,Villa,good,0,1,0,1,2,rent
+9.583701,41.867807,Dechatu River,1,790.0,6,2,House,good,1,0,1,0,5,rent
+9.584292,41.865957,Dechatu River,1,492.0,4,3,House,needs renovation,0,1,0,0,5,rent
+9.583816,41.865391,Kefira Market,1,648.0,4,2,House,new,1,0,1,0,4,rent
+9.58426,41.86762,Dechatu River,1,882.0,7,5,House,new,0,0,1,0,3,rent
+9.599481,41.86994,Ashewa Downtown Market Dire Dawa,1,809.0,7,5,House,good,0,1,1,1,3,rent
+9.604733,41.858363,Addis Ketema,1,757.0,6,5,House,new,1,1,1,1,3,rent
+9.604625,41.859111,Addis Ketema,1,573.0,3,4,Villa,new,1,0,0,1,3,rent
+9.591366,41.859344,Kezira,1,629.0,4,3,Apartment,new,1,1,0,1,5,rent
+9.614723,41.724975,Dire Dawa Industrial Park,1,306.0,6,5,Villa,new,0,1,0,0,5,rent
+9.617893,41.780384,Melka Jebdu,1,263.0,3,2,Apartment,new,1,1,1,0,5,rent
+9.618019,41.781932,Melka Jebdu,1,333.0,4,2,Villa,new,0,0,1,1,2,rent
+9.592521,41.860863,Kezira,1,459.0,4,2,House,needs renovation,1,0,0,1,3,rent
+9.591682,41.865323,Megala,1,918.0,7,4,Villa,good,1,1,1,0,2,rent
+9.591633,41.865558,Megala,1,690.0,6,5,House,good,1,1,0,0,1,rent
+9.628331,41.772256,Dire Dawa Railway Station,1,261.0,4,3,Villa,good,0,0,0,0,1,rent
+9.585621,41.866053,Kefira Market,1,409.0,4,2,Apartment,needs renovation,1,1,1,0,3,rent
+9.604944,41.858322,Addis Ketema,1,626.0,6,2,Villa,needs renovation,1,0,1,1,3,rent
+9.592955,41.861254,Sabian,1,629.0,5,5,Villa,needs renovation,1,0,1,0,4,rent
+9.613768,41.72377,Dire Dawa Industrial Park,1,190.0,4,3,Apartment,new,0,0,1,1,5,rent
+9.599937,41.871159,Ashewa Downtown Market Dire Dawa,1,566.0,4,3,Apartment,new,0,1,0,1,3,rent
+9.627359,41.77291,Dire Dawa Railway Station,1,238.0,3,5,House,good,0,1,0,0,5,rent
+9.615688,41.723495,Dire Dawa Industrial Park,1,143.0,4,3,Apartment,good,1,1,1,1,1,rent
+9.618386,41.781052,Melka Jebdu,1,320.0,5,4,House,good,1,1,0,1,3,rent
+9.627548,41.772017,Dire Dawa Railway Station,1,446.0,6,2,Villa,new,0,1,0,0,5,rent
+9.61807,41.780883,Melka Jebdu,1,239.0,3,2,Villa,needs renovation,0,0,0,0,5,rent
+9.62744,41.772023,Dire Dawa Railway Station,1,217.0,3,2,Villa,needs renovation,0,1,1,1,5,rent
+9.628056,41.772973,Dire Dawa Railway Station,1,145.0,1,1,Apartment,new,0,1,1,1,3,rent
+9.584018,41.866102,Kefira Market,1,602.0,3,4,Villa,new,0,0,0,1,3,rent
+9.58394,41.865898,Kefira Market,1,904.0,6,5,Villa,new,0,0,0,1,3,rent
+9.583476,41.866074,Dechatu River,1,233.0,1,3,Apartment,needs renovation,1,1,1,0,3,rent
+9.599623,41.871104,Ashewa Downtown Market Dire Dawa,1,370.0,3,1,Apartment,needs renovation,0,0,0,0,4,rent
+9.596291,41.878812,Legehare,1,647.0,5,4,House,new,1,1,0,0,2,rent
+9.5923,41.861207,Sabian,1,315.0,2,3,Apartment,needs renovation,0,1,1,0,4,rent
+9.591524,41.86001,Sabian,1,471.0,3,1,Apartment,good,1,1,0,1,4,rent
+9.591737,41.859862,Sabian,1,478.0,5,2,House,needs renovation,1,0,1,1,1,rent
+9.587656,41.856314,Gende Kore Market,1,638.0,6,4,House,good,1,0,1,1,1,rent
+9.584034,41.865606,Kefira Market,1,581.0,5,2,House,good,0,0,1,0,1,rent
+9.593086,41.860976,Sabian,1,286.0,2,2,Apartment,needs renovation,1,0,0,1,2,rent
+9.628965,41.772436,Dire Dawa Railway Station,1,217.0,3,1,Apartment,new,0,1,0,1,3,rent
+9.627989,41.773615,Dire Dawa Railway Station,1,453.0,7,2,Villa,new,0,0,1,0,3,rent
+9.590059,41.86625,Megala,1,734.0,5,3,Villa,good,0,0,1,0,2,rent
+9.605148,41.858827,Addis Ketema,1,629.0,5,3,Villa,good,0,0,1,0,1,rent
+9.584629,41.865125,Kefira Market,1,528.0,3,1,Apartment,new,1,1,1,0,5,rent
+9.604842,41.858881,Addis Ketema,1,561.0,4,4,House,new,0,1,0,0,2,rent
+9.584203,41.865504,Kefira Market,1,720.0,6,3,Villa,needs renovation,1,1,0,0,5,rent
+9.599198,41.870498,Ashewa Downtown Market Dire Dawa,1,508.0,3,2,Apartment,new,0,1,1,1,4,rent
+9.585348,41.867149,Dechatu River,1,825.0,7,5,Villa,good,0,1,1,0,1,rent
+9.590351,41.86512,Megala,1,444.0,2,1,Apartment,new,0,0,1,0,4,rent
+9.618126,41.780036,Melka Jebdu,1,266.0,4,2,Apartment,new,0,1,1,0,2,rent
+9.591709,41.860729,Kezira,1,533.0,3,4,Villa,good,0,0,1,1,2,rent
+9.627463,41.773236,Dire Dawa Railway Station,1,229.0,4,2,Apartment,new,1,0,1,1,1,rent
+9.617392,41.7804,Melka Jebdu,1,203.0,4,5,House,needs renovation,1,1,1,1,1,rent
+9.627411,41.771628,Dire Dawa Railway Station,1,278.0,4,4,House,good,0,1,1,1,5,rent
+9.599033,41.86953,Ashewa Downtown Market Dire Dawa,1,405.0,2,1,Apartment,new,1,1,1,1,3,rent
+9.585535,41.865387,Kefira Market,1,292.0,2,2,Apartment,needs renovation,0,1,0,1,3,rent
+9.588695,41.856344,Gende Kore Market,1,549.0,4,5,House,good,0,1,1,1,3,rent
+9.614185,41.725063,Dire Dawa Industrial Park,1,279.0,6,5,Villa,good,0,0,0,0,5,rent
+9.592792,41.860562,Kezira,1,492.0,3,3,Apartment,new,1,0,0,1,3,rent
+9.614112,41.723818,Dire Dawa Industrial Park,1,166.0,4,1,Apartment,good,1,1,0,0,4,rent
+9.591724,41.866468,Megala,1,646.0,5,2,Villa,needs renovation,0,1,1,1,4,rent
+9.600157,41.870811,Ashewa Downtown Market Dire Dawa,1,623.0,4,4,House,new,0,0,0,0,3,rent
+9.587116,41.856556,Gende Kore Market,1,686.0,4,5,Villa,new,0,1,0,0,3,rent
+9.587464,41.855365,Gende Kore Market,1,611.0,6,2,Villa,needs renovation,0,0,0,1,2,rent
+9.617003,41.779999,Melka Jebdu,1,418.0,7,5,House,good,0,0,1,0,4,rent
+9.585562,41.864534,Kefira Market,1,436.0,3,3,Apartment,new,1,0,1,1,1,rent
+9.583995,41.864406,Kefira Market,1,704.0,7,5,House,needs renovation,1,0,0,1,5,rent
+9.588423,41.856486,Gende Kore Market,1,522.0,4,2,House,good,0,0,0,0,2,rent
+9.59165,41.861426,Sabian,1,594.0,6,2,House,needs renovation,0,1,1,0,3,rent
+9.599488,41.870573,Ashewa Downtown Market Dire Dawa,1,462.0,3,4,House,good,0,1,1,1,2,rent
+9.591731,41.865623,Megala,1,404.0,2,2,Apartment,good,0,0,1,1,4,rent
+9.599063,41.869824,Ashewa Downtown Market Dire Dawa,1,247.0,1,2,Apartment,needs renovation,0,0,1,0,4,rent
+9.592811,41.861042,Sabian,1,528.0,5,3,House,needs renovation,1,1,1,0,3,rent
+9.584054,41.866263,Dechatu River,1,510.0,4,3,Villa,needs renovation,0,0,1,1,3,rent
+9.585376,41.866024,Kefira Market,1,545.0,3,4,Villa,new,0,1,0,0,1,rent
+9.617334,41.780133,Melka Jebdu,1,223.0,4,2,Apartment,needs renovation,1,0,1,0,5,rent
+9.585146,41.865907,Dechatu River,1,278.0,1,1,Apartment,good,0,1,0,1,2,rent
+9.588745,41.855191,Gende Kore Market,1,470.0,3,3,House,good,1,0,0,1,3,rent
+9.583908,41.866983,Dechatu River,1,694.0,7,5,Villa,needs renovation,1,0,1,0,2,rent
+9.591789,41.86089,Kezira,1,227.0,1,2,Apartment,needs renovation,1,1,0,1,2,rent
+9.59559,41.879612,Legehare,1,463.0,3,1,Apartment,new,1,0,0,0,3,rent
+9.600242,41.870061,Ashewa Downtown Market Dire Dawa,1,827.0,6,4,Villa,good,0,0,1,1,3,rent
+9.617531,41.780131,Melka Jebdu,1,398.0,5,5,Villa,good,1,1,1,1,5,rent
+9.592977,41.860877,Kezira,1,629.0,4,1,Apartment,new,0,1,0,1,5,rent
+9.628428,41.773288,Dire Dawa Railway Station,1,157.0,3,3,House,needs renovation,0,1,0,1,1,rent
+9.585139,41.864868,Kefira Market,1,999.0,7,3,Villa,good,0,0,0,1,5,rent
+9.586817,41.856012,Gende Kore Market,1,687.0,5,2,House,good,0,0,0,0,5,rent
+9.598411,41.870066,Ashewa Downtown Market Dire Dawa,1,620.0,4,2,House,good,1,0,0,1,5,rent
+9.591524,41.859134,Kezira,1,674.0,3,4,Villa,new,1,1,0,0,5,rent
+9.591204,41.859838,Sabian,1,509.0,3,5,Villa,good,0,0,1,0,1,rent
+9.58362,41.866113,Dechatu River,1,722.0,6,2,House,good,0,0,1,0,3,rent
+9.62787,41.772479,Dire Dawa Railway Station,1,230.0,4,5,Villa,needs renovation,1,1,1,1,3,rent
+9.584627,41.864426,Kefira Market,1,234.0,1,2,Apartment,needs renovation,1,1,0,0,3,rent
+9.588342,41.85611,Gende Kore Market,1,746.0,5,3,Villa,good,1,0,0,0,4,rent
+9.584962,41.864471,Kefira Market,1,223.0,1,1,Apartment,needs renovation,1,1,0,0,2,rent
+9.583767,41.866178,Kefira Market,1,1004.0,7,5,Villa,new,0,1,1,1,3,rent
+9.617274,41.781657,Melka Jebdu,1,192.0,3,4,House,needs renovation,1,1,1,0,3,rent
+9.614562,41.724271,Dire Dawa Industrial Park,1,127.0,4,2,Apartment,needs renovation,0,1,0,0,3,rent
+9.587609,41.856631,Gende Kore Market,1,812.0,6,2,House,new,0,1,0,1,4,rent
+9.59922,41.871234,Ashewa Downtown Market Dire Dawa,1,616.0,7,5,House,needs renovation,1,1,1,1,2,rent
+9.598408,41.871311,Ashewa Downtown Market Dire Dawa,1,762.0,6,5,House,new,1,0,0,0,2,rent
+9.5877,41.856068,Gende Kore Market,1,719.0,4,2,Villa,new,0,0,0,1,4,rent
+9.596688,41.878069,Legehare,1,1011.0,7,5,Villa,new,0,1,0,1,4,rent
+9.617657,41.780465,Melka Jebdu,1,407.0,6,2,Villa,new,0,0,0,1,1,rent
+9.584573,41.865171,Kefira Market,1,669.0,4,3,Villa,new,0,1,1,0,2,rent
+9.584015,41.866803,Dechatu River,1,702.0,4,4,Villa,new,0,1,0,0,3,rent
+9.596918,41.878838,Legehare,1,837.0,6,3,House,new,0,0,0,0,5,rent
+9.591683,41.860268,Kezira,1,988.0,7,2,House,new,1,0,0,1,5,rent
+9.584792,41.864917,Kefira Market,1,278.0,1,2,Apartment,good,0,0,0,0,2,rent
+9.583954,41.864356,Kefira Market,1,704.0,5,4,House,good,1,1,1,0,5,rent
+9.591784,41.859656,Kezira,1,966.0,6,3,Villa,new,1,1,0,1,4,rent
+9.592838,41.860276,Kezira,1,426.0,3,3,Villa,needs renovation,0,1,1,1,2,rent
+9.628764,41.772298,Dire Dawa Railway Station,1,220.0,4,5,Villa,needs renovation,1,1,1,1,2,rent
+9.628955,41.772072,Dire Dawa Railway Station,1,228.0,3,2,Apartment,new,0,0,0,0,4,rent
+9.605301,41.8591,Addis Ketema,1,503.0,3,2,Apartment,new,0,1,0,1,5,rent
+9.592544,41.861298,Sabian,1,523.0,4,4,House,good,1,0,0,1,1,rent
+9.60395,41.858358,Addis Ketema,1,696.0,7,2,Villa,needs renovation,0,1,0,0,3,rent
+9.599409,41.870331,Ashewa Downtown Market Dire Dawa,1,582.0,4,2,Villa,good,1,0,1,0,1,rent
+9.605425,41.858578,Addis Ketema,1,617.0,4,2,House,new,0,0,0,0,4,rent
+9.587725,41.856363,Gende Kore Market,1,705.0,6,5,House,good,1,0,0,1,3,rent
+9.58754,41.856865,Gende Kore Market,1,746.0,7,3,Villa,needs renovation,0,0,1,1,4,rent
+9.584713,41.86785,Dechatu River,1,481.0,3,2,Apartment,new,0,1,1,1,3,rent
+9.614784,41.723742,Dire Dawa Industrial Park,1,108.0,2,2,Apartment,good,0,0,0,0,2,rent
+9.59134,41.865742,Megala,1,593.0,4,4,House,good,0,1,0,1,3,rent
+9.614482,41.724975,Dire Dawa Industrial Park,1,109.0,1,2,Apartment,new,0,0,0,1,5,rent
+9.592609,41.860102,Kezira,1,341.0,3,3,Apartment,needs renovation,0,1,0,1,2,rent
+9.592183,41.860213,Sabian,1,822.0,5,4,Villa,good,0,1,1,1,5,rent
+9.628567,41.773387,Dire Dawa Railway Station,1,411.0,7,4,Villa,good,1,1,0,1,3,rent
+9.591732,41.859793,Sabian,1,420.0,4,3,Apartment,needs renovation,1,0,1,0,3,rent
+9.587218,41.855269,Gende Kore Market,1,575.0,4,2,Apartment,new,0,1,1,1,4,rent
+9.591713,41.866606,Megala,1,698.0,5,4,Villa,good,1,1,1,1,1,rent
+9.583968,41.86536,Kefira Market,1,367.0,3,1,Apartment,needs renovation,0,1,0,0,4,rent
+9.599021,41.870864,Ashewa Downtown Market Dire Dawa,1,886.0,5,4,Villa,new,1,0,1,1,5,rent
+9.595559,41.879211,Legehare,1,623.0,4,5,House,new,0,1,1,1,4,rent
+9.615395,41.724496,Dire Dawa Industrial Park,1,124.0,2,3,Apartment,new,0,1,1,0,3,rent
+9.5898,41.865649,Megala,1,959.0,7,5,Villa,new,0,1,1,0,1,rent
+9.616988,41.781875,Melka Jebdu,1,276.0,5,5,Villa,needs renovation,1,0,0,1,2,rent
+9.627729,41.773318,Dire Dawa Railway Station,1,408.0,6,4,Villa,new,0,1,0,0,3,rent
+9.628235,41.772631,Dire Dawa Railway Station,1,238.0,3,1,Apartment,new,1,0,1,0,5,rent
+9.605264,41.859409,Addis Ketema,1,721.0,6,4,House,good,1,0,0,1,4,rent
+9.599789,41.870247,Ashewa Downtown Market Dire Dawa,1,294.0,1,2,Apartment,good,1,0,1,0,3,rent
+9.613941,41.725103,Dire Dawa Industrial Park,1,135.0,3,2,House,good,1,1,0,1,1,rent
+9.617877,41.781341,Melka Jebdu,1,274.0,6,2,House,needs renovation,0,0,0,0,2,rent
+9.590882,41.866736,Megala,1,614.0,5,2,House,good,1,0,0,0,1,rent
+9.605859,41.858063,Addis Ketema,1,291.0,1,1,Apartment,new,0,1,0,1,2,rent
+9.584543,41.866519,Dechatu River,1,330.0,2,3,Apartment,good,1,0,1,0,1,rent
+9.605139,41.858538,Addis Ketema,1,459.0,3,2,House,good,1,0,0,0,3,rent
+9.591863,41.859072,Kezira,1,662.0,4,5,House,new,1,0,1,0,4,rent
+9.62902,41.772448,Dire Dawa Railway Station,1,362.0,7,2,House,good,1,1,0,1,3,rent
+9.59961,41.870461,Ashewa Downtown Market Dire Dawa,1,293.0,1,1,Apartment,new,0,1,1,1,1,rent
+9.58732,41.855894,Gende Kore Market,1,228.0,1,2,Apartment,needs renovation,1,0,0,1,3,rent
+9.592076,41.861455,Sabian,1,679.0,5,2,Villa,good,0,1,1,1,1,rent
+9.59203,41.860564,Kezira,1,371.0,2,1,Apartment,new,0,0,0,0,1,rent
+9.584224,41.865612,Kefira Market,1,606.0,6,4,House,needs renovation,0,1,0,1,4,rent
+9.5926,41.859841,Sabian,1,460.0,4,1,Apartment,needs renovation,0,0,1,0,5,rent
+9.584385,41.864986,Kefira Market,1,999.0,7,5,Villa,good,0,0,1,1,5,rent
+9.628129,41.772731,Dire Dawa Railway Station,1,253.0,4,2,Apartment,new,0,0,0,1,3,rent
+9.616564,41.78115,Melka Jebdu,1,183.0,3,2,House,needs renovation,1,0,0,0,2,rent
+9.604354,41.858412,Addis Ketema,1,415.0,3,2,Apartment,new,0,0,0,1,1,rent
+9.587412,41.856865,Gende Kore Market,1,497.0,4,2,Apartment,new,0,1,1,0,1,rent
+9.615486,41.72349,Dire Dawa Industrial Park,1,173.0,4,3,House,new,1,0,0,0,1,rent
+9.592881,41.859829,Kezira,1,356.0,3,5,House,needs renovation,0,0,0,0,1,rent
+9.587514,41.855933,Gende Kore Market,1,821.0,7,2,House,good,1,0,1,0,4,rent
+9.595964,41.877984,Legehare,1,809.0,7,3,House,good,1,0,0,1,4,rent
+9.593003,41.859492,Kezira,1,752.0,4,5,Villa,new,0,1,0,0,4,rent
+9.592575,41.861216,Sabian,1,314.0,1,3,Apartment,good,1,1,1,0,4,rent
+9.617981,41.781814,Melka Jebdu,1,197.0,3,1,Apartment,good,0,1,1,0,1,rent
+9.596214,41.879003,Legehare,1,538.0,4,3,House,new,1,1,1,1,1,rent
+9.627774,41.772152,Dire Dawa Railway Station,1,157.0,2,1,Apartment,good,1,0,0,1,2,rent
+9.592742,41.860027,Kezira,1,358.0,3,2,Apartment,needs renovation,1,1,1,0,3,rent
+9.600195,41.869745,Ashewa Downtown Market Dire Dawa,1,788.0,6,3,Villa,good,0,0,1,0,2,rent
+9.585107,41.865024,Kefira Market,1,696.0,7,3,Villa,needs renovation,0,0,1,1,2,rent
+9.593006,41.860603,Kezira,1,327.0,2,2,Apartment,needs renovation,1,0,0,0,5,rent
+9.584724,41.865626,Kefira Market,1,384.0,3,1,Apartment,needs renovation,0,0,0,0,5,rent
+9.614043,41.723915,Dire Dawa Industrial Park,1,282.0,7,4,Villa,good,0,1,1,0,3,rent
+9.604057,41.859039,Addis Ketema,1,427.0,4,1,Apartment,needs renovation,1,0,0,0,5,rent
+9.604637,41.85761,Addis Ketema,1,244.0,1,1,Apartment,needs renovation,0,1,1,0,5,rent
+9.596767,41.879006,Legehare,1,441.0,3,2,Apartment,good,0,1,1,1,4,rent
+9.585371,41.86733,Dechatu River,1,882.0,7,5,House,new,0,1,1,0,3,rent
+9.604268,41.857935,Addis Ketema,1,666.0,4,5,Villa,good,0,0,1,0,5,rent
+9.61387,41.725147,Dire Dawa Industrial Park,1,260.0,7,2,House,good,1,0,0,0,4,rent
+9.585465,41.864969,Kefira Market,1,409.0,4,2,Apartment,needs renovation,0,1,1,1,3,rent
+9.599484,41.8703,Ashewa Downtown Market Dire Dawa,1,678.0,5,4,House,good,0,0,0,1,4,rent
+9.584801,41.865922,Kefira Market,1,1100.0,7,5,Villa,new,1,0,0,1,5,rent
+9.592222,41.858978,Kezira,1,371.0,2,3,Apartment,new,0,0,0,0,1,rent
+9.596907,41.878705,Legehare,1,1011.0,7,3,Villa,new,0,1,0,0,4,rent
+9.585217,41.864386,Kefira Market,1,636.0,4,4,Villa,new,1,1,0,1,1,rent
+9.605148,41.858801,Addis Ketema,1,603.0,6,5,House,needs renovation,0,0,0,0,5,rent
+9.628231,41.77218,Dire Dawa Railway Station,1,172.0,2,3,Apartment,new,0,0,0,1,2,rent
+9.591653,41.866686,Megala,1,627.0,6,3,Villa,needs renovation,1,0,0,0,1,rent
+9.583531,41.866283,Dechatu River,1,580.0,7,2,House,needs renovation,0,1,1,1,1,rent
+9.616481,41.780165,Melka Jebdu,1,251.0,3,3,Apartment,new,0,0,0,1,4,rent
+9.614581,41.724776,Dire Dawa Industrial Park,1,213.0,6,2,Villa,needs renovation,0,1,0,1,4,rent
+9.599461,41.869932,Ashewa Downtown Market Dire Dawa,1,867.0,6,4,Villa,good,1,1,1,0,4,rent
+9.615249,41.725135,Dire Dawa Industrial Park,1,72.0,1,2,Apartment,needs renovation,0,0,1,1,3,rent
+9.604672,41.857653,Addis Ketema,1,499.0,6,3,House,needs renovation,0,1,0,0,1,rent
+9.591409,41.866446,Megala,1,622.0,4,3,House,new,1,1,1,1,2,rent
+9.596901,41.879136,Legehare,1,846.0,5,2,Villa,new,0,0,0,1,5,rent
+9.59163,41.866744,Megala,1,462.0,3,3,Apartment,good,1,0,1,0,3,rent
+9.599793,41.869642,Ashewa Downtown Market Dire Dawa,1,353.0,3,3,Apartment,needs renovation,1,1,0,0,3,rent
+9.629155,41.773587,Dire Dawa Railway Station,1,207.0,3,3,House,good,0,0,0,1,2,rent
+9.613823,41.725243,Dire Dawa Industrial Park,1,118.0,2,2,Apartment,good,1,1,1,1,4,rent
+9.596521,41.879746,Legehare,1,353.0,3,1,Apartment,needs renovation,0,0,0,0,4,rent
+9.588088,41.855321,Gende Kore Market,1,356.0,2,1,Apartment,good,1,0,1,0,3,rent
+9.588228,41.855979,Gende Kore Market,1,549.0,4,5,House,good,1,0,1,1,3,rent
+9.61445,41.723509,Dire Dawa Industrial Park,1,99.0,1,3,Apartment,good,1,0,0,0,5,rent
+9.584634,41.866095,Kefira Market,1,528.0,3,4,House,good,1,0,1,1,5,rent
+9.613971,41.723915,Dire Dawa Industrial Park,1,199.0,7,2,House,needs renovation,1,1,0,1,3,rent
+9.583972,41.864827,Kefira Market,1,321.0,1,2,Apartment,new,0,0,0,0,3,rent
+9.614644,41.724328,Dire Dawa Industrial Park,1,158.0,4,2,Apartment,good,1,1,1,1,3,rent
+9.591653,41.866548,Megala,1,646.0,7,2,House,needs renovation,0,1,0,0,2,rent
+9.587998,41.856504,Gende Kore Market,1,326.0,3,1,Apartment,needs renovation,1,0,0,0,2,rent
+9.627363,41.772841,Dire Dawa Railway Station,1,100.0,1,1,Apartment,needs renovation,0,1,0,0,2,rent
+9.605624,41.857517,Addis Ketema,1,382.0,2,3,Apartment,new,0,0,0,0,3,rent
+9.591419,41.866044,Megala,1,388.0,3,2,Apartment,needs renovation,1,0,1,1,4,rent
+9.599384,41.870972,Ashewa Downtown Market Dire Dawa,1,566.0,4,1,Apartment,new,0,1,1,1,3,rent
+9.615377,41.723766,Dire Dawa Industrial Park,1,100.0,1,3,Apartment,new,0,0,0,0,3,rent
+9.617637,41.781352,Melka Jebdu,1,333.0,4,5,Villa,good,0,1,1,1,4,rent
+9.583594,41.86702,Dechatu River,1,924.0,7,5,House,new,1,0,1,0,4,rent
+9.586981,41.855402,Gende Kore Market,1,933.0,7,3,Villa,good,1,1,1,1,4,rent
+9.599939,41.870187,Ashewa Downtown Market Dire Dawa,1,630.0,6,2,Villa,needs renovation,1,1,1,0,2,rent
+9.591059,41.866189,Megala,1,591.0,4,4,Villa,needs renovation,0,1,1,0,5,rent
+9.584861,41.864987,Kefira Market,1,990.0,6,3,Villa,new,1,0,0,1,5,rent
+9.5921,41.859822,Kezira,1,927.0,7,3,Villa,new,1,1,0,1,1,rent
+9.60583,41.857573,Addis Ketema,1,729.0,7,3,Villa,needs renovation,0,0,1,0,4,rent
+9.590612,41.865385,Megala,1,517.0,5,2,House,needs renovation,0,1,1,1,2,rent
+9.584833,41.865103,Kefira Market,1,581.0,3,3,House,new,0,0,1,1,5,rent
+9.598615,41.87088,Ashewa Downtown Market Dire Dawa,1,483.0,3,5,Villa,needs renovation,0,1,0,1,5,rent
+9.585689,41.865126,Kefira Market,1,436.0,3,2,House,good,1,1,0,0,1,rent
+9.617481,41.780848,Melka Jebdu,1,264.0,3,2,House,new,1,1,1,1,3,rent
+9.584689,41.86624,Kefira Market,1,505.0,3,4,House,new,1,0,0,0,2,rent
+9.604473,41.858854,Addis Ketema,1,612.0,7,4,House,needs renovation,1,0,1,0,3,rent
+9.588215,41.856833,Gende Kore Market,1,850.0,6,5,House,new,0,0,1,1,5,rent
+9.629029,41.772713,Dire Dawa Railway Station,1,243.0,5,5,House,needs renovation,1,1,1,0,4,rent
+9.591388,41.860579,Sabian,1,500.0,4,3,Villa,needs renovation,0,0,1,1,2,rent
+9.627392,41.773021,Dire Dawa Railway Station,1,217.0,3,5,House,good,1,0,1,0,3,rent
+9.589857,41.866364,Megala,1,1010.0,7,4,Villa,new,1,0,0,1,2,rent
+9.591572,41.860617,Kezira,1,722.0,5,2,House,new,0,1,1,1,3,rent
+9.614112,41.723622,Dire Dawa Industrial Park,1,99.0,2,3,Apartment,needs renovation,1,1,1,1,5,rent
+9.591479,41.861438,Sabian,1,407.0,3,2,Apartment,good,1,0,1,0,1,rent
+9.591605,41.866883,Megala,1,839.0,6,5,House,new,1,0,0,0,3,rent
+9.599667,41.870882,Ashewa Downtown Market Dire Dawa,1,405.0,2,1,Apartment,new,0,0,1,0,3,rent
+9.58494,41.865612,Kefira Market,1,741.0,5,2,House,new,1,0,1,0,4,rent
+9.588682,41.855735,Gende Kore Market,1,326.0,3,2,Apartment,needs renovation,1,1,0,0,2,rent
+9.604062,41.857593,Addis Ketema,1,617.0,4,5,House,new,0,0,0,0,4,rent
+9.592468,41.860773,Sabian,1,795.0,5,4,House,new,0,1,0,1,5,rent
+9.590336,41.866397,Megala,1,537.0,4,2,Apartment,new,1,1,0,0,1,rent
+9.599628,41.869928,Ashewa Downtown Market Dire Dawa,1,762.0,6,2,House,good,0,0,0,1,4,rent
+9.583933,41.867749,Dechatu River,1,647.0,4,3,House,new,1,1,0,1,4,rent
+9.598776,41.870258,Ashewa Downtown Market Dire Dawa,1,919.0,7,4,Villa,good,1,1,0,0,3,rent
+9.5869,41.855606,Gende Kore Market,1,944.0,7,2,House,new,0,1,1,0,5,rent
+9.58379,41.864459,Kefira Market,1,557.0,5,5,Villa,needs renovation,1,0,0,1,2,rent
+9.584102,41.865843,Kefira Market,1,291.0,1,1,Apartment,new,1,0,1,1,1,rent
+9.616649,41.78092,Melka Jebdu,1,293.0,4,4,House,good,0,0,0,1,4,rent
+9.614677,41.725349,Dire Dawa Industrial Park,1,98.0,3,1,Apartment,needs renovation,1,1,0,1,1,rent
+9.588468,41.855587,Gende Kore Market,1,881.0,6,2,Villa,new,1,0,1,0,3,rent
+9.591562,41.861201,Sabian,1,908.0,7,5,House,new,0,1,0,1,3,rent
+9.584672,41.867274,Dechatu River,1,608.0,4,3,Villa,good,1,0,0,0,2,rent
+9.591637,41.861666,Sabian,1,865.0,5,2,Villa,new,1,0,1,0,4,rent
+9.591206,41.865253,Megala,1,498.0,4,4,House,needs renovation,0,1,0,0,4,rent
+9.592204,41.861299,Sabian,1,300.0,2,2,Apartment,needs renovation,1,1,0,1,3,rent
+9.614323,41.724074,Dire Dawa Industrial Park,1,272.0,7,4,House,good,0,1,0,1,5,rent
+9.591089,41.865582,Megala,1,432.0,4,2,Apartment,needs renovation,0,0,1,0,3,rent
+9.614813,41.723983,Dire Dawa Industrial Park,1,209.0,4,4,House,new,0,1,0,1,5,rent
+9.615138,41.725352,Dire Dawa Industrial Park,1,260.0,7,3,House,good,1,1,1,1,4,rent
+9.592535,41.860049,Sabian,1,933.0,7,5,Villa,new,1,0,0,1,1,rent
+9.617432,41.781937,Melka Jebdu,1,418.0,7,3,House,good,0,1,1,0,4,rent
+9.605066,41.858178,Addis Ketema,1,389.0,4,1,Apartment,needs renovation,0,1,1,0,3,rent
+9.614807,41.725349,Dire Dawa Industrial Park,1,136.0,2,3,Apartment,new,1,1,0,1,5,rent
+9.605471,41.859383,Addis Ketema,1,440.0,4,1,Apartment,good,0,0,0,1,1,rent
+9.591471,41.860042,Sabian,1,462.0,4,3,House,needs renovation,1,0,1,1,3,rent
+9.587558,41.855881,Gende Kore Market,1,429.0,2,2,Apartment,new,0,1,0,0,5,rent
+9.593061,41.86122,Sabian,1,575.0,4,3,Apartment,good,0,1,0,0,5,rent
+9.599569,41.870543,Ashewa Downtown Market Dire Dawa,1,399.0,3,2,Apartment,good,1,1,1,0,1,rent
+9.627376,41.772784,Dire Dawa Railway Station,1,474.0,7,5,Villa,new,0,0,1,0,4,rent
+9.588028,41.856761,Gende Kore Market,1,725.0,6,2,Villa,good,0,0,0,1,1,rent
+9.590298,41.866988,Megala,1,844.0,7,4,House,new,1,1,0,0,1,rent
+9.585359,41.86608,Kefira Market,1,278.0,2,1,Apartment,needs renovation,1,0,1,1,2,rent
+9.62889,41.772129,Dire Dawa Railway Station,1,217.0,3,2,Apartment,new,1,0,0,1,3,rent
+9.627297,41.772474,Dire Dawa Railway Station,1,349.0,5,5,House,new,0,0,0,1,5,rent
+9.613703,41.723631,Dire Dawa Industrial Park,1,172.0,3,3,House,new,0,0,0,1,4,rent
+9.628349,41.772449,Dire Dawa Railway Station,1,248.0,6,3,House,needs renovation,1,0,1,1,2,rent
+9.615286,41.723623,Dire Dawa Industrial Park,1,114.0,3,3,Apartment,needs renovation,1,0,0,1,4,rent
+9.616509,41.780113,Melka Jebdu,1,230.0,4,2,Apartment,good,0,0,0,1,1,rent
+9.61566,41.724254,Dire Dawa Industrial Park,1,151.0,4,4,Villa,needs renovation,0,0,1,0,2,rent
+9.588619,41.854935,Gende Kore Market,1,298.0,1,2,Apartment,new,0,1,0,1,2,rent
+9.59661,41.878177,Legehare,1,515.0,4,2,House,good,1,1,1,0,2,rent
+9.616748,41.780987,Melka Jebdu,1,475.0,7,4,Villa,good,0,0,0,0,4,rent
+9.628521,41.772951,Dire Dawa Railway Station,1,288.0,5,3,Villa,needs renovation,0,0,1,0,5,rent
+9.593049,41.859599,Kezira,1,859.0,7,4,House,good,1,0,0,1,4,rent
+9.585359,41.866094,Kefira Market,1,382.0,2,1,Apartment,good,0,1,1,1,4,rent
+9.591739,41.86037,Sabian,1,1017.0,6,4,Villa,new,0,0,0,0,5,rent
+9.600185,41.869783,Ashewa Downtown Market Dire Dawa,1,322.0,2,3,Apartment,needs renovation,0,1,1,0,5,rent
+9.6047,41.859049,Addis Ketema,1,277.0,1,3,Apartment,new,0,1,1,1,1,rent
+9.62904,41.772565,Dire Dawa Railway Station,1,184.0,4,5,House,needs renovation,1,0,1,1,1,rent
+9.585582,41.86584,Kefira Market,1,465.0,5,5,House,needs renovation,1,1,0,1,1,rent
+9.613865,41.725144,Dire Dawa Industrial Park,1,204.0,3,4,Villa,new,0,0,0,0,5,rent
+9.596808,41.878596,Legehare,1,559.0,7,5,House,needs renovation,0,0,1,1,1,rent
+9.59998,41.870269,Ashewa Downtown Market Dire Dawa,1,551.0,3,4,Villa,good,0,0,0,0,3,rent
+9.584763,41.865927,Dechatu River,1,486.0,4,3,Villa,needs renovation,1,1,0,1,2,rent
+9.587647,41.856791,Gende Kore Market,1,1026.0,7,2,Villa,new,1,1,1,1,4,rent
+9.595439,41.878558,Legehare,1,735.0,5,3,Villa,good,1,1,1,1,4,rent
+9.591557,41.86665,Megala,1,594.0,5,2,House,needs renovation,1,1,1,0,5,rent
+9.587926,41.856176,Gende Kore Market,1,564.0,4,5,Villa,good,0,0,0,0,1,rent
+9.614123,41.725361,Dire Dawa Industrial Park,1,142.0,3,1,Apartment,new,0,1,0,1,2,rent
+9.590356,41.865375,Megala,1,678.0,7,4,House,needs renovation,0,1,1,0,3,rent
+9.599544,41.869563,Ashewa Downtown Market Dire Dawa,1,483.0,3,1,Apartment,good,0,0,0,0,5,rent
+9.587233,41.8569,Gende Kore Market,1,783.0,5,4,Villa,new,1,0,0,0,3,rent
+9.61829,41.781794,Melka Jebdu,1,253.0,4,2,Apartment,new,1,0,0,0,1,rent
+9.592314,41.86048,Kezira,1,839.0,6,3,Villa,good,1,1,0,1,3,rent
+9.59153,41.859485,Kezira,1,742.0,5,3,Villa,new,0,1,1,1,1,rent
+9.59843,41.870032,Ashewa Downtown Market Dire Dawa,1,886.0,5,4,Villa,new,0,1,1,0,5,rent
+9.598995,41.869506,Ashewa Downtown Market Dire Dawa,1,806.0,5,5,Villa,good,1,0,1,0,5,rent
+9.599957,41.869773,Ashewa Downtown Market Dire Dawa,1,258.0,1,2,Apartment,needs renovation,1,0,0,1,5,rent
+9.583478,41.866125,Dechatu River,1,798.0,7,4,House,new,1,1,1,0,1,rent
+9.61665,41.781243,Melka Jebdu,1,523.0,7,4,Villa,new,0,1,0,1,4,rent
+9.615204,41.725207,Dire Dawa Industrial Park,1,166.0,4,4,House,good,1,0,1,1,2,rent
+9.595568,41.879708,Legehare,1,647.0,7,2,House,needs renovation,0,0,0,0,4,rent
+9.593058,41.860575,Kezira,1,541.0,3,2,House,new,0,1,0,1,3,rent
+9.591659,41.860314,Sabian,1,375.0,2,3,Apartment,good,0,1,0,0,3,rent
+9.603912,41.857594,Addis Ketema,1,838.0,5,5,Villa,new,1,0,1,1,5,rent
+9.598509,41.870043,Ashewa Downtown Market Dire Dawa,1,370.0,3,4,House,needs renovation,0,1,0,0,2,rent
+9.616948,41.780186,Melka Jebdu,1,363.0,7,4,Villa,needs renovation,1,1,1,0,3,rent
+9.596993,41.878704,Legehare,1,254.0,2,2,Apartment,needs renovation,0,0,0,1,1,rent
+9.599054,41.871149,Ashewa Downtown Market Dire Dawa,1,762.0,6,4,House,good,0,1,1,0,4,rent
+9.587098,41.854959,Gende Kore Market,1,525.0,5,4,House,needs renovation,1,1,0,0,4,rent
+9.584979,41.864873,Kefira Market,1,292.0,2,2,Apartment,needs renovation,0,1,1,1,3,rent
+9.628974,41.77259,Dire Dawa Railway Station,1,217.0,3,4,Villa,needs renovation,1,0,0,0,5,rent
+9.596189,41.879536,Legehare,1,503.0,6,4,House,needs renovation,0,1,1,1,1,rent
+9.603946,41.857901,Addis Ketema,1,510.0,4,1,Apartment,new,0,0,1,1,2,rent
+9.614648,41.723817,Dire Dawa Industrial Park,1,325.0,7,3,Villa,new,0,1,0,1,4,rent
+9.614082,41.724354,Dire Dawa Industrial Park,1,178.0,3,4,Villa,good,1,0,0,0,4,rent
+9.592169,41.859537,Kezira,1,687.0,5,3,House,good,1,1,1,1,4,rent
+9.62882,41.772676,Dire Dawa Railway Station,1,105.0,1,2,Apartment,needs renovation,1,1,0,0,3,rent
+9.617452,41.781398,Melka Jebdu,1,190.0,2,2,Apartment,new,0,0,0,0,2,rent
+9.592333,41.860519,Sabian,1,865.0,5,2,Villa,new,0,0,0,0,4,rent
+9.593099,41.860608,Sabian,1,605.0,4,5,House,good,0,1,0,0,4,rent
+9.595631,41.877952,Legehare,1,485.0,3,3,House,new,1,1,1,1,2,rent
+9.583665,41.866386,Dechatu River,1,522.0,6,5,House,needs renovation,1,0,1,1,1,rent
+9.615684,41.725028,Dire Dawa Industrial Park,1,99.0,1,1,Apartment,good,0,1,1,1,5,rent
+9.605509,41.858575,Addis Ketema,1,801.0,7,3,House,good,0,1,0,0,4,rent
+9.592613,41.860577,Sabian,1,415.0,3,5,House,needs renovation,0,1,0,0,4,rent
+9.597061,41.878469,Legehare,1,677.0,5,4,House,good,1,0,0,1,5,rent
+9.604476,41.859471,Addis Ketema,1,901.0,6,4,Villa,new,0,0,0,1,4,rent
+9.592494,41.859773,Kezira,1,703.0,6,3,House,good,1,1,0,1,2,rent
+9.605731,41.859417,Addis Ketema,1,882.0,7,5,House,new,0,0,1,0,4,rent
+9.617382,41.780374,Melka Jebdu,1,288.0,4,2,Villa,good,0,1,0,0,1,rent
+9.591455,41.859601,Kezira,1,437.0,4,2,Apartment,needs renovation,0,0,0,1,4,rent
+9.614878,41.72403,Dire Dawa Industrial Park,1,123.0,3,2,Apartment,good,1,1,1,1,1,rent
+9.605014,41.858937,Addis Ketema,1,487.0,4,3,Apartment,good,0,0,1,0,3,rent
+9.604246,41.857885,Addis Ketema,1,457.0,3,4,Villa,needs renovation,1,1,1,1,5,rent
+9.591906,41.860091,Kezira,1,922.0,6,5,Villa,new,1,0,1,0,3,rent
+9.595519,41.877916,Legehare,1,401.0,3,4,Villa,needs renovation,1,1,1,1,2,rent
+9.60556,41.859437,Addis Ketema,1,306.0,1,3,Apartment,new,0,0,0,1,3,rent
+9.591971,41.860165,Sabian,1,928.0,6,5,Villa,new,0,0,1,0,3,rent
+9.591895,41.860251,Kezira,1,547.0,4,3,Apartment,new,1,0,0,0,2,rent
+9.614365,41.724326,Dire Dawa Industrial Park,1,173.0,4,2,House,new,0,0,1,1,1,rent
+9.584438,41.867417,Dechatu River,1,435.0,3,3,Apartment,new,1,1,0,1,1,rent
+9.614609,41.72528,Dire Dawa Industrial Park,1,190.0,5,5,House,good,1,0,1,0,2,rent
+9.61725,41.781619,Melka Jebdu,1,251.0,3,3,Apartment,new,0,1,1,0,4,rent
+9.597134,41.878066,Legehare,1,715.0,6,5,Villa,good,0,1,0,0,1,rent
+9.592063,41.860264,Kezira,1,475.0,5,3,House,needs renovation,1,1,1,0,1,rent
+9.583846,41.867606,Dechatu River,1,668.0,4,5,Villa,new,1,1,1,1,2,rent
+9.604878,41.857761,Addis Ketema,1,364.0,2,1,Apartment,new,1,0,1,0,2,rent
+9.605865,41.857958,Addis Ketema,1,252.0,2,3,Apartment,needs renovation,1,1,0,0,1,rent
+9.604875,41.857637,Addis Ketema,1,352.0,4,3,Apartment,needs renovation,0,1,0,0,1,rent
+9.584442,41.866477,Dechatu River,1,719.0,6,3,Villa,needs renovation,0,1,1,1,5,rent
+9.592314,41.86038,Kezira,1,312.0,1,3,Apartment,good,0,0,0,0,4,rent
+9.591395,41.865434,Megala,1,1010.0,7,4,Villa,new,1,0,0,1,2,rent
+9.598979,41.869554,Ashewa Downtown Market Dire Dawa,1,886.0,5,3,Villa,new,0,1,1,1,5,rent
+9.596352,41.879463,Legehare,1,444.0,4,3,Apartment,good,0,1,0,1,1,rent
+9.628926,41.771778,Dire Dawa Railway Station,1,115.0,1,3,Apartment,needs renovation,0,0,1,1,5,rent
+9.599218,41.871134,Ashewa Downtown Market Dire Dawa,1,512.0,4,4,House,good,1,1,1,1,1,rent
+9.587665,41.8551,Gende Kore Market,1,566.0,3,3,House,new,0,1,1,0,5,rent
+9.614879,41.723924,Dire Dawa Industrial Park,1,142.0,3,3,House,good,0,1,0,1,2,rent
+9.59247,41.86023,Sabian,1,786.0,5,4,Villa,good,1,0,0,1,4,rent
+9.599952,41.870677,Ashewa Downtown Market Dire Dawa,1,308.0,1,3,Apartment,good,0,1,0,1,4,rent
+9.605646,41.858962,Addis Ketema,1,367.0,3,3,House,needs renovation,0,0,0,1,3,rent
+9.614161,41.725408,Dire Dawa Industrial Park,1,190.0,4,4,House,good,1,1,1,0,5,rent
+9.591243,41.861002,Sabian,1,575.0,4,2,Villa,needs renovation,1,1,0,0,5,rent
+9.613883,41.723983,Dire Dawa Industrial Park,1,159.0,5,2,House,needs renovation,1,0,1,1,3,rent
+9.583846,41.866557,Dechatu River,1,385.0,3,3,House,needs renovation,1,1,1,0,3,rent
+9.591528,41.865295,Megala,1,569.0,5,5,House,needs renovation,1,0,0,1,4,rent
+9.584875,41.866049,Kefira Market,1,493.0,4,4,House,needs renovation,0,1,1,1,5,rent
+9.584927,41.867209,Dechatu River,1,508.0,4,3,Apartment,new,0,1,1,0,1,rent
+9.591328,41.860915,Kezira,1,888.0,7,2,Villa,good,1,1,0,1,2,rent
+9.587012,41.8561,Gende Kore Market,1,250.0,1,1,Apartment,needs renovation,0,0,1,1,5,rent
+9.592623,41.8607,Kezira,1,497.0,4,4,Villa,needs renovation,0,1,0,1,2,rent
+9.599875,41.871072,Ashewa Downtown Market Dire Dawa,1,468.0,5,2,House,needs renovation,1,0,0,0,1,rent
+9.592996,41.860525,Kezira,1,752.0,4,5,Villa,new,1,0,0,1,4,rent
+9.591746,41.860449,Kezira,1,519.0,4,3,House,good,0,0,0,0,1,rent
+9.617236,41.78107,Melka Jebdu,1,345.0,7,2,Villa,needs renovation,0,1,1,1,2,rent
+9.60581,41.857647,Addis Ketema,1,601.0,3,2,Villa,new,0,1,1,1,4,rent
+9.590244,41.866833,Megala,1,844.0,7,4,House,new,0,1,0,0,1,rent
+9.627634,41.772876,Dire Dawa Railway Station,1,253.0,4,5,Villa,needs renovation,0,1,1,0,5,rent
+9.586825,41.855885,Gende Kore Market,1,702.0,6,2,Villa,needs renovation,0,0,1,1,5,rent
+9.584301,41.865725,Kefira Market,1,384.0,3,2,Apartment,needs renovation,0,0,0,1,5,rent
+9.584544,41.867421,Dechatu River,1,611.0,5,4,House,good,1,1,1,0,2,rent
+9.61512,41.724469,Dire Dawa Industrial Park,1,310.0,7,5,Villa,new,1,0,0,1,3,rent
+9.615319,41.724264,Dire Dawa Industrial Park,1,186.0,3,5,Villa,new,0,0,1,1,3,rent
+9.590766,41.866784,Megala,1,473.0,4,1,Apartment,needs renovation,0,0,0,1,5,rent
+9.592422,41.860053,Kezira,1,1011.0,6,2,Villa,new,0,1,1,0,5,rent
+9.615581,41.723912,Dire Dawa Industrial Park,1,158.0,4,2,Villa,needs renovation,0,0,0,1,3,rent
+9.591169,41.866278,Megala,1,1022.0,7,2,House,new,0,0,0,1,5,rent
+9.584693,41.865904,Kefira Market,1,367.0,3,5,House,needs renovation,0,1,0,1,2,rent
+9.591203,41.86025,Kezira,1,490.0,3,3,Apartment,good,0,1,1,0,5,rent
+9.61546,41.72438,Dire Dawa Industrial Park,1,190.0,7,4,House,needs renovation,0,0,0,1,2,rent
+9.588695,41.856215,Gende Kore Market,1,258.0,2,2,Apartment,needs renovation,1,1,1,1,1,rent
+9.583509,41.867194,Dechatu River,1,401.0,2,1,Apartment,new,1,0,1,0,3,rent
+9.584706,41.866921,Dechatu River,1,535.0,4,1,Apartment,new,1,1,0,0,2,rent
+9.604148,41.859281,Addis Ketema,1,381.0,2,1,Apartment,good,1,0,0,0,5,rent
+9.596874,41.879408,Legehare,1,463.0,3,3,House,good,0,0,0,1,3,rent
+9.618156,41.78058,Melka Jebdu,1,183.0,3,3,Apartment,needs renovation,0,0,0,0,4,rent
+9.605601,41.858071,Addis Ketema,1,670.0,5,3,House,good,0,0,0,0,5,rent
+9.590189,41.865461,Megala,1,223.0,1,2,Apartment,needs renovation,1,0,0,1,1,rent
+9.588358,41.856002,Gende Kore Market,1,427.0,3,3,Apartment,good,0,0,0,1,3,rent
+9.585601,41.866271,Kefira Market,1,841.0,7,5,House,new,1,0,0,0,2,rent
+9.599593,41.869611,Ashewa Downtown Market Dire Dawa,1,499.0,3,2,Villa,good,1,0,1,0,1,rent
+9.617227,41.780262,Melka Jebdu,1,268.0,5,4,House,needs renovation,1,1,0,0,4,rent
+9.592291,41.860681,Sabian,1,778.0,6,5,House,good,1,1,0,1,4,rent
+9.590079,41.866733,Megala,1,565.0,4,4,House,good,0,1,0,1,2,rent
+9.617701,41.780472,Melka Jebdu,1,361.0,7,2,House,good,0,0,1,0,1,rent
+9.592276,41.860527,Kezira,1,284.0,2,2,Apartment,needs renovation,1,1,1,1,2,rent
+9.59043,41.866961,Megala,1,848.0,7,2,House,good,0,1,1,0,3,rent
+9.592612,41.859923,Sabian,1,714.0,5,3,Villa,good,0,0,1,0,2,rent
+9.614065,41.725084,Dire Dawa Industrial Park,1,136.0,3,2,Apartment,good,1,1,0,0,3,rent
+9.614236,41.725097,Dire Dawa Industrial Park,1,247.0,7,5,Villa,needs renovation,0,0,0,1,5,rent
+9.592754,41.860818,Kezira,1,703.0,6,2,Villa,needs renovation,0,1,0,1,4,rent
+9.5916,41.861611,Sabian,1,904.0,7,5,House,good,0,0,0,1,5,rent
+9.591364,41.860622,Sabian,1,377.0,3,3,Apartment,needs renovation,0,0,1,1,4,rent
+9.585204,41.86709,Dechatu River,1,614.0,4,3,Apartment,new,0,1,1,0,5,rent
+9.583418,41.86592,Dechatu River,1,625.0,6,4,Villa,needs renovation,0,0,0,1,2,rent
+9.588758,41.855669,Gende Kore Market,1,343.0,1,3,Apartment,new,0,0,1,0,5,rent
+9.591683,41.860268,Kezira,1,988.0,7,2,House,new,1,0,0,1,5,rent
+9.596297,41.878803,Legehare,1,419.0,3,3,House,good,1,1,1,0,1,rent
+9.598472,41.869709,Ashewa Downtown Market Dire Dawa,1,636.0,3,3,Villa,new,1,0,0,1,4,rent
+9.61698,41.780602,Melka Jebdu,1,217.0,3,3,Apartment,new,0,0,0,1,1,rent
+9.599218,41.871134,Ashewa Downtown Market Dire Dawa,1,512.0,4,4,House,good,1,1,1,1,1,rent
+9.585005,41.867352,Dechatu River,1,508.0,4,1,Apartment,new,0,0,0,0,1,rent
+9.59661,41.878177,Legehare,1,515.0,4,2,House,good,1,1,1,0,2,rent
+9.605427,41.859378,Addis Ketema,1,629.0,7,2,Villa,needs renovation,1,0,1,0,1,rent
+9.628235,41.772631,Dire Dawa Railway Station,1,238.0,3,1,Apartment,new,1,0,1,0,5,rent
+9.598777,41.869674,Ashewa Downtown Market Dire Dawa,1,566.0,4,3,Apartment,new,1,0,0,1,3,rent
+9.584292,41.865957,Dechatu River,1,492.0,4,3,House,needs renovation,0,1,0,0,5,rent
+9.591713,41.866606,Megala,1,698.0,5,4,Villa,good,1,1,1,1,1,rent
+9.587692,41.856773,Gende Kore Market,1,387.0,3,1,Apartment,good,1,1,0,1,1,rent
+9.604842,41.858881,Addis Ketema,1,561.0,4,4,House,new,0,1,0,0,2,rent
+9.584827,41.866149,Kefira Market,1,495.0,3,3,Villa,good,1,0,1,1,1,rent
+9.592333,41.860519,Sabian,1,865.0,5,2,Villa,new,0,0,0,0,4,rent
+9.59145,41.860282,Sabian,1,825.0,5,2,Villa,new,0,0,0,0,3,rent
+9.62882,41.772676,Dire Dawa Railway Station,1,105.0,1,2,Apartment,needs renovation,1,1,0,0,3,rent
+9.595668,41.87903,Legehare,1,386.0,2,1,Apartment,new,0,0,0,1,3,rent
+9.628331,41.772256,Dire Dawa Railway Station,1,261.0,4,3,Villa,good,0,0,0,0,1,rent
+9.595964,41.877984,Legehare,1,809.0,7,3,House,good,1,0,0,1,4,rent
+9.585139,41.864868,Kefira Market,1,999.0,7,3,Villa,good,0,0,0,1,5,rent
+9.614185,41.725063,Dire Dawa Industrial Park,1,279.0,6,5,Villa,good,0,0,0,0,5,rent
+9.595283,41.878178,Legehare,1,930.0,7,2,House,new,0,0,1,0,5,rent
+9.5959,41.878546,Legehare,1,447.0,5,2,House,needs renovation,1,1,1,0,1,rent
+9.585318,41.865773,Kefira Market,1,548.0,3,3,Villa,good,1,1,0,1,3,rent
+9.583968,41.86536,Kefira Market,1,367.0,3,1,Apartment,needs renovation,0,1,0,0,4,rent
+9.600282,41.870826,Ashewa Downtown Market Dire Dawa,1,953.0,6,5,Villa,new,1,0,1,0,4,rent
+9.6151,41.723492,Dire Dawa Industrial Park,1,213.0,6,3,Villa,needs renovation,0,0,1,1,4,rent
+9.58757,41.855288,Gende Kore Market,1,328.0,1,3,Apartment,new,0,1,1,0,4,rent
+9.592291,41.860681,Sabian,1,778.0,6,5,House,good,1,1,0,1,4,rent
+9.588215,41.856833,Gende Kore Market,1,850.0,6,5,House,new,0,0,1,1,5,rent
+9.605139,41.858538,Addis Ketema,1,459.0,3,2,House,good,1,0,0,0,3,rent
+9.604729,41.858887,Addis Ketema,1,463.0,4,1,Apartment,good,0,1,0,0,2,rent
+9.599484,41.8703,Ashewa Downtown Market Dire Dawa,1,678.0,5,4,House,good,0,0,0,1,4,rent
+9.60556,41.859437,Addis Ketema,1,306.0,1,3,Apartment,new,0,0,0,1,3,rent
+9.591863,41.859072,Kezira,1,662.0,4,5,House,new,1,0,1,0,4,rent
+9.628926,41.771778,Dire Dawa Railway Station,1,115.0,1,3,Apartment,needs renovation,0,0,1,1,5,rent
+9.584127,41.867814,Dechatu River,1,396.0,3,2,Apartment,good,0,1,0,0,1,rent
+9.614609,41.72528,Dire Dawa Industrial Park,1,190.0,5,5,House,good,1,0,1,0,2,rent
+9.591388,41.860579,Sabian,1,500.0,4,3,Villa,needs renovation,0,0,1,1,2,rent
+9.614112,41.723622,Dire Dawa Industrial Park,1,99.0,2,3,Apartment,needs renovation,1,1,1,1,5,rent
+9.587783,41.855912,Gende Kore Market,1,719.0,4,4,Villa,new,0,0,0,0,4,rent
+9.604637,41.85761,Addis Ketema,1,244.0,1,1,Apartment,needs renovation,0,1,1,0,5,rent
+9.59145,41.860282,Sabian,1,825.0,5,2,Villa,new,0,0,0,0,3,rent
+9.628129,41.772731,Dire Dawa Railway Station,1,253.0,4,2,Apartment,new,0,0,0,1,3,rent
+9.593058,41.860575,Kezira,1,541.0,3,2,House,new,0,1,0,1,3,rent
+9.585005,41.867352,Dechatu River,1,508.0,4,1,Apartment,new,0,0,0,0,1,rent
+9.600017,41.869759,Ashewa Downtown Market Dire Dawa,1,647.0,5,5,House,good,1,1,0,1,3,rent
+9.6172,41.780699,Melka Jebdu,1,329.0,5,3,Villa,good,0,1,0,1,1,rent
+9.614112,41.723818,Dire Dawa Industrial Park,1,166.0,4,1,Apartment,good,1,1,0,0,4,rent
+9.593061,41.86122,Sabian,1,575.0,4,3,Apartment,good,0,1,0,0,5,rent
+9.592741,41.859282,Kezira,1,375.0,3,3,House,needs renovation,1,0,1,1,2,rent
+9.591276,41.86168,Sabian,1,761.0,5,4,House,new,1,1,1,1,4,rent
+9.584589,41.867866,Dechatu River,1,527.0,3,3,Apartment,new,0,0,1,1,5,rent
+9.604944,41.858322,Addis Ketema,1,626.0,6,2,Villa,needs renovation,1,0,1,1,3,rent
+9.589857,41.866364,Megala,1,1010.0,7,4,Villa,new,1,0,0,1,2,rent
+9.618019,41.781932,Melka Jebdu,1,333.0,4,2,Villa,new,0,0,1,1,2,rent
+9.628312,41.773369,Dire Dawa Railway Station,1,279.0,4,4,House,new,1,1,0,0,3,rent
+9.593086,41.860976,Sabian,1,286.0,2,2,Apartment,needs renovation,1,0,0,1,2,rent
+9.592183,41.860213,Sabian,1,822.0,5,4,Villa,good,0,1,1,1,5,rent
+9.59922,41.871234,Ashewa Downtown Market Dire Dawa,1,616.0,7,5,House,needs renovation,1,1,1,1,2,rent
+9.61387,41.725147,Dire Dawa Industrial Park,1,260.0,7,2,House,good,1,0,0,0,4,rent
+9.595687,41.878732,Legehare,1,699.0,5,3,Villa,new,0,1,1,0,1,rent
+9.605102,41.85812,Addis Ketema,1,801.0,7,5,House,new,1,0,1,0,2,rent
+9.60572,41.859036,Addis Ketema,1,685.0,6,5,House,new,1,0,0,0,1,rent
+9.629029,41.772713,Dire Dawa Railway Station,1,243.0,5,5,House,needs renovation,1,1,1,0,4,rent
+9.614112,41.723818,Dire Dawa Industrial Park,1,166.0,4,1,Apartment,good,1,1,0,0,4,rent
+9.58437,41.866243,Kefira Market,1,436.0,3,2,Apartment,new,1,0,1,0,1,rent
+9.600157,41.870811,Ashewa Downtown Market Dire Dawa,1,623.0,4,4,House,new,0,0,0,0,3,rent
+9.591572,41.860617,Kezira,1,722.0,5,2,House,new,0,1,1,1,3,rent
+9.616582,41.780788,Melka Jebdu,1,166.0,3,3,Apartment,needs renovation,0,1,1,0,2,rent
+9.62902,41.772448,Dire Dawa Railway Station,1,362.0,7,2,House,good,1,1,0,1,3,rent
+9.614879,41.723924,Dire Dawa Industrial Park,1,142.0,3,3,House,good,0,1,0,1,2,rent
+9.584054,41.866263,Dechatu River,1,510.0,4,3,Villa,needs renovation,0,0,1,1,3,rent
+9.592422,41.860053,Kezira,1,1011.0,6,2,Villa,new,0,1,1,0,5,rent
+9.598615,41.87088,Ashewa Downtown Market Dire Dawa,1,483.0,3,5,Villa,needs renovation,0,1,0,1,5,rent
+9.627633,41.772177,Dire Dawa Railway Station,1,297.0,7,4,Villa,needs renovation,1,0,1,0,1,rent
+9.60414,41.858778,Addis Ketema,1,685.0,6,5,House,new,0,1,1,1,1,rent
+9.58873,41.854998,Gende Kore Market,1,709.0,7,2,House,good,1,0,0,1,1,rent
+9.596297,41.878803,Legehare,1,419.0,3,3,House,good,1,1,1,0,1,rent
+9.628567,41.773387,Dire Dawa Railway Station,1,411.0,7,4,Villa,good,1,1,0,1,3,rent
+9.595559,41.879211,Legehare,1,623.0,4,5,House,new,0,1,1,1,4,rent
+9.61512,41.724469,Dire Dawa Industrial Park,1,310.0,7,5,Villa,new,1,0,0,1,3,rent
+9.592879,41.85934,Kezira,1,469.0,3,1,Apartment,new,1,0,1,0,2,rent
+9.587665,41.8551,Gende Kore Market,1,566.0,3,3,House,new,0,1,1,0,5,rent
+9.588506,41.856808,Gende Kore Market,1,678.0,7,3,Villa,needs renovation,0,1,1,0,2,rent
+9.584301,41.865725,Kefira Market,1,384.0,3,2,Apartment,needs renovation,0,0,0,1,5,rent
+9.617236,41.78107,Melka Jebdu,1,345.0,7,2,Villa,needs renovation,0,1,1,1,2,rent
+9.590079,41.866733,Megala,1,565.0,4,4,House,good,0,1,0,1,2,rent
+9.614723,41.724975,Dire Dawa Industrial Park,1,306.0,6,5,Villa,new,0,1,0,0,5,rent
+9.591207,41.865583,Megala,1,640.0,6,4,House,needs renovation,1,0,1,0,4,rent
+9.628748,41.772826,Dire Dawa Railway Station,1,179.0,3,2,Apartment,good,0,1,0,0,1,rent
+9.604227,41.858785,Addis Ketema,1,291.0,1,1,Apartment,good,1,1,0,1,4,rent
+9.627463,41.773236,Dire Dawa Railway Station,1,229.0,4,2,Apartment,new,1,0,1,1,1,rent
+9.593003,41.859492,Kezira,1,752.0,4,5,Villa,new,0,1,0,0,4,rent
+9.599281,41.870577,Ashewa Downtown Market Dire Dawa,1,468.0,5,5,House,needs renovation,1,0,1,0,1,rent
+9.590896,41.866738,Megala,1,727.0,6,2,House,good,1,0,0,1,2,rent
+9.595741,41.877977,Legehare,1,602.0,6,4,Villa,needs renovation,1,0,0,0,2,rent
+9.59647,41.879656,Legehare,1,203.0,1,3,Apartment,needs renovation,1,0,0,0,1,rent
+9.614581,41.724776,Dire Dawa Industrial Park,1,213.0,6,2,Villa,needs renovation,0,1,0,1,4,rent
+9.628331,41.772256,Dire Dawa Railway Station,1,261.0,4,3,Villa,good,0,0,0,0,1,rent
+9.627503,41.772418,Dire Dawa Railway Station,1,329.0,5,2,Villa,good,1,0,0,0,3,rent
+9.591659,41.860314,Sabian,1,375.0,2,3,Apartment,good,0,1,0,0,3,rent
+9.590882,41.866736,Megala,1,614.0,5,2,House,good,1,0,0,0,1,rent
+9.591527,41.86597,Megala,1,950.0,6,5,Villa,good,1,0,0,0,5,rent
+9.627802,41.773539,Dire Dawa Railway Station,1,208.0,4,2,Apartment,good,1,0,0,0,1,rent
+9.600195,41.869745,Ashewa Downtown Market Dire Dawa,1,788.0,6,3,Villa,good,0,0,1,0,2,rent
+9.615138,41.725352,Dire Dawa Industrial Park,1,260.0,7,3,House,good,1,1,1,1,4,rent
+9.587464,41.855365,Gende Kore Market,1,611.0,6,2,Villa,needs renovation,0,0,0,1,2,rent
+9.617382,41.780374,Melka Jebdu,1,288.0,4,2,Villa,good,0,1,0,0,1,rent
+9.58362,41.866113,Dechatu River,1,722.0,6,2,House,good,0,0,1,0,3,rent
+9.583565,41.867393,Dechatu River,1,508.0,4,3,Apartment,new,0,1,0,0,1,rent
+9.591709,41.860729,Kezira,1,533.0,3,4,Villa,good,0,0,1,1,2,rent
+9.592881,41.859829,Kezira,1,356.0,3,5,House,needs renovation,0,0,0,0,1,rent
+9.584905,41.867874,Dechatu River,1,528.0,5,2,Villa,needs renovation,1,0,1,1,1,rent
+9.599281,41.870577,Ashewa Downtown Market Dire Dawa,1,468.0,5,5,House,needs renovation,1,0,1,0,1,rent
+9.616907,41.781514,Melka Jebdu,1,328.0,3,4,Villa,new,0,1,1,1,5,rent
+9.585326,41.865698,Kefira Market,1,264.0,2,2,Apartment,needs renovation,0,0,1,1,1,rent
+9.614932,41.724684,Dire Dawa Industrial Park,1,157.0,4,1,Apartment,new,0,0,1,1,1,rent
+9.583961,41.864739,Kefira Market,1,578.0,4,2,Villa,good,1,1,0,1,1,rent
+9.595478,41.878994,Legehare,1,279.0,1,2,Apartment,new,0,1,1,1,1,rent
+9.614043,41.723915,Dire Dawa Industrial Park,1,282.0,7,4,Villa,good,0,1,1,0,3,rent
+9.583908,41.866983,Dechatu River,1,694.0,7,5,Villa,needs renovation,1,0,1,0,2,rent
+9.592468,41.860773,Sabian,1,795.0,5,4,House,new,0,1,0,1,5,rent
+9.615319,41.724264,Dire Dawa Industrial Park,1,186.0,3,5,Villa,new,0,0,1,1,3,rent
+9.617851,41.780487,Melka Jebdu,1,296.0,6,5,Villa,needs renovation,1,0,0,0,1,rent
+9.591895,41.860251,Kezira,1,547.0,4,3,Apartment,new,1,0,0,0,2,rent
+9.584544,41.867421,Dechatu River,1,611.0,5,4,House,good,1,1,1,0,2,rent
+9.583594,41.86702,Dechatu River,1,924.0,7,5,House,new,1,0,1,0,4,rent
+9.604148,41.859281,Addis Ketema,1,381.0,2,1,Apartment,good,1,0,0,0,5,rent
+9.61566,41.724254,Dire Dawa Industrial Park,1,151.0,4,4,Villa,needs renovation,0,0,1,0,2,rent
+9.595559,41.879211,Legehare,1,623.0,4,5,House,new,0,1,1,1,4,rent
+9.583478,41.866125,Dechatu River,1,798.0,7,4,House,new,1,1,1,0,1,rent
+9.628743,41.772785,Dire Dawa Railway Station,1,288.0,5,2,House,new,0,0,0,0,1,rent
+9.618309,41.7807,Melka Jebdu,1,289.0,3,2,House,new,1,1,1,0,5,rent
+9.614043,41.723915,Dire Dawa Industrial Park,1,282.0,7,4,Villa,good,0,1,1,0,3,rent
+9.599488,41.870573,Ashewa Downtown Market Dire Dawa,1,462.0,3,4,House,good,0,1,1,1,2,rent
+9.617003,41.779999,Melka Jebdu,1,418.0,7,5,House,good,0,0,1,0,4,rent
+9.587934,41.855724,Gende Kore Market,1,644.0,3,4,Villa,new,1,1,1,0,5,rent
+9.595741,41.877977,Legehare,1,602.0,6,4,Villa,needs renovation,1,0,0,0,2,rent
+9.590612,41.865385,Megala,1,517.0,5,2,House,needs renovation,0,1,1,1,2,rent
+9.599021,41.870864,Ashewa Downtown Market Dire Dawa,1,886.0,5,4,Villa,new,1,0,1,1,5,rent
+9.583846,41.867606,Dechatu River,1,668.0,4,5,Villa,new,1,1,1,1,2,rent
+9.590336,41.866397,Megala,1,537.0,4,2,Apartment,new,1,1,0,0,1,rent
+9.590189,41.865461,Megala,1,223.0,1,2,Apartment,needs renovation,1,0,0,1,1,rent
+9.618178,41.781678,Melka Jebdu,1,428.0,6,2,Villa,good,1,1,1,0,4,rent
+9.627392,41.773021,Dire Dawa Railway Station,1,217.0,3,5,House,good,1,0,1,0,3,rent
+9.60002,41.869918,Ashewa Downtown Market Dire Dawa,1,805.0,7,3,Villa,needs renovation,1,0,1,1,5,rent
+9.591203,41.86025,Kezira,1,490.0,3,3,Apartment,good,0,1,1,0,5,rent
+9.628129,41.772731,Dire Dawa Railway Station,1,253.0,4,2,Apartment,new,0,0,0,1,3,rent
+9.583908,41.866983,Dechatu River,1,694.0,7,5,Villa,needs renovation,1,0,1,0,2,rent
+9.584905,41.867874,Dechatu River,1,528.0,5,2,Villa,needs renovation,1,0,1,1,1,rent
+9.590079,41.866733,Megala,1,565.0,4,4,House,good,0,1,0,1,2,rent
+9.584979,41.864873,Kefira Market,1,292.0,2,2,Apartment,needs renovation,0,1,1,1,3,rent
+9.584194,41.865263,Kefira Market,1,264.0,2,2,Apartment,needs renovation,0,0,1,0,1,rent
+9.627363,41.772841,Dire Dawa Railway Station,1,100.0,1,1,Apartment,needs renovation,0,1,0,0,2,rent
+9.599781,41.871081,Ashewa Downtown Market Dire Dawa,1,247.0,1,1,Apartment,needs renovation,1,0,0,1,4,rent
+9.591409,41.866446,Megala,1,622.0,4,3,House,new,1,1,1,1,2,rent
+9.603897,41.859341,Addis Ketema,1,688.0,6,2,House,good,0,0,1,1,3,rent
+9.596352,41.879463,Legehare,1,444.0,4,3,Apartment,good,0,1,0,1,1,rent
+9.592205,41.860058,Sabian,1,747.0,7,4,House,good,1,0,1,0,1,rent
+9.615616,41.724258,Dire Dawa Industrial Park,1,209.0,4,3,House,new,1,1,1,1,5,rent
+9.598776,41.870258,Ashewa Downtown Market Dire Dawa,1,919.0,7,4,Villa,good,1,1,0,0,3,rent
+9.60556,41.859437,Addis Ketema,1,306.0,1,3,Apartment,new,0,0,0,1,3,rent
+9.585689,41.865126,Kefira Market,1,436.0,3,2,House,good,1,1,0,0,1,rent
+9.592468,41.860773,Sabian,1,795.0,5,4,House,new,0,1,0,1,5,rent
+9.595568,41.879708,Legehare,1,647.0,7,2,House,needs renovation,0,0,0,0,4,rent
+9.616907,41.781514,Melka Jebdu,1,328.0,3,4,Villa,new,0,1,1,1,5,rent
+9.591739,41.86037,Sabian,1,1017.0,6,4,Villa,new,0,0,0,0,5,rent
+9.598615,41.87088,Ashewa Downtown Market Dire Dawa,1,483.0,3,5,Villa,needs renovation,0,1,0,1,5,rent
+9.618019,41.781932,Melka Jebdu,1,333.0,4,2,Villa,new,0,0,1,1,2,rent
+9.584292,41.865957,Dechatu River,1,492.0,4,3,House,needs renovation,0,1,0,0,5,rent
+9.59843,41.870032,Ashewa Downtown Market Dire Dawa,1,886.0,5,4,Villa,new,0,1,1,0,5,rent
+9.596767,41.879006,Legehare,1,441.0,3,2,Apartment,good,0,1,1,1,4,rent
+9.613768,41.72377,Dire Dawa Industrial Park,1,190.0,4,3,Apartment,new,0,0,1,1,5,rent
+9.605859,41.858063,Addis Ketema,1,291.0,1,1,Apartment,new,0,1,0,1,2,rent
+9.584905,41.867874,Dechatu River,1,528.0,5,2,Villa,needs renovation,1,0,1,1,1,rent
+9.584127,41.867814,Dechatu River,1,396.0,3,2,Apartment,good,0,1,0,0,1,rent
+9.590106,41.866094,Megala,1,418.0,3,1,Apartment,good,0,0,0,1,1,rent
+9.588695,41.856344,Gende Kore Market,1,549.0,4,5,House,good,0,1,1,1,3,rent
+9.590351,41.86512,Megala,1,444.0,2,1,Apartment,new,0,0,1,0,4,rent
+9.587035,41.85495,Gende Kore Market,1,722.0,5,2,House,new,0,0,0,1,4,rent
+9.614123,41.725361,Dire Dawa Industrial Park,1,142.0,3,1,Apartment,new,0,1,0,1,2,rent
+9.584763,41.865927,Dechatu River,1,486.0,4,3,Villa,needs renovation,1,1,0,1,2,rent
+9.585601,41.866271,Kefira Market,1,841.0,7,5,House,new,1,0,0,0,2,rent
+9.618232,41.781775,Melka Jebdu,1,138.0,1,1,Apartment,good,0,1,1,1,2,rent
+9.583476,41.866074,Dechatu River,1,233.0,1,3,Apartment,needs renovation,1,1,1,0,3,rent
+9.583846,41.866557,Dechatu River,1,385.0,3,3,House,needs renovation,1,1,1,0,3,rent
+9.628567,41.773387,Dire Dawa Railway Station,1,411.0,7,4,Villa,good,1,1,0,1,3,rent
+9.617531,41.780131,Melka Jebdu,1,398.0,5,5,Villa,good,1,1,1,1,5,rent
+9.603912,41.857594,Addis Ketema,1,838.0,5,5,Villa,new,1,0,1,1,5,rent
+9.592486,41.860444,Sabian,1,528.0,5,2,House,needs renovation,0,0,1,1,3,rent
+9.614878,41.72403,Dire Dawa Industrial Park,1,123.0,3,2,Apartment,good,1,1,1,1,1,rent
+9.590106,41.866094,Megala,1,418.0,3,1,Apartment,good,0,0,0,1,1,rent
+9.5993,41.870129,Ashewa Downtown Market Dire Dawa,1,805.0,7,2,Villa,needs renovation,0,0,1,0,5,rent
+9.591895,41.860251,Kezira,1,547.0,4,3,Apartment,new,1,0,0,0,2,rent
+9.592333,41.860519,Sabian,1,865.0,5,2,Villa,new,0,0,0,0,4,rent
+9.584203,41.865504,Kefira Market,1,720.0,6,3,Villa,needs renovation,1,1,0,0,5,rent
+9.604476,41.859471,Addis Ketema,1,901.0,6,4,Villa,new,0,0,0,1,4,rent
+9.627297,41.772474,Dire Dawa Railway Station,1,349.0,5,5,House,new,0,0,0,1,5,rent
+9.590882,41.866736,Megala,1,614.0,5,2,House,good,1,0,0,0,1,rent
+9.59179,41.859295,Kezira,1,356.0,3,5,House,needs renovation,1,1,0,1,1,rent
+9.604878,41.857761,Addis Ketema,1,364.0,2,1,Apartment,new,1,0,1,0,2,rent
+9.604904,41.858996,Addis Ketema,1,673.0,5,3,House,new,1,1,0,0,3,rent
+9.627774,41.772152,Dire Dawa Railway Station,1,157.0,2,1,Apartment,good,1,0,0,1,2,rent
+9.628955,41.772072,Dire Dawa Railway Station,1,228.0,3,2,Apartment,new,0,0,0,0,4,rent
+9.627392,41.773021,Dire Dawa Railway Station,1,217.0,3,5,House,good,1,0,1,0,3,rent
+9.592395,41.859998,Sabian,1,625.0,4,4,Villa,good,0,0,1,0,2,rent
+9.585465,41.864969,Kefira Market,1,409.0,4,2,Apartment,needs renovation,0,1,1,1,3,rent
+9.614185,41.725063,Dire Dawa Industrial Park,1,279.0,6,5,Villa,good,0,0,0,0,5,rent
+9.592792,41.860562,Kezira,1,492.0,3,3,Apartment,new,1,0,0,1,3,rent
+9.604904,41.858996,Addis Ketema,1,673.0,5,3,House,new,1,1,0,0,3,rent
+9.61566,41.724254,Dire Dawa Industrial Park,1,151.0,4,4,Villa,needs renovation,0,0,1,0,2,rent
+9.613865,41.725144,Dire Dawa Industrial Park,1,204.0,3,4,Villa,new,0,0,0,0,5,rent
+9.60572,41.859036,Addis Ketema,1,685.0,6,5,House,new,1,0,0,0,1,rent
+9.596352,41.879463,Legehare,1,444.0,4,3,Apartment,good,0,1,0,1,1,rent
+9.604904,41.858996,Addis Ketema,1,673.0,5,3,House,new,1,1,0,0,3,rent
+9.58437,41.866243,Kefira Market,1,436.0,3,2,Apartment,new,1,0,1,0,1,rent
+9.599957,41.869773,Ashewa Downtown Market Dire Dawa,1,258.0,1,2,Apartment,needs renovation,1,0,0,1,5,rent
+9.584844,41.865025,Kefira Market,1,578.0,6,4,House,needs renovation,1,1,0,1,3,rent
+9.591572,41.860617,Kezira,1,722.0,5,2,House,new,0,1,1,1,3,rent
+9.588695,41.856215,Gende Kore Market,1,258.0,2,2,Apartment,needs renovation,1,1,1,1,1,rent
+9.590106,41.866094,Megala,1,418.0,3,1,Apartment,good,0,0,0,1,1,rent
+9.588695,41.856344,Gende Kore Market,1,549.0,4,5,House,good,0,1,1,1,3,rent
+9.585376,41.866024,Kefira Market,1,545.0,3,4,Villa,new,0,1,0,0,1,rent
+9.592314,41.86048,Kezira,1,839.0,6,3,Villa,good,1,1,0,1,3,rent
+9.61507,41.724776,Dire Dawa Industrial Park,1,127.0,4,2,Apartment,needs renovation,1,1,1,0,3,rent
+9.591207,41.865583,Megala,1,640.0,6,4,House,needs renovation,1,0,1,0,4,rent
+9.591895,41.860251,Kezira,1,547.0,4,3,Apartment,new,1,0,0,0,2,rent
+9.592422,41.860053,Kezira,1,1011.0,6,2,Villa,new,0,1,1,0,5,rent
+9.604476,41.859471,Addis Ketema,1,901.0,6,4,Villa,new,0,0,0,1,4,rent
+9.583846,41.866557,Dechatu River,1,385.0,3,3,House,needs renovation,1,1,1,0,3,rent
+9.598411,41.870066,Ashewa Downtown Market Dire Dawa,1,620.0,4,2,House,good,1,0,0,1,5,rent
+9.591749,41.866568,Megala,1,507.0,3,1,Apartment,good,0,1,1,1,5,rent
+9.591784,41.859656,Kezira,1,966.0,6,3,Villa,new,1,1,0,1,4,rent
+9.618024,41.781656,Melka Jebdu,1,289.0,7,3,House,needs renovation,0,0,1,0,1,rent
+9.617562,41.780342,Melka Jebdu,1,131.0,1,1,Apartment,good,1,1,0,0,1,rent
+9.59627,41.878119,Legehare,1,334.0,2,2,Apartment,good,0,0,0,1,2,rent

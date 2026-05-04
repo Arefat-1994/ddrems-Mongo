@@ -6,7 +6,7 @@ const API_BASE = `http://${window.location.hostname}:5000/api`;
 
 const ImageGallery = ({ propertyId, canDelete, onDelete }) => {
   const [images, setImages] = useState([]);
-  const [selectedImage, setSelectedImage] = useState(null);
+  const [currentIndex, setCurrentIndex] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -54,64 +54,79 @@ const ImageGallery = ({ propertyId, canDelete, onDelete }) => {
     );
   }
 
-  const mainImage = images.find(img => img.image_type === 'main') || images[0];
-  const galleryImages = images.filter(img => img.image_type === 'gallery');
+  // Reorder images to ensure order: front/main, back, left, right if possible
+  const orderedImages = [];
+  const mainImg = images.find(img => img.image_type === 'main' || img.image_type === 'front');
+  const backImg = images.find(img => img.image_type === 'back');
+  const leftImg = images.find(img => img.image_type === 'left');
+  const rightImg = images.find(img => img.image_type === 'right');
+  
+  if (mainImg) orderedImages.push({...mainImg, label: 'Front View'});
+  if (backImg) orderedImages.push({...backImg, label: 'Back View'});
+  if (leftImg) orderedImages.push({...leftImg, label: 'Left Side'});
+  if (rightImg) orderedImages.push({...rightImg, label: 'Right Side'});
+  
+  // Add any other gallery images that didn't match the standard types
+  images.forEach(img => {
+    if (!orderedImages.find(oi => oi.id === img.id)) {
+      orderedImages.push({...img, label: 'Gallery View'});
+    }
+  });
+
+  const nextSlide = () => {
+    setCurrentIndex((prev) => (prev === orderedImages.length - 1 ? 0 : prev + 1));
+  };
+
+  const prevSlide = () => {
+    setCurrentIndex((prev) => (prev === 0 ? orderedImages.length - 1 : prev - 1));
+  };
+
+  const currentImage = orderedImages[currentIndex];
 
   return (
-    <div className="image-gallery">
-      <div className="main-image-container">
-        <img
-          src={mainImage.image_url}
-          alt="Main property"
-          className="main-image"
-          onClick={() => setSelectedImage(mainImage)}
-        />
-        {mainImage.image_type === 'main' && (
-          <span className="main-image-badge">Main Image</span>
+    <div className="image-gallery-carousel">
+      <div className="carousel-container">
+        {orderedImages.length > 1 && (
+          <button className="carousel-arrow prev" onClick={prevSlide}>
+            &#10094;
+          </button>
         )}
-        {canDelete && (
-          <button
-            className="delete-image-btn"
-            onClick={() => handleDelete(mainImage.id)}
-          >
-            🗑️ Delete
+        
+        <div className="carousel-slide">
+          <img
+            src={currentImage.image_url}
+            alt={currentImage.label}
+            className="carousel-image"
+          />
+          <div className="carousel-badge">{currentImage.label}</div>
+          
+          {canDelete && (
+            <button
+              className="carousel-delete-btn"
+              onClick={() => handleDelete(currentImage.id)}
+              title="Delete this image"
+            >
+              🗑️
+            </button>
+          )}
+        </div>
+
+        {orderedImages.length > 1 && (
+          <button className="carousel-arrow next" onClick={nextSlide}>
+            &#10095;
           </button>
         )}
       </div>
-
-      {galleryImages.length > 0 && (
-        <div className="gallery-grid">
-          {galleryImages.map(image => (
-            <div key={image.id} className="gallery-item">
-              <img
-                src={image.image_url}
-                alt="Property"
-                onClick={() => setSelectedImage(image)}
-              />
-              {canDelete && (
-                <button
-                  className="delete-gallery-btn"
-                  onClick={() => handleDelete(image.id)}
-                >
-                  ✕
-                </button>
-              )}
-            </div>
+      
+      {orderedImages.length > 1 && (
+        <div className="carousel-indicators">
+          {orderedImages.map((_, idx) => (
+            <button
+              key={idx}
+              className={`indicator-dot ${idx === currentIndex ? 'active' : ''}`}
+              onClick={() => setCurrentIndex(idx)}
+            />
           ))}
-        </div>
-      )}
-
-      {selectedImage && (
-        <div className="lightbox" onClick={() => setSelectedImage(null)}>
-          <div className="lightbox-content" onClick={(e) => e.stopPropagation()}>
-            <button className="lightbox-close" onClick={() => setSelectedImage(null)}>
-              ✕
-            </button>
-            <img src={selectedImage.image_url} alt="Full size" />
-            <div className="lightbox-info">
-              <p>Uploaded: {new Date(selectedImage.created_at).toLocaleDateString()}</p>
-            </div>
-          </div>
         </div>
       )}
     </div>

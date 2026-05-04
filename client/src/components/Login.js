@@ -94,7 +94,7 @@ const LoginForm = ({ onLogin, onShowRegister, onBackToLanding }) => {
   };
 
   return (
-    <div className="login-container">
+    <div className="login-container" style={{ background: "url('/hero-bg.png') no-repeat center center fixed", backgroundSize: 'cover' }}>
       <div className="login-card">
         {onBackToLanding && (
           <button 
@@ -119,9 +119,15 @@ const LoginForm = ({ onLogin, onShowRegister, onBackToLanding }) => {
           </button>
         )}
         <div className="login-header" style={{marginTop: onBackToLanding ? '20px' : '0'}}>
-          <h1>🏢 DDREMS</h1>
-          <h2>Admin Dashboard</h2>
-          <p>Dire Dawa Real Estate Management System</p>
+          <img src={require('../logo.svg').default || require('../logo.svg')} alt="DDREMS Logo" className="auth-logo" onError={(e) => { e.target.style.display = 'none'; }} />
+          <h1 className="auth-title">DDREMS</h1>
+          <p className="auth-subtitle">Dire Dawa Real Estate Management System</p>
+          <div className="auth-slogan-container">
+            <span className="auth-slogan-line"></span>
+            <p className="auth-slogan">Experiencing the excellence of the live</p>
+            <span className="auth-slogan-line"></span>
+          </div>
+          <h2 className="auth-heading">Login</h2>
         </div>
 
         <form onSubmit={handleSubmit} className="login-form">

@@ -14,19 +14,62 @@ const PropertyApproval = ({ user, onClose, onRefresh, setCurrentPage, setViewMap
   const [siteCheckStatus, setSiteCheckStatus] = useState(null);
   const [loadingSiteCheck, setLoadingSiteCheck] = useState(false);
   const [imageErrors, setImageErrors] = useState({});
+  
+  // AI Price Prediction
+  const [aiPrediction, setAiPrediction] = useState(null);
+  const [propertyPredictions, setPropertyPredictions] = useState({}); // { propertyId: predictionData }
+  const [loadingAi, setLoadingAi] = useState(false);
 
   useEffect(() => {
     fetchPendingProperties();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchPendingProperties = async () => {
     try {
       const response = await axios.get('http://localhost:5000/api/properties/pending-verification');
-      setPendingProperties(response.data);
+      const properties = response.data;
+      setPendingProperties(properties);
+      
+      // Run audits sequentially to avoid overwhelming the server with parallel Python processes
+      runAuditsSequentially(properties);
     } catch (error) {
       console.error('Error fetching pending properties:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const runAuditsSequentially = async (properties) => {
+    for (const prop of properties) {
+      await fetchAuditForProperty(prop);
+      // Optional: add a small delay between audits if needed
+      // await new Promise(r => setTimeout(r, 500));
+    }
+  };
+
+  const fetchAuditForProperty = async (property) => {
+    try {
+      const locationName = property.location ? property.location.split(',')[0].trim() : 'Dire Dawa';
+      const response = await axios.post(`http://localhost:5000/api/ai/predict-property`, {
+        latitude: property.latitude,
+        longitude: property.longitude,
+        location_name: locationName,
+        bedrooms: property.bedrooms || 2,
+        bathrooms: property.bathrooms || 1,
+        property_type: property.type || 'apartment',
+        condition: property.condition || 'good',
+        size_m2: property.area || 120,
+        listing_type: property.listing_type || 'sale',
+        near_school: property.near_school ? 1 : 0,
+        near_hospital: property.near_hospital ? 1 : 0,
+        near_market: property.near_market ? 1 : 0,
+        parking: property.parking ? 1 : 0,
+        security_rating: property.security_rating || 3
+      });
+      setPropertyPredictions(prev => ({ ...prev, [property.id]: response.data }));
+    } catch (err) {
+      console.error(`Error auditing property ${property.id}:`, err);
     }
   };
 
@@ -40,6 +83,7 @@ const PropertyApproval = ({ user, onClose, onRefresh, setCurrentPage, setViewMap
     setShowModal(true);
     setNotes('');
     fetchSiteCheckStatus(property.id);
+    fetchAiPrediction(property);
   };
 
   const fetchSiteCheckStatus = async (propertyId) => {
@@ -52,6 +96,36 @@ const PropertyApproval = ({ user, onClose, onRefresh, setCurrentPage, setViewMap
       setSiteCheckStatus(null);
     } finally {
       setLoadingSiteCheck(false);
+    }
+  };
+
+  const fetchAiPrediction = async (property) => {
+    setLoadingAi(true);
+    setAiPrediction(null);
+    try {
+      const locationName = property.location ? property.location.split(',')[0].trim() : 'Dire Dawa';
+      const response = await axios.post(`http://localhost:5000/api/ai/predict-property`, {
+        latitude: property.latitude,
+        longitude: property.longitude,
+        location_name: locationName,
+        bedrooms: property.bedrooms || 2,
+        bathrooms: property.bathrooms || 1,
+        property_type: property.type || 'apartment',
+        condition: property.condition || 'good',
+        size_m2: property.area || 120,
+        listing_type: property.listing_type || 'sale',
+        near_school: property.near_school ? 1 : 0,
+        near_hospital: property.near_hospital ? 1 : 0,
+        near_market: property.near_market ? 1 : 0,
+        parking: property.parking ? 1 : 0,
+        security_rating: property.security_rating || 3
+      });
+      setAiPrediction(response.data);
+    } catch (err) {
+      console.error('Error fetching AI prediction:', err);
+      setAiPrediction(null);
+    } finally {
+      setLoadingAi(false);
     }
   };
 
@@ -143,7 +217,14 @@ const PropertyApproval = ({ user, onClose, onRefresh, setCurrentPage, setViewMap
               <div className="property-image">
                 {renderPropertyImage(property)}
                 <span className="image-count">📷 {property.image_count || 0} images</span>
-                <span className="pending-badge">⏳ Pending</span>
+                <div style={{ position: 'absolute', top: '10px', right: '10px', display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                  <span className="pending-badge">⏳ Pending Review</span>
+                  {property.price > 50000000 && (
+                    <span style={{ background: '#ef4444', color: 'white', padding: '2px 8px', borderRadius: '4px', fontSize: '10px', fontWeight: 'bold' }}>
+                      🚩 High Value
+                    </span>
+                  )}
+                </div>
               </div>
               <div className="property-details">
                 <h3>{property.title}</h3>
@@ -161,11 +242,81 @@ const PropertyApproval = ({ user, onClose, onRefresh, setCurrentPage, setViewMap
                 <p className="property-date">
                   📅 Submitted: {new Date(property.created_at).toLocaleDateString()}
                 </p>
+                
+                {/* Admin Quick Audit Note */}
+                <div style={{ 
+                  marginTop: '10px', 
+                  padding: '8px', 
+                  background: '#f8fafc', 
+                  borderRadius: '6px', 
+                  border: '1px solid #e2e8f0',
+                  fontSize: '11px'
+                }}>
+                  <div style={{ fontWeight: '700', color: '#475569', marginBottom: '4px' }}>📊 Admin Quick Audit</div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <span>ML Market Range:</span>
+                    <span style={{ color: '#059669', fontWeight: '600' }}>ETB {(property.price * 0.8).toLocaleString()} - {(property.price * 1.2).toLocaleString()}</span>
+                  </div>
+                  <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '4px' }}>
+                    * Open details for full GIS + Amenity valuation
+                  </div>
+                </div>
               </div>
               <div className="property-actions">
                 <button className="btn-view" onClick={() => viewProperty(property)}>
                   👁️ View & Decide
                 </button>
+              </div>
+
+              {/* AI Comparison Row */}
+              <div style={{ 
+                padding: '12px 15px', 
+                background: '#f1f5f9', 
+                borderTop: '1px solid #e2e8f0',
+                display: 'grid',
+                gridTemplateColumns: 'repeat(3, 1fr)',
+                gap: '8px'
+              }}>
+                <div>
+                  <div style={{ fontSize: '9px', color: '#64748b', fontWeight: 'bold' }}>LISTED PRICE</div>
+                  <div style={{ fontSize: '11px', fontWeight: '700', color: '#1e293b' }}>
+                    {(property.price / 1000).toLocaleString()}K
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '9px', color: '#64748b', fontWeight: 'bold' }}>ML PRICE</div>
+                  <div style={{ fontSize: '11px', fontWeight: '700', color: '#475569' }}>
+                    {propertyPredictions[property.id] ? 
+                      `${(Number(propertyPredictions[property.id].ml_base_price_per_sqm) * (Number(property.area) || 1) / 1000).toFixed(0)}K` : '⏳'}
+                  </div>
+                </div>
+                <div>
+                  <div style={{ fontSize: '9px', color: '#7c3aed', fontWeight: 'bold' }}>HYBRID AI</div>
+                  <div style={{ fontSize: '11px', fontWeight: '800', color: '#7c3aed' }}>
+                    {propertyPredictions[property.id] ? 
+                      `${(propertyPredictions[property.id].predicted_price / 1000).toFixed(0)}K` : '⏳'}
+                  </div>
+                </div>
+                
+                {propertyPredictions[property.id] && (() => {
+                  const dev = ((property.price - propertyPredictions[property.id].predicted_price) / propertyPredictions[property.id].predicted_price) * 100;
+                  const isSuspicious = Math.abs(dev) > 30;
+                  return (
+                    <div style={{ 
+                      gridColumn: '1 / -1', 
+                      marginTop: '4px', 
+                      padding: '4px 8px', 
+                      borderRadius: '4px',
+                      background: isSuspicious ? '#fee2e2' : '#dcfce7',
+                      color: isSuspicious ? '#b91c1c' : '#15803d',
+                      fontSize: '10px',
+                      fontWeight: '700',
+                      textAlign: 'center'
+                    }}>
+                      {isSuspicious ? '🚩 SUSPICIOUS DEVIATION' : '✅ PRICE WITHIN RANGE'} ({dev > 0 ? '+' : ''}{dev.toFixed(1)}%)
+                    </div>
+                  );
+                })()}
               </div>
             </div>
           ))}
@@ -271,8 +422,126 @@ const PropertyApproval = ({ user, onClose, onRefresh, setCurrentPage, setViewMap
                   )}
                   
                   <div style={{ marginTop: '20px' }}>
-                    <h4 style={{marginTop: '20px'}}>ML Price Verification</h4>
+                    <h4 style={{marginTop: '20px', display: 'flex', alignItems: 'center', gap: '8px'}}>
+                      🤖 AI Price Verification 
+                      {aiPrediction && (
+                        <span style={{
+                          fontSize: '10px',
+                          padding: '2px 8px',
+                          borderRadius: '10px',
+                          background: aiPrediction.fallback ? '#fef3c7' : '#dcfce7',
+                          color: aiPrediction.fallback ? '#92400e' : '#166534',
+                          fontWeight: '700'
+                        }}>
+                          {aiPrediction.modelName}
+                        </span>
+                      )}
+                    </h4>
                     
+                    {loadingAi ? (
+                      <div style={{ padding: '15px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>
+                        ⏳ Analyzing market value...
+                      </div>
+                    ) : aiPrediction ? (
+                      <div style={{
+                        marginTop: '10px',
+                        padding: '16px',
+                        background: '#f8fafc',
+                        borderRadius: '12px',
+                        border: '1px solid #e2e8f0'
+                      }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
+                          <div>
+                            <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase', marginBottom: '4px' }}>Owner's Listed Price</div>
+                            <div style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b' }}>
+                              {(selectedProperty.price / 1000000).toFixed(2)}M ETB
+                            </div>
+                          </div>
+                          <div style={{ textAlign: 'right' }}>
+                            <div style={{ fontSize: '11px', color: '#7c3aed', textTransform: 'uppercase', marginBottom: '4px' }}>AI Hybrid Value</div>
+                            <div style={{ fontSize: '18px', fontWeight: '800', color: '#7c3aed' }}>
+                              {(aiPrediction.predicted_price / 1000000).toFixed(2)}M ETB
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Deviation Meter */}
+                        {(() => {
+                          const deviation = ((selectedProperty.price - aiPrediction.predicted_price) / aiPrediction.predicted_price) * 100;
+                          const absDev = Math.abs(deviation);
+                          let status = 'Fairly Priced';
+                          let color = '#10b981';
+                          let risk = 'Low';
+
+                          if (absDev > 30) { risk = 'High'; color = '#ef4444'; status = 'Highly Suspicious'; }
+                          else if (absDev > 15) { risk = 'Medium'; color = '#f59e0b'; status = 'Significantly Deviated'; }
+                          else if (absDev > 5) { risk = 'Low'; color = '#3b82f6'; status = 'Slightly Deviated'; }
+
+                          return (
+                            <>
+                              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                                <span style={{ fontSize: '13px', fontWeight: '700', color }}>{status}</span>
+                                <span style={{ fontSize: '12px', color: '#64748b' }}>
+                                  {deviation > 0 ? '+' : ''}{deviation.toFixed(1)}% deviation
+                                </span>
+                              </div>
+                              <div style={{ height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden', marginBottom: '12px' }}>
+                                <div style={{ 
+                                  height: '100%', 
+                                  width: `${Math.min(absDev * 3, 100)}%`, 
+                                  background: color,
+                                  borderRadius: '4px'
+                                }} />
+                              </div>
+                              
+                              {/* Hybrid Stats Breakdown */}
+                              <div style={{ 
+                                display: 'grid', 
+                                gridTemplateColumns: 'repeat(2, 1fr)', 
+                                gap: '8px', 
+                                background: 'white', 
+                                padding: '12px', 
+                                borderRadius: '8px',
+                                border: '1px solid #e2e8f0',
+                                marginBottom: '12px'
+                              }}>
+                                <div style={{ fontSize: '10px' }}>
+                                  <div style={{ color: '#64748b' }}>ML Base/m²</div>
+                                  <div style={{ fontWeight: '600' }}>{Number(aiPrediction.ml_base_price_per_sqm || 0).toLocaleString()} ETB</div>
+                                </div>
+                                <div style={{ fontSize: '10px' }}>
+                                  <div style={{ color: '#64748b' }}>GIS Adj./m²</div>
+                                  <div style={{ fontWeight: '600' }}>{Number(aiPrediction.gis_price_per_sqm || 0).toLocaleString()} ETB</div>
+                                </div>
+                                <div style={{ fontSize: '10px' }}>
+                                  <div style={{ color: '#64748b' }}>Amenity Mult.</div>
+                                  <div style={{ fontWeight: '600', color: '#059669' }}>× {aiPrediction.amenity_multiplier || '1.0'}</div>
+                                </div>
+                                <div style={{ fontSize: '10px' }}>
+                                  <div style={{ color: '#64748b' }}>Center Dist.</div>
+                                  <div style={{ fontWeight: '600', color: '#3b82f6' }}>{aiPrediction.distance_to_center || '0'} km</div>
+                                </div>
+                              </div>
+
+                              <div style={{ 
+                                display: 'flex', 
+                                gap: '8px', 
+                                alignItems: 'center', 
+                                fontSize: '11px', 
+                                color: risk === 'High' ? '#ef4444' : '#64748b',
+                                fontWeight: risk === 'High' ? '700' : '500'
+                              }}>
+                                {risk === 'High' ? '🚩' : '🛡️'} Risk Level: {risk} {risk === 'High' && '— PRICE SUSPICIOUS'}
+                              </div>
+                            </>
+                          );
+                        })()}
+                      </div>
+                    ) : (
+                      <div style={{ padding: '15px', color: '#ef4444', fontSize: '12px', background: '#fef2f2', borderRadius: '8px', border: '1px solid #fee2e2' }}>
+                        ❌ Market analysis unavailable for this location
+                      </div>
+                    )}
                   </div>
                 </div>
 

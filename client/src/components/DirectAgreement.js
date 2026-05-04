@@ -1,6 +1,17 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import axios from "axios";
+import { MapContainer, TileLayer, Marker } from 'react-leaflet';
+import L from 'leaflet';
+import 'leaflet/dist/leaflet.css';
 import "./DirectAgreement.css";
+
+// Fix missing marker icons
+delete L.Icon.Default.prototype._getIconUrl;
+L.Icon.Default.mergeOptions({
+  iconRetinaUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon-2x.png',
+  iconUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-icon.png',
+  shadowUrl: 'https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/images/marker-shadow.png',
+});
 
 const API = "/api/agreement-workflow";
 
@@ -188,61 +199,49 @@ const DirectAgreement = ({ user }) => {
     finally { setActionLoading(false); }
   };
 
-  // renderActions
   const renderActions = (agr) => {
     const s = agr.status;
     const btns = [];
-    // Step 1: Negotiation
     if (isOwner && (s === "price_negotiation" || s === "buyer_counter_offered" || s === "waiting_owner_response")) {
       btns.push(<button key="neg" className="direct-btn direct-btn-primary" onClick={() => openModal("owner_negotiate", agr)}>💰 Respond to Offer</button>);
     }
     if (isCustomer && s === "owner_counter_offered") {
       btns.push(<button key="cnt" className="direct-btn direct-btn-primary" onClick={() => openModal("buyer_counter", agr)}>🔄 Respond to Counter</button>);
     }
-    // Step 2: Admin Review
     if (isAdmin && s === "pending_admin_review") {
       btns.push(<button key="fwd" className="direct-btn direct-btn-primary" onClick={() => openModal("forward_to_owner", agr)}>➡️ Forward to Owner</button>);
     }
     if (isAdmin && s === "owner_accepted") {
       btns.push(<button key="gen" className="direct-btn direct-btn-success" onClick={() => openModal("generate_contract", agr)}>📄 Generate Contract</button>);
     }
-    // Step 4-5: Signing
     if (isCustomer && s === "agreement_generated") {
       btns.push(<button key="bs" className="direct-btn direct-btn-primary" onClick={() => openModal("buyer_sign", agr)}>✍️ Sign Contract</button>);
     }
     if (isOwner && s === "buyer_signed") {
       btns.push(<button key="os" className="direct-btn direct-btn-primary" onClick={() => openModal("owner_sign", agr)}>✍️ Sign Contract</button>);
     }
-    // Step 6: Video Upload
     if (isOwner && s === "fully_signed") {
       btns.push(<button key="vid" className="direct-btn direct-btn-primary" onClick={() => openModal("upload_video", agr)}>🎥 Upload Video</button>);
     }
-    // Step 7: Admin verifies video
     if (isAdmin && s === "video_submitted") {
       btns.push(<button key="vv" className="direct-btn direct-btn-success" onClick={() => openModal("verify_video", agr)}>✅ Verify Video</button>);
     }
-    // Step 8: Buyer reviews media
     if ((isCustomer || isAdmin) && s === "media_released") {
       btns.push(<button key="vm" className="direct-btn direct-btn-primary" onClick={() => openModal("view_property_media", agr)}>🎥 Review Property Media</button>);
     }
-    // Step 9: Payment
     if (isCustomer && (s === "media_viewed" || s === "payment_rejected")) {
       btns.push(<button key="pay" className="direct-btn direct-btn-success" onClick={() => openModal("submit_payment", agr)}>💰 Submit Payment</button>);
     }
-    // Step 10: Verify Payment
     if (isAdmin && s === "payment_submitted") {
       btns.push(<button key="vp" className="direct-btn direct-btn-success" onClick={() => openModal("verify_payment", agr)}>✅ Verify Payment</button>);
       btns.push(<button key="rp" className="direct-btn direct-btn-danger" onClick={() => openModal("reject_payment", agr)}>❌ Reject Payment</button>);
     }
-    // Step 11: Handover
     if ((isCustomer || isOwner) && s === "payment_verified") {
       btns.push(<button key="ho" className="direct-btn direct-btn-primary" onClick={() => openModal("confirm_handover", agr)}>🔑 Confirm Handover</button>);
     }
-    // Step 12: Release Funds
     if (isAdmin && s === "handover_confirmed") {
       btns.push(<button key="rf" className="direct-btn direct-btn-success" onClick={() => openModal("release_funds", agr)}>💸 Release Funds</button>);
     }
-    // Always show view/details
     if (["agreement_generated","buyer_signed","fully_signed","video_submitted","media_released","media_viewed","payment_submitted","payment_verified","handover_confirmed","completed"].includes(s)) {
       btns.push(<button key="vc" className="direct-btn direct-btn-outline" onClick={() => openModal("view_contract", agr)}>📄 View Contract</button>);
     }
@@ -250,7 +249,6 @@ const DirectAgreement = ({ user }) => {
     return btns;
   };
 
-  // Progress Bar
   const renderProgressBar = (agr) => {
     const info = getBadge(agr.status);
     const activeStep = info.step;
@@ -258,7 +256,7 @@ const DirectAgreement = ({ user }) => {
       <div className="direct-progress-bar">
         {STEP_LABELS.map((label, i) => (
           <div key={i} className={`direct-step ${i < activeStep ? "completed" : i === activeStep ? "active" : ""}`}>
-            <div className="step-dot">{i < activeStep ? "âœ“" : i + 1}</div>
+            <div className="step-dot">{i < activeStep ? "✓" : i + 1}</div>
             <div className="step-label">{label}</div>
           </div>
         ))}
@@ -266,15 +264,13 @@ const DirectAgreement = ({ user }) => {
     );
   };
 
-  // Card
   const renderCard = (agr) => {
     const info = getBadge(agr.status);
     const price = Number(agr.proposed_price || agr.property_price || 0);
-    const sysFee = (price * 0.05);
     return (
       <div key={agr.id} className="direct-card">
         <div className="direct-card-header">
-          <div className="direct-card-title">âš¡ #{agr.id} â€” Direct Agreement</div>
+          <div className="direct-card-title">⚡ #{agr.id} — Direct Agreement</div>
           <span className="direct-badge" style={{ background: info.color + "22", color: info.color, border: `1px solid ${info.color}44` }}>
             {info.emoji} {info.label}
           </span>
@@ -282,15 +278,15 @@ const DirectAgreement = ({ user }) => {
         {renderProgressBar(agr)}
         <div className="direct-card-body">
           <div className="direct-info-grid">
-            <div className="direct-info-item"><span className="info-label">ðŸ  Property</span><span className="info-value">{agr.property_title || `Property #${agr.property_id}`}</span></div>
-            <div className="direct-info-item"><span className="info-label">ðŸ“ Location</span><span className="info-value">{agr.property_location || "N/A"}</span></div>
-            <div className="direct-info-item"><span className="info-label">ðŸ’° Price</span><span className="info-value">{price.toLocaleString()} ETB{isRental(agr) ? "/mo" : ""}</span></div>
-            <div className="direct-info-item"><span className="info-label">ðŸ·ï¸ System Fee (5%)</span><span className="info-value">{sysFee.toLocaleString()} ETB</span></div>
-            <div className="direct-info-item"><span className="info-label">ðŸ‘¤ Buyer</span><span className="info-value">{agr.customer_name || "N/A"}</span></div>
-            <div className="direct-info-item"><span className="info-label">ðŸ¢ Owner</span><span className="info-value">{agr.owner_name || "N/A"}</span></div>
+            <div className="direct-info-item"><span className="info-label">🏠 Property</span><span className="info-value">{agr.property_title || `Property #${agr.property_id}`}</span></div>
+            <div className="direct-info-item"><span className="info-label">📍 Location</span><span className="info-value">{agr.property_location || "N/A"}</span></div>
+            <div className="direct-info-item"><span className="info-label">💰 Price</span><span className="info-value">{price.toLocaleString()} ETB{isRental(agr) ? "/mo" : ""}</span></div>
+            <div className="direct-info-item"><span className="info-label">🏷️ Fee Payer</span><span className="info-value" style={{textTransform:'capitalize'}}>{agr.system_fee_payer || 'buyer'}</span></div>
+            <div className="direct-info-item"><span className="info-label">👤 Buyer</span><span className="info-value">{agr.customer_name || "N/A"}</span></div>
+            <div className="direct-info-item"><span className="info-label">🏢 Owner</span><span className="info-value">{agr.owner_name || "N/A"}</span></div>
           </div>
           {agr.counter_offer_price > 0 && (
-            <div className="direct-counter-badge">ðŸ”„ Counter Offer: {Number(agr.counter_offer_price).toLocaleString()} ETB</div>
+            <div className="direct-counter-badge">🔄 Counter Offer: {Number(agr.counter_offer_price).toLocaleString()} ETB</div>
           )}
         </div>
         <div className="direct-card-actions">{renderActions(agr)}</div>
@@ -298,7 +294,6 @@ const DirectAgreement = ({ user }) => {
     );
   };
 
-  // Modal content
   const renderModalContent = () => {
     if (!showModal) return null;
     switch (modalType) {
@@ -333,8 +328,8 @@ const DirectAgreement = ({ user }) => {
           <p style={{color:'#64748b',fontSize:12}}>System fee (5%) paid by: <strong>{selectedAgreement?.system_fee_payer || 'buyer'}</strong></p></div>
         <div className="direct-form-group"><label>Your Decision *</label>
           <select value={formData.decision||""} onChange={e=>setFormData({...formData,decision:e.target.value})}>
-            <option value="">-- Select --</option><option value="accept">âœ… Accept Price</option>
-            <option value="counter_offer">ðŸ”„ Counter Offer</option><option value="reject">âŒ Reject</option></select></div>
+            <option value="">-- Select --</option><option value="accept">✅ Accept Price</option>
+            <option value="counter_offer">🔄 Counter Offer</option><option value="reject">❌ Reject</option></select></div>
         {formData.decision === "counter_offer" && (<div className="direct-form-group"><label>Your Counter Price (ETB)</label>
           <input type="number" value={formData.counter_price||""} onChange={e=>setFormData({...formData,counter_price:e.target.value})} placeholder="Enter counter price"/></div>)}
         <div className="direct-form-group"><label>System Fee Paid By</label>
@@ -351,15 +346,15 @@ const DirectAgreement = ({ user }) => {
             <div style={{fontSize:28,fontWeight:800,color:'#b45309'}}>{Number(selectedAgreement?.counter_offer_price||0).toLocaleString()} ETB</div></div></div>
         <div className="direct-form-group"><label>Your Decision *</label>
           <select value={formData.decision||""} onChange={e=>setFormData({...formData,decision:e.target.value})}>
-            <option value="">-- Select --</option><option value="accept">âœ… Accept Counter</option>
-            <option value="counter_offer">ðŸ”„ Send My Counter</option><option value="reject">âŒ Reject & Cancel</option></select></div>
+            <option value="">-- Select --</option><option value="accept">✅ Accept Counter</option>
+            <option value="counter_offer">🔄 Send My Counter</option><option value="reject">❌ Reject & Cancel</option></select></div>
         {formData.decision === "counter_offer" && (<div className="direct-form-group"><label>Your Counter Price (ETB)</label>
           <input type="number" value={formData.counter_price||""} onChange={e=>setFormData({...formData,counter_price:e.target.value})}/></div>)}
         <div className="direct-form-group"><label>Message</label>
           <textarea value={formData.notes||""} onChange={e=>setFormData({...formData,notes:e.target.value})} rows="2"/></div>
       </div>);
       case "forward_to_owner": return (<div style={{textAlign:'center',padding:20}}>
-        <p style={{fontSize:48}}>âž¡ï¸</p><h4>Forward to Owner for Review?</h4>
+        <p style={{fontSize:48}}>➡</p><h4>Forward to Owner for Review?</h4>
         <p style={{color:'#64748b',fontSize:13}}>Price agreed: <strong>{Number(selectedAgreement?.proposed_price||0).toLocaleString()} ETB</strong></p>
         <div className="direct-form-group" style={{textAlign:'left',marginTop:16}}><label>Admin Notes</label>
           <textarea value={formData.notes||""} onChange={e=>setFormData({...formData,notes:e.target.value})} rows="2"/></div></div>);
@@ -376,7 +371,7 @@ const DirectAgreement = ({ user }) => {
           <h4 style={{margin:'0 0 4px',color:'#1e293b'}}>Step 6: Upload Property Video</h4>
           <p style={{color:'#64748b',fontSize:13}}>Upload a timestamped video of the property for buyer verification</p></div>
         <div style={{padding:12,background:'#fef3c7',borderRadius:8,marginBottom:16,fontSize:12,color:'#92400e'}}>
-          âš ï¸ <strong>Important:</strong> The video must show a visible timestamp (newspaper, phone screen) to verify it was recorded recently.</div>
+          ⚠ <strong>Important:</strong> The video must show a visible timestamp (newspaper, phone screen) to verify it was recorded recently.</div>
         <div className="direct-form-group"><label>Video URL *</label>
           <input type="text" value={formData.video_url||""} onChange={e=>setFormData({...formData,video_url:e.target.value})} placeholder="https://... or /uploads/videos/..."/></div>
         <div className="direct-form-group"><label>Recording Date</label>
@@ -389,72 +384,106 @@ const DirectAgreement = ({ user }) => {
       case "view_property_media": return (<div style={{padding:16}}>
         <div style={{textAlign:'center',marginBottom:16}}><h4 style={{margin:'0 0 4px',color:'#1e293b',fontSize:16}}>🎥 Step 8: Property Review</h4>
           <p style={{color:'#64748b',fontSize:13}}>Review the property video, location map, and documents before payment</p></div>
-        {/* Video */}
         <div style={{marginBottom:20}}><h4 style={{fontSize:14,fontWeight:700,color:'#1e293b',marginBottom:8}}>🎥 Property Video Tour</h4>
           {propertyMedia?.video_url ? (<div style={{borderRadius:10,overflow:'hidden',border:'1px solid #e2e8f0'}}>
             <video controls style={{width:'100%',maxHeight:300}} src={propertyMedia.video_url}>Not supported</video>
             {propertyMedia.video_uploaded_at && <div style={{padding:6,background:'#f0fdf4',fontSize:11,color:'#166534',textAlign:'center'}}>📅 Uploaded: {new Date(propertyMedia.video_uploaded_at).toLocaleString()}</div>}
           </div>) : (<div style={{padding:24,textAlign:'center',background:'#f8fafc',borderRadius:10,border:'1px dashed #cbd5e1'}}><p style={{color:'#94a3b8',fontSize:13}}>🎥 No video available</p></div>)}</div>
-        {/* Map */}
-        <div style={{marginBottom:20}}><h4 style={{fontSize:14,fontWeight:700,color:'#1e293b',marginBottom:8}}>ðŸ—ºï¸ View on Map</h4>
+        <div style={{marginBottom:20}}><h4 style={{fontSize:14,fontWeight:700,color:'#1e293b',marginBottom:8}}>🗺️ View on Map</h4>
           {propertyMedia?.latitude && propertyMedia?.longitude ? (<div style={{borderRadius:10,overflow:'hidden',border:'1px solid #e2e8f0'}}>
-            <iframe title="Property Location" width="100%" height="250" frameBorder="0" scrolling="no"
-              src={`https://www.openstreetmap.org/export/embed.html?bbox=${propertyMedia.longitude-0.01},${propertyMedia.latitude-0.01},${propertyMedia.longitude+0.01},${propertyMedia.latitude+0.01}&layer=mapnik&marker=${propertyMedia.latitude},${propertyMedia.longitude}`}/>
+            <MapContainer center={[propertyMedia.latitude, propertyMedia.longitude]} zoom={15} style={{ width: '100%', height: '250px' }} scrollWheelZoom={false}>
+              <TileLayer attribution='&copy; OpenStreetMap contributors' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+              <Marker position={[propertyMedia.latitude, propertyMedia.longitude]} />
+            </MapContainer>
             <div style={{padding:8,background:'#f8fafc',display:'flex',justifyContent:'space-between',alignItems:'center'}}>
-              <span style={{fontSize:12,color:'#64748b'}}>ðŸ“ {propertyMedia.property?.location || selectedAgreement?.property_location}</span>
-              <a href={`https://www.openstreetmap.org/?mlat=${propertyMedia.latitude}&mlon=${propertyMedia.longitude}#map=16/${propertyMedia.latitude}/${propertyMedia.longitude}`}
-                target="_blank" rel="noopener noreferrer" style={{fontSize:12,color:'#3b82f6',fontWeight:600,textDecoration:'none'}}>ðŸ”— Open Full Map</a></div>
-          </div>) : (<div style={{padding:24,textAlign:'center',background:'#f8fafc',borderRadius:10,border:'1px dashed #cbd5e1'}}><p style={{color:'#94a3b8',fontSize:13}}>ðŸ—ºï¸ Map coordinates not available</p></div>)}</div>
-        {/* Documents */}
-        <div style={{marginBottom:12}}><h4 style={{fontSize:14,fontWeight:700,color:'#1e293b',marginBottom:8}}>ðŸ“„ Property Documents</h4>
+              <span style={{fontSize:12,color:'#64748b'}}>📍 {propertyMedia.property?.location || selectedAgreement?.property_location}</span>
+              <a href={`https://www.openstreetmap.org/?mlat=${propertyMedia.latitude}&mlon=${propertyMedia.longitude}#map=16/${propertyMedia.latitude}/${propertyMedia.longitude}`} target="_blank" rel="noopener noreferrer" style={{fontSize:12,color:'#3b82f6',fontWeight:600,textDecoration:'none'}}>🔗 Open Full Map</a></div>
+          </div>) : (<div style={{padding:24,textAlign:'center',background:'#f8fafc',borderRadius:10,border:'1px dashed #cbd5e1'}}><p style={{color:'#94a3b8',fontSize:13}}>🗺️ Map coordinates not available</p></div>)}</div>
+        <div style={{marginBottom:12}}><h4 style={{fontSize:14,fontWeight:700,color:'#1e293b',marginBottom:8}}>📄 Property Documents</h4>
           {propertyMedia?.documents?.length > 0 ? (<div style={{display:'flex',flexDirection:'column',gap:8}}>
             {propertyMedia.documents.map(doc => (<div key={doc.id} style={{display:'flex',justifyContent:'space-between',alignItems:'center',padding:'10px 14px',background:'#f8fafc',borderRadius:8,border:'1px solid #e2e8f0'}}>
-              <div><div style={{fontSize:13,fontWeight:600,color:'#1e293b'}}>ðŸ“„ {doc.document_name||doc.document_type}</div>
-                <div style={{fontSize:11,color:'#94a3b8'}}>{doc.document_type} â€¢ {new Date(doc.uploaded_at).toLocaleDateString()}</div></div>
-              <a href={doc.document_path} target="_blank" rel="noopener noreferrer" className="direct-btn direct-btn-outline" style={{fontSize:11,padding:'4px 10px'}}>ðŸ‘ï¸ View</a>
+              <div><div style={{fontSize:13,fontWeight:600,color:'#1e293b'}}>📄 {doc.document_name||doc.document_type}</div>
+                <div style={{fontSize:11,color:'#94a3b8'}}>{doc.document_type} • {new Date(doc.uploaded_at).toLocaleDateString()}</div></div>
+              <a href={doc.document_path} target="_blank" rel="noopener noreferrer" className="direct-btn direct-btn-outline" style={{fontSize:11,padding:'4px 10px'}}>👁️ View</a>
             </div>))}
-          </div>) : (<div style={{padding:24,textAlign:'center',background:'#f8fafc',borderRadius:10,border:'1px dashed #cbd5e1'}}><p style={{color:'#94a3b8',fontSize:13}}>ðŸ“„ No documents uploaded</p></div>)}</div>
-        {/* Confirm button */}
+          </div>) : (<div style={{padding:24,textAlign:'center',background:'#f8fafc',borderRadius:10,border:'1px dashed #cbd5e1'}}><p style={{color:'#94a3b8',fontSize:13}}>📄 No documents uploaded</p></div>)}</div>
         {isCustomer && selectedAgreement?.status === "media_released" && (<div style={{marginTop:24,textAlign:'center'}}>
           <p style={{fontSize:13,color:'#64748b',marginBottom:12}}>After reviewing, confirm to proceed to payment.</p>
           <button className="direct-btn direct-btn-success" style={{width:'100%',padding:'12px'}} disabled={actionLoading}
             onClick={async()=>{if(!window.confirm("Confirm you have reviewed all property media?"))return;
               try{setActionLoading(true);const r=await axios.put(`${API}/${selectedAgreement.id}/mark-media-viewed`,{buyer_id:user.id});
-                if(r.data.success){alert(`âœ… ${r.data.message}`);closeModal();fetchAgreements();}}catch{alert("âŒ Failed")}finally{setActionLoading(false)}}}>
-            {actionLoading?"Processing...":"âœ… I Have Reviewed All Information"}</button></div>)}</div>);
-      case "submit_payment": return (<>
-        <div className="direct-form-group"><label>Payment Method *</label>
-          <select value={formData.payment_method||""} onChange={e=>setFormData({...formData,payment_method:e.target.value})}>
-            <option value="">-- Select --</option><option value="bank_transfer">ðŸ¦ Bank Transfer</option>
-            <option value="cash">ðŸ’µ Cash</option><option value="check">ðŸ“‹ Check</option><option value="online">ðŸ’³ Online</option></select></div>
-        <div className="direct-form-group"><label>Transaction Reference *</label>
-          <input type="text" value={formData.transaction_reference||""} onChange={e=>setFormData({...formData,transaction_reference:e.target.value})} placeholder="Reference number"/></div></>);
-      case "verify_payment": return (<div style={{textAlign:'center',padding:20}}>
-        <p style={{fontSize:48}}>✅</p><h4>Verify Payment Received?</h4>
-        <div className="direct-form-group" style={{textAlign:'left',marginTop:16}}><label>Verification Notes</label>
-          <textarea value={formData.notes||""} onChange={e=>setFormData({...formData,notes:e.target.value})} rows="2"/></div></div>);
+                if(r.data.success){alert(`✅ ${r.data.message}`);closeModal();fetchAgreements();}}catch{alert("❌ Failed")}finally{setActionLoading(false)}}}>
+            {actionLoading?"Processing...":"✅ I Have Reviewed All Information"}</button></div>)}</div>);
+      case "submit_payment": {
+        const price = Number(selectedAgreement?.proposed_price || 0);
+        const payer = selectedAgreement?.system_fee_payer || 'buyer';
+        const totalFee = price * 0.05;
+        let expected = price;
+        if (payer === 'buyer') expected = price + totalFee;
+        else if (payer === 'split') expected = price + (totalFee / 2);
+
+        return (<>
+          <div style={{background:'#f8fafc',padding:12,borderRadius:8,marginBottom:16,border:'1px solid #e2e8f0'}}>
+            <div style={{display:'flex',justifyContent:'space-between',fontSize:13,marginBottom:4}}><span>Agreed Price:</span><strong>{price.toLocaleString()} ETB</strong></div>
+            <div style={{display:'flex',justifyContent:'space-between',fontSize:13,marginBottom:4}}><span>System Fee ({payer === 'split' ? 'Share' : 'Buyer'}):</span><strong>{(expected - price).toLocaleString()} ETB</strong></div>
+            <div style={{display:'flex',justifyContent:'space-between',fontSize:15,marginTop:8,paddingTop:8,borderTop:'1px dashed #cbd5e1',color:'#1e40af'}}><span>Total to Pay:</span><strong>{expected.toLocaleString()} ETB</strong></div>
+          </div>
+          <div className="direct-form-group"><label>Payment Method *</label>
+            <select value={formData.payment_method||""} onChange={e=>setFormData({...formData,payment_method:e.target.value})}>
+              <option value="">-- Select --</option><option value="bank_transfer">🏦 Bank Transfer</option>
+              <option value="cash">💵 Cash</option><option value="check">📝 Check</option><option value="online">💳 Online</option></select></div>
+          <div className="direct-form-group"><label>Transaction Reference *</label>
+            <input type="text" value={formData.transaction_reference||""} onChange={e=>setFormData({...formData,transaction_reference:e.target.value})} placeholder="Reference number"/></div></>);
+      }
+      case "verify_payment": {
+        const price = Number(selectedAgreement?.proposed_price || 0);
+        const payer = selectedAgreement?.system_fee_payer || 'buyer';
+        const totalFee = price * 0.05;
+        let expected = price;
+        if (payer === 'buyer') expected = price + totalFee;
+        else if (payer === 'split') expected = price + (totalFee / 2);
+
+        return (<div style={{textAlign:'center',padding:20}}>
+          <p style={{fontSize:48}}>✅</p><h4>Verify Payment Received?</h4>
+          <div style={{background:'#f0fdf4',padding:12,borderRadius:10,margin:'16px 0',border:'1px solid #86efac'}}>
+            <div style={{fontSize:11,color:'#166534',fontWeight:700}}>EXPECTED TOTAL AMOUNT</div>
+            <div style={{fontSize:24,fontWeight:800,color:'#14532d'}}>{expected.toLocaleString()} ETB</div>
+            <div style={{fontSize:11,color:'#166534',marginTop:4}}>(Price: {price.toLocaleString()} + Fee Share: {(expected-price).toLocaleString()})</div>
+          </div>
+          <div className="direct-form-group" style={{textAlign:'left',marginTop:16}}><label>Verification Notes</label>
+            <textarea value={formData.notes||""} onChange={e=>setFormData({...formData,notes:e.target.value})} rows="2"/></div></div>);
+      }
       case "reject_payment": return (<div style={{textAlign:'center',padding:20}}>
-        <p style={{fontSize:48}}>âŒ</p><h4 style={{color:'#dc2626'}}>Reject Payment?</h4>
+        <p style={{fontSize:48}}>❌</p><h4 style={{color:'#dc2626'}}>Reject Payment?</h4>
         <div className="direct-form-group" style={{textAlign:'left',marginTop:16}}><label>Rejection Reason *</label>
           <textarea value={formData.reason||""} onChange={e=>setFormData({...formData,reason:e.target.value})} rows="3" placeholder="Why is the payment being rejected?"/></div></div>);
       case "confirm_handover": return (<div style={{textAlign:'center',padding:20}}>
         <p style={{fontSize:48}}>🔑</p><h4>Confirm Property Handover</h4>
         <p style={{color:'#64748b',fontSize:13}}>Both buyer and owner must confirm the handover separately.</p></div>);
-      case "release_funds": return (<div style={{textAlign:'center',padding:20}}>
-        <p style={{fontSize:48}}>💸</p><h4>Release Funds to Owner</h4>
-        <p style={{color:'#64748b',fontSize:13}}>5% system commission will be deducted automatically.</p>
-        <div style={{display:'flex',gap:8,marginTop:16}}>
-          <div style={{flex:1,background:'#eff6ff',borderRadius:10,padding:12,textAlign:'center',border:'1px solid #bfdbfe'}}>
-            <div style={{fontSize:10,color:'#3b82f6',fontWeight:700}}>TOTAL PRICE</div>
-            <div style={{fontSize:20,fontWeight:800,color:'#1e40af'}}>{Number(selectedAgreement?.proposed_price||0).toLocaleString()} ETB</div></div>
-          <div style={{flex:1,background:'#fef3c7',borderRadius:10,padding:12,textAlign:'center',border:'1px solid #fcd34d'}}>
-            <div style={{fontSize:10,color:'#d97706',fontWeight:700}}>SYSTEM FEE (5%)</div>
-            <div style={{fontSize:20,fontWeight:800,color:'#92400e'}}>{(Number(selectedAgreement?.proposed_price||0)*0.05).toLocaleString()} ETB</div></div>
-          <div style={{flex:1,background:'#f0fdf4',borderRadius:10,padding:12,textAlign:'center',border:'1px solid #86efac'}}>
-            <div style={{fontSize:10,color:'#16a34a',fontWeight:700}}>NET TO OWNER</div>
-            <div style={{fontSize:20,fontWeight:800,color:'#065f46'}}>{(Number(selectedAgreement?.proposed_price||0)*0.95).toLocaleString()} ETB</div></div></div>
-        <div className="direct-form-group" style={{textAlign:'left',marginTop:16}}><label>Admin Notes</label>
-          <textarea value={formData.notes||""} onChange={e=>setFormData({...formData,notes:e.target.value})} rows="2"/></div></div>);
+      case "release_funds": {
+        const price = Number(selectedAgreement?.proposed_price || 0);
+        const payer = selectedAgreement?.system_fee_payer || 'buyer';
+        const totalFee = price * 0.05;
+        let ownerDeduction = 0;
+        if (payer === 'owner') ownerDeduction = totalFee;
+        else if (payer === 'split') ownerDeduction = totalFee/2;
+
+        return (<div style={{textAlign:'center',padding:20}}>
+          <p style={{fontSize:48}}>💸</p><h4>Release Funds to Owner</h4>
+          <p style={{color:'#64748b',fontSize:13}}>Fee handling: <strong style={{textTransform:'capitalize'}}>{payer} pays</strong></p>
+          <div style={{display:'flex',gap:8,marginTop:16}}>
+            <div style={{flex:1,background:'#eff6ff',borderRadius:10,padding:12,textAlign:'center',border:'1px solid #bfdbfe'}}>
+              <div style={{fontSize:10,color:'#3b82f6',fontWeight:700}}>AGREED PRICE</div>
+              <div style={{fontSize:18,fontWeight:800,color:'#1e40af'}}>{price.toLocaleString()} ETB</div></div>
+            <div style={{flex:1,background:'#fef3c7',borderRadius:10,padding:12,textAlign:'center',border:'1px solid #fcd34d'}}>
+              <div style={{fontSize:10,color:'#d97706',fontWeight:700}}>TOTAL FEE (5%)</div>
+              <div style={{fontSize:18,fontWeight:800,color:'#92400e'}}>{totalFee.toLocaleString()} ETB</div></div>
+            <div style={{flex:1,background:'#f0fdf4',borderRadius:10,padding:12,textAlign:'center',border:'1px solid #86efac'}}>
+              <div style={{fontSize:10,color:'#16a34a',fontWeight:700}}>NET TO OWNER</div>
+              <div style={{fontSize:18,fontWeight:800,color:'#065f46'}}>{(price - ownerDeduction).toLocaleString()} ETB</div></div></div>
+          <div className="direct-form-group" style={{textAlign:'left',marginTop:16}}><label>Admin Notes</label>
+            <textarea value={formData.notes||""} onChange={e=>setFormData({...formData,notes:e.target.value})} rows="2"/></div></div>);
+      }
       case "details": return (<div className="agreement-details"><div className="details-section"><h4>📝 Agreement Information</h4>
         <div className="details-grid">
           <div className="detail-item"><span className="detail-label">ID:</span><span className="detail-value">#{selectedAgreement?.id}</span></div>
@@ -464,7 +493,7 @@ const DirectAgreement = ({ user }) => {
         {history.length > 0 && (<div className="details-section"><h4>📜 Activity History</h4>
           <div className="history-list">{history.map(h => (<div key={h.id} className="history-item">
             <div className="history-action">{h.action?.replace(/_/g," ").replace(/\b\w/g,c=>c.toUpperCase())}</div>
-            <div className="history-meta">By {h.action_by_name||"System"} â€¢ {new Date(h.created_at).toLocaleString()}{h.previous_status && ` â€¢ ${h.previous_status} â†’ ${h.new_status}`}</div>
+            <div className="history-meta">By {h.action_by_name||"System"} • {new Date(h.created_at).toLocaleString()}{h.previous_status && ` • ${h.previous_status} → ${h.new_status}`}</div>
             {h.notes && <div className="history-notes">{h.notes}</div>}</div>))}</div></div>)}</div>);
       case "view_contract": return (<div>
         <div style={{display:"flex",justifyContent:"flex-end",gap:8,marginBottom:12,flexWrap:"wrap"}}>
@@ -477,13 +506,13 @@ const DirectAgreement = ({ user }) => {
 
   const getModalTitle = () => {
     const titles = {
-      request:"âš¡ Request Direct Agreement", owner_negotiate:"ðŸ’° Price Negotiation", buyer_counter:"ðŸ”„ Counter Offer Response",
-      forward_to_owner:"âž¡ï¸ Forward to Owner", generate_contract:"ðŸ“„ Generate Contract",
-      buyer_sign:"âœï¸ Sign (Buyer)", owner_sign:"âœï¸ Sign (Owner)", upload_video:"ðŸŽ¥ Upload Video",
-      verify_video:"âœ… Verify Video", view_property_media:"ðŸŽ¥ Property Media Review",
-      submit_payment:"ðŸ’° Submit Payment", verify_payment:"âœ… Verify Payment", reject_payment:"âŒ Reject Payment",
-      confirm_handover:"ðŸ”‘ Confirm Handover", release_funds:"ðŸ’¸ Release Funds",
-      details:"ðŸ‘ï¸ Agreement Details", view_contract:"ðŸ“„ Agreement Document",
+      request:"⚡ Request Direct Agreement", owner_negotiate:"💰 Price Negotiation", buyer_counter:"🔄 Counter Offer Response",
+      forward_to_owner:"➡ Forward to Owner", generate_contract:"📄 Generate Contract",
+      buyer_sign:"✍️ Sign (Buyer)", owner_sign:"✍️ Sign (Owner)", upload_video:"🎥 Upload Video",
+      verify_video:"✅ Verify Video", view_property_media:"🎥 Property Media Review",
+      submit_payment:"💰 Submit Payment", verify_payment:"✅ Verify Payment", reject_payment:"❌ Reject Payment",
+      confirm_handover:"🔑 Confirm Handover", release_funds:"💸 Release Funds",
+      details:"👁️ Agreement Details", view_contract:"📄 Agreement Document",
     };
     return titles[modalType] || "Action";
   };
@@ -504,14 +533,14 @@ const DirectAgreement = ({ user }) => {
     <div className="direct-agreement-page">
       <div className="direct-container">
         <div className="direct-header">
-          <h1>âš¡ Direct Agreements</h1>
-          <p>Connect directly with property owners â€” 12-step verified workflow</p>
-          {isCustomer && <button className="direct-btn direct-btn-primary" onClick={() => openModal("request")}>âž• Request Direct Agreement</button>}
+          <h1>⚡ Direct Agreements</h1>
+          <p>Connect directly with property owners — 12-step verified workflow</p>
+          {isCustomer && <button className="direct-btn direct-btn-primary" onClick={() => openModal("request")}>➕ Request Direct Agreement</button>}
         </div>
         {loading && <div className="direct-loading"><div className="spinner"></div><p>Loading...</p></div>}
         {!loading && (<div className="direct-agreements-grid">
           {agreements.length > 0 ? agreements.map(renderCard) : (
-            <div className="direct-empty-state"><div className="empty-icon">âš¡</div><h3>No Direct Agreements Yet</h3>
+            <div className="direct-empty-state"><div className="empty-icon">⚡</div><h3>No Direct Agreements Yet</h3>
               <p>{isCustomer ? "Start by requesting a direct agreement." : "Direct agreements will appear here."}</p>
               {isCustomer && <button className="direct-btn direct-btn-primary" onClick={() => openModal("request")}>Create Your First Direct Agreement</button>}
             </div>)}
@@ -519,7 +548,7 @@ const DirectAgreement = ({ user }) => {
         {showModal && (
           <div className="direct-modal-overlay" onClick={closeModal}>
             <div className="direct-modal-content" onClick={e => e.stopPropagation()}>
-              <div className="direct-modal-header"><h2>{getModalTitle()}</h2><button className="direct-modal-close" onClick={closeModal}>âœ•</button></div>
+              <div className="direct-modal-header"><h2>{getModalTitle()}</h2><button className="direct-modal-close" onClick={closeModal}>✖</button></div>
               <div className="direct-modal-body">{renderModalContent()}</div>
               {!["details","view_contract","view_property_media"].includes(modalType) && (
                 <div className="direct-modal-footer">
@@ -535,4 +564,3 @@ const DirectAgreement = ({ user }) => {
 };
 
 export default DirectAgreement;
-

@@ -116,7 +116,7 @@ function App() {
   const renderProfilePage = () => {
     switch (user?.role) {
       case 'user':
-        return <CustomerProfile user={user} onLogout={handleLogout} onRefreshUser={refreshUser} />;
+        return <CustomerProfile user={user} onLogout={handleLogout} onComplete={refreshUser} />;
       case 'owner':
         return <OwnerProfile user={user} onLogout={handleLogout} onRefreshUser={refreshUser} />;
       case 'broker':
@@ -177,6 +177,10 @@ function App() {
         return <Agreements user={user} onLogout={handleLogout} onSettingsClick={() => navigateToPage('settings')} />;
       case 'documents':
         if (user.role === 'property_admin') return <PropertyAdminDashboard user={user} onLogout={handleLogout} setCurrentPage={navigateToPage} setViewMapPropertyId={setViewMapPropertyId} initialView="documents" />;
+        return <Dashboard user={user} onLogout={handleLogout} onSettingsClick={() => navigateToPage('settings')} />;
+      case 'broker-holds':
+        if (user.role === 'property_admin') return <PropertyAdminDashboard user={user} onLogout={handleLogout} setCurrentPage={navigateToPage} setViewMapPropertyId={setViewMapPropertyId} initialView="broker-holds" />;
+        if (user.role === 'system_admin') return <SystemAdminDashboard user={user} onLogout={handleLogout} setCurrentPage={navigateToPage} setViewMapPropertyId={setViewMapPropertyId} initialView="broker-holds" />;
         return <Dashboard user={user} onLogout={handleLogout} onSettingsClick={() => navigateToPage('settings')} />;
       case 'agreement-requests':
         if (user.role === 'property_admin') return <PropertyAdminDashboard user={user} onLogout={handleLogout} setCurrentPage={navigateToPage} setViewMapPropertyId={setViewMapPropertyId} initialView="agreement-requests" />;

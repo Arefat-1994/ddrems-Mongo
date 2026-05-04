@@ -213,11 +213,23 @@ const Register = ({ onBackToLogin }) => {
   };
 
   return (
-    <div className="register-container">
+    <div className="register-container" style={{ background: "url('/hero-bg.png') no-repeat center center fixed", backgroundSize: 'cover' }}>
       <div className="register-card">
         <div className="register-header">
-          <h1>Create Account</h1>
-          <p>Join DDREMS - Dire Dawa Real Estate Management System</p>
+          <img src={require('../logo.svg').default || require('../logo.svg')} alt="DDREMS Logo" className="auth-logo" onError={(e) => { e.target.style.display = 'none'; }} />
+          <h1 className="auth-title">DDREMS</h1>
+          <p className="auth-subtitle">Dire Dawa Real Estate Management System</p>
+          <div className="auth-slogan-container">
+            <span className="auth-slogan-line"></span>
+            <p className="auth-slogan">Experiencing the excellence of the live</p>
+            <span className="auth-slogan-line"></span>
+          </div>
+          <h2 className="auth-heading">Create Account</h2>
+        </div>
+
+        <div className="auth-info-box">
+          <div className="info-icon">i</div>
+          <p>Join DDREMS and manage properties<br />with ease and efficiency. Let's get started!</p>
         </div>
 
         {error && (
