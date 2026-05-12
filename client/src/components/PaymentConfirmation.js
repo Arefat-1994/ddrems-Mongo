@@ -37,14 +37,14 @@ const PaymentConfirmation = ({ agreementRequest, user, onConfirm, onCancel }) =>
         const formData = new FormData();
         formData.append('file', paymentForm.receipt_document);
         
-        const uploadRes = await axios.post('http://localhost:5000/api/upload', formData, {
+        const uploadRes = await axios.post(`http://${window.location.hostname}:5000/api/upload`, formData, {
           headers: { 'Content-Type': 'multipart/form-data' }
         });
         receiptPath = uploadRes.data.path;
       }
 
       // Create payment confirmation
-      const confirmRes = await axios.post('http://localhost:5000/api/payment-confirmations', {
+      const confirmRes = await axios.post(`http://${window.location.hostname}:5000/api/payment-confirmations`, {
         agreement_request_id: agreementRequest.id,
         amount: paymentForm.amount,
         payment_method: paymentForm.payment_method,
@@ -54,7 +54,7 @@ const PaymentConfirmation = ({ agreementRequest, user, onConfirm, onCancel }) =>
       });
 
       // Update agreement request
-      await axios.put(`http://localhost:5000/api/agreement-requests/${agreementRequest.id}`, {
+      await axios.put(`http://${window.location.hostname}:5000/api/agreement-requests/${agreementRequest.id}`, {
         payment_confirmed: true,
         payment_receipt_id: confirmRes.data.id
       });

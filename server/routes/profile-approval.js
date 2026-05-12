@@ -1,236 +1,159 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/db');
+const mongoose = require('mongoose');
+const { Users, BrokerProfiles, OwnerProfiles, CustomerProfiles, ProfileStatusHistory, Notifications } = require('../models');
+const { sendEmail, templates } = require('../services/emailService');
 
-// Check if user profile is approved
+// Admin route to get all profiles by status
+router.get('/all', async (req, res) => {
+  try {
+    const users = await Users.find().lean();
+    
+    // We group them into pending, approved, rejected (using status or profile_approved fields)
+    const pending = users.filter(u => !u.profile_approved && u.profile_completed && u.status !== 'rejected');
+    const approved = users.filter(u => u.profile_approved && u.status === 'active');
+    const rejected = users.filter(u => u.status === 'rejected');
+
+    // Add profile details
+    const enrichUsers = async (userList) => {
+      const enriched = [];
+      for (const u of userList) {
+        let profile = null;
+        if (u.role === 'broker') profile = await BrokerProfiles.findOne({ user_id: u._id }).lean();
+        else if (u.role === 'owner') profile = await OwnerProfiles.findOne({ user_id: u._id }).lean();
+        else if (u.role === 'user') profile = await CustomerProfiles.findOne({ user_id: u._id }).lean();
+        
+        enriched.push({ ...u, id: u._id, profile });
+      }
+      return enriched;
+    };
+
+    res.json({
+      pending: await enrichUsers(pending),
+      approved: await enrichUsers(approved),
+      rejected: await enrichUsers(rejected)
+    });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
+});
+
+router.post('/:userId/approve', async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
+      return res.status(400).json({ message: 'Invalid user ID' });
+    }
+
+    const user = await Users.findByIdAndUpdate(req.params.userId, {
+      profile_approved: true,
+      status: 'active'
+    });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    
+    if (user.role === 'broker') await BrokerProfiles.findOneAndUpdate({ user_id: user._id }, { profile_status: 'approved' });
+    else if (user.role === 'owner') await OwnerProfiles.findOneAndUpdate({ user_id: user._id }, { profile_status: 'approved' });
+    else if (user.role === 'user') await CustomerProfiles.findOneAndUpdate({ user_id: user._id }, { profile_status: 'approved' });
+
+    // Send account approved email
+    try {
+      const emailData = templates.accountApproved(user.name);
+      await sendEmail(user.email, emailData.subject, emailData.html);
+      console.log(`[PROFILE-APPROVAL] Approval email sent to ${user.email}`);
+    } catch (emailErr) {
+      console.error('[PROFILE-APPROVAL] Email send failed:', emailErr.message);
+    }
+
+    // Create in-app notification
+    try {
+      await Notifications.create({
+        user_id: user._id,
+        title: 'Account Activated!',
+        message: 'Your account has been approved and activated. You now have full access to the system.',
+        type: 'success',
+        is_read: false,
+        created_at: new Date()
+      });
+
+      // Emit socket event
+      const socketModule = require('../socket');
+      socketModule.emitToUser(user._id.toString(), 'new_notification', {
+        title: 'Account Activated!',
+        message: 'Your account has been approved and activated.',
+        type: 'success',
+        is_read: false,
+        created_at: new Date()
+      });
+    } catch (notifErr) {
+      console.warn('[PROFILE-APPROVAL] Notification creation failed:', notifErr.message);
+    }
+
+    res.json({ message: 'Profile approved', success: true });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
+});
+
+router.post('/:userId/reject', async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
+      return res.status(400).json({ message: 'Invalid user ID' });
+    }
+
+    const { reason } = req.body;
+
+    const user = await Users.findByIdAndUpdate(req.params.userId, {
+      profile_approved: false,
+      status: 'rejected'
+    });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    
+    if (user.role === 'broker') await BrokerProfiles.findOneAndUpdate({ user_id: user._id }, { profile_status: 'rejected' });
+    else if (user.role === 'owner') await OwnerProfiles.findOneAndUpdate({ user_id: user._id }, { profile_status: 'rejected' });
+    else if (user.role === 'user') await CustomerProfiles.findOneAndUpdate({ user_id: user._id }, { profile_status: 'rejected' });
+
+    // Send rejection email
+    try {
+      const emailData = templates.accountRejected(user.name, reason);
+      await sendEmail(user.email, emailData.subject, emailData.html);
+      console.log(`[PROFILE-APPROVAL] Rejection email sent to ${user.email}`);
+    } catch (emailErr) {
+      console.error('[PROFILE-APPROVAL] Email send failed:', emailErr.message);
+    }
+
+    // Create in-app notification
+    try {
+      await Notifications.create({
+        user_id: user._id,
+        title: 'Account Not Approved',
+        message: `Your account application was not approved.${reason ? ' Reason: ' + reason : ''}`,
+        type: 'error',
+        is_read: false,
+        created_at: new Date()
+      });
+    } catch (notifErr) {
+      console.warn('[PROFILE-APPROVAL] Notification creation failed:', notifErr.message);
+    }
+
+    res.json({ message: 'Profile rejected', success: true });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
+});
+
 router.get('/check-approval/:userId', async (req, res) => {
   try {
-    const { userId } = req.params;
-
-    const [users] = await db.query(
-      'SELECT id, profile_completed, profile_approved, role FROM users WHERE id = ?',
-      [userId]
-    );
-
-    if (users.length === 0) {
-      return res.status(404).json({ message: 'User not found' });
+    if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
+      return res.status(400).json({ message: 'Invalid user ID' });
     }
-
-    const user = users[0];
-
-    res.json({
-      userId: user.id,
-      profileCompleted: user.profile_completed,
-      profileApproved: user.profile_approved,
-      role: user.role,
-      isApproved: user.profile_approved === 1,
-      needsCompletion: user.profile_completed === 0,
-      needsApproval: user.profile_completed === 1 && user.profile_approved === 0
-    });
-  } catch (error) {
-    console.error('Profile approval check error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+    const user = await Users.findById(req.params.userId).lean();
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json({ approved: user.profile_approved, status: user.status });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
-// Get profile completion status
-router.get('/completion-status/:userId', async (req, res) => {
-  try {
-    const { userId } = req.params;
-
-    const [status] = await db.query(
-      'SELECT * FROM profile_completion_status WHERE user_id = ?',
-      [userId]
-    );
-
-    if (status.length === 0) {
-      // Create default status
-      await db.query(
-        'INSERT INTO profile_completion_status (user_id, user_role, completion_percentage) SELECT id, role, 0 FROM users WHERE id = ?',
-        [userId]
-      );
-      return res.json({
-        userId,
-        basicInfoCompleted: false,
-        contactInfoCompleted: false,
-        addressInfoCompleted: false,
-        documentsUploaded: false,
-        verificationCompleted: false,
-        completionPercentage: 0
-      });
-    }
-
-    res.json({
-      userId: status[0].user_id,
-      basicInfoCompleted: status[0].basic_info_completed === 1,
-      contactInfoCompleted: status[0].contact_info_completed === 1,
-      addressInfoCompleted: status[0].address_info_completed === 1,
-      documentsUploaded: status[0].documents_uploaded === 1,
-      verificationCompleted: status[0].verification_completed === 1,
-      completionPercentage: status[0].completion_percentage
-    });
-  } catch (error) {
-    console.error('Completion status error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-
-// Submit profile for approval
 router.post('/submit-for-approval/:userId', async (req, res) => {
   try {
-    const { userId } = req.params;
-    const { notes } = req.body;
-
-    // Check if profile is completed
-    const [users] = await db.query(
-      'SELECT profile_completed, profile_approved FROM users WHERE id = ?',
-      [userId]
-    );
-
-    if (users.length === 0) {
-      return res.status(404).json({ message: 'User not found' });
+    if (!mongoose.Types.ObjectId.isValid(req.params.userId)) {
+      return res.status(400).json({ message: 'Invalid user ID' });
     }
-
-    if (users[0].profile_completed === 0) {
-      return res.status(400).json({ message: 'Profile is not complete. Please fill all required fields.' });
-    }
-
-    if (users[0].profile_approved === 1) {
-      return res.status(400).json({ message: 'Profile is already approved' });
-    }
-
-    // Update user profile status
-    await db.query(
-      'UPDATE users SET profile_submitted_at = NOW() WHERE id = ?',
-      [userId]
-    );
-
-    // Log the submission
-    const [user] = await db.query('SELECT role FROM users WHERE id = ?', [userId]);
-    await db.query(
-      'INSERT INTO profile_approval_log (user_id, user_role, action, status, notes) VALUES (?, ?, ?, ?, ?)',
-      [userId, user[0].role, 'submitted', 'pending', notes || 'Profile submitted for approval']
-    );
-
-    res.json({
-      message: 'Profile submitted for approval. Please wait for admin approval.',
-      status: 'pending'
-    });
-  } catch (error) {
-    console.error('Submit for approval error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-
-// Update profile completion status
-router.post('/update-completion/:userId', async (req, res) => {
-  try {
-    const { userId } = req.params;
-    const {
-      basicInfoCompleted,
-      contactInfoCompleted,
-      addressInfoCompleted,
-      documentsUploaded,
-      verificationCompleted
-    } = req.body;
-
-    // Calculate completion percentage
-    const completedFields = [
-      basicInfoCompleted,
-      contactInfoCompleted,
-      addressInfoCompleted,
-      documentsUploaded,
-      verificationCompleted
-    ].filter(Boolean).length;
-
-    const completionPercentage = Math.round((completedFields / 5) * 100);
-
-    // Check if all fields are completed
-    const allCompleted = completedFields === 5;
-
-    // Update or insert completion status
-    const [existing] = await db.query(
-      'SELECT id FROM profile_completion_status WHERE user_id = ?',
-      [userId]
-    );
-
-    if (existing.length > 0) {
-      await db.query(
-        `UPDATE profile_completion_status 
-         SET basic_info_completed = ?, 
-             contact_info_completed = ?, 
-             address_info_completed = ?, 
-             documents_uploaded = ?, 
-             verification_completed = ?, 
-             completion_percentage = ?
-         WHERE user_id = ?`,
-        [
-          basicInfoCompleted ? 1 : 0,
-          contactInfoCompleted ? 1 : 0,
-          addressInfoCompleted ? 1 : 0,
-          documentsUploaded ? 1 : 0,
-          verificationCompleted ? 1 : 0,
-          completionPercentage,
-          userId
-        ]
-      );
-    } else {
-      await db.query(
-        `INSERT INTO profile_completion_status 
-         (user_id, user_role, basic_info_completed, contact_info_completed, address_info_completed, documents_uploaded, verification_completed, completion_percentage)
-         SELECT id, role, ?, ?, ?, ?, ?, ? FROM users WHERE id = ?`,
-        [
-          basicInfoCompleted ? 1 : 0,
-          contactInfoCompleted ? 1 : 0,
-          addressInfoCompleted ? 1 : 0,
-          documentsUploaded ? 1 : 0,
-          verificationCompleted ? 1 : 0,
-          completionPercentage,
-          userId
-        ]
-      );
-    }
-
-    // If all completed, update user profile_completed flag
-    if (allCompleted) {
-      await db.query(
-        'UPDATE users SET profile_completed = TRUE WHERE id = ?',
-        [userId]
-      );
-    }
-
-    res.json({
-      message: 'Profile completion status updated',
-      completionPercentage,
-      allCompleted
-    });
-  } catch (error) {
-    console.error('Update completion error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-
-// Get approval history
-router.get('/approval-history/:userId', async (req, res) => {
-  try {
-    const { userId } = req.params;
-
-    const [history] = await db.query(
-      `SELECT id, action, status, notes, approved_by, created_at 
-       FROM profile_approval_log 
-       WHERE user_id = ? 
-       ORDER BY created_at DESC`,
-      [userId]
-    );
-
-    res.json({
-      userId,
-      history: history || []
-    });
-  } catch (error) {
-    console.error('Approval history error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+    const user = await Users.findByIdAndUpdate(req.params.userId, { profile_completed: true });
+    if (!user) return res.status(404).json({ message: 'User not found' });
+    res.json({ message: 'Submitted for approval', success: true });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
 module.exports = router;

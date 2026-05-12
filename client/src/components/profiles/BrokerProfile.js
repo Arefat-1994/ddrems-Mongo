@@ -27,6 +27,7 @@ const BrokerProfile = ({ user, onComplete }) => {
   const [licensePreview, setLicensePreview] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [editReason, setEditReason] = useState('');
+  const [requestedFields, setRequestedFields] = useState([]);
   const [activeDetailTab, setActiveDetailTab] = useState('Personal Info');
 
   const countryCodes = [
@@ -106,6 +107,7 @@ const BrokerProfile = ({ user, onComplete }) => {
     } finally {
       setLoading(false);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user.id, user.name, user.phone]);
 
   const fetchEditRequest = useCallback(async () => {
@@ -129,12 +131,13 @@ const BrokerProfile = ({ user, onComplete }) => {
   }, [fetchProfile, fetchEditRequest]);
 
   const handleChange = (e) => {
-    // Only allow changes if profile string is not active OR if in edit mode
-    if (!!profile && !editMode) {
+    const { name, value } = e.target;
+    // If in edit mode, only allow changes if the field is approved
+    if (!!profile && editMode && editRequest) {
+      if (!editRequest.approved_fields?.includes(name)) return;
+    } else if (!!profile && !editMode) {
       return;
     }
-
-    const { name, value } = e.target;
 
     if (name === 'full_name') {
       const alphabeticValue = value.replace(/[^a-zA-Z\s]/g, '');
@@ -160,6 +163,11 @@ const BrokerProfile = ({ user, onComplete }) => {
       return;
     }
 
+    if (requestedFields.length === 0) {
+      alert('Please select at least one field to edit.');
+      return;
+    }
+
     if (!window.confirm('Are you sure you want to request permission to edit your profile? This will notify the admin team.')) {
       return;
     }
@@ -169,7 +177,8 @@ const BrokerProfile = ({ user, onComplete }) => {
         user_id: user.id,
         profile_type: 'broker',
         profile_id: profile.id,
-        reason: editReason
+        reason: editReason,
+        requested_fields: requestedFields
       });
       try {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -181,6 +190,7 @@ const BrokerProfile = ({ user, onComplete }) => {
       } catch(e) {}
       alert('✅ Edit request sent successfully! Admin will review your request.');
       setEditReason('');
+      setRequestedFields([]);
       setShowEditModal(false);
       fetchEditRequest();
     } catch (error) {
@@ -234,11 +244,11 @@ const BrokerProfile = ({ user, onComplete }) => {
       const fullPhoneNumber = `${selectedCountryCode}${formData.phone_number}`;
 
       if (profile) {
-        await axios.put(`http://localhost:5000/api/profiles/broker/${profile.id}`, { ...formData, phone_number: fullPhoneNumber });
+        await axios.put(`http://${window.location.hostname}:5000/api/profiles/broker/${profile.id}`, { ...formData, phone_number: fullPhoneNumber });
         
         // If in edit mode, submit the edit request
         if (editMode && editRequest) {
-          await axios.post(`http://localhost:5000/api/edit-requests/${editRequest.id}/submit`, {
+          await axios.post(`http://${window.location.hostname}:5000/api/edit-requests/${editRequest.id}/submit`, {
             user_id: user.id,
             profile_type: 'broker',
             updated_data: { ...formData, phone_number: fullPhoneNumber }
@@ -252,7 +262,7 @@ const BrokerProfile = ({ user, onComplete }) => {
           alert('✅ Profile updated successfully!');
         }
       } else {
-        await axios.post('http://localhost:5000/api/profiles/broker', {
+        await axios.post(`http://${window.location.hostname}:5000/api/profiles/broker`, {
           ...formData,
           phone_number: fullPhoneNumber,
           user_id: user.id
@@ -281,7 +291,7 @@ const BrokerProfile = ({ user, onComplete }) => {
         <div style={{ display: 'grid', gap: '16px', marginTop: '16px' }}>
           <div>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '4px' }}>Full Name *</label>
-            <input type="text" name="full_name" value={formData.full_name} onChange={handleChange} required style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }} />
+            <input type="text" name="full_name" value={formData.full_name} onChange={handleChange} required disabled={!!profile && (!editMode || (editMode && !editRequest?.approved_fields?.includes('full_name')))} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }} />
           </div>
           <div>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '4px' }}>Phone Number *</label>
@@ -290,18 +300,18 @@ const BrokerProfile = ({ user, onComplete }) => {
                 value={selectedCountryCode} 
                 onChange={(e) => setSelectedCountryCode(e.target.value)}
                 style={{ width: '100px', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }}
-                disabled={!!profile && !editMode}
+                disabled={!!profile && (!editMode || (editMode && !editRequest?.approved_fields?.includes('phone_number')))}
               >
                 {countryCodes.map(c => (
                   <option key={c.code} value={c.code}>{c.code}</option>
                 ))}
               </select>
-              <input type="tel" name="phone_number" value={formData.phone_number} onChange={handleChange} placeholder="Digits only" required disabled={!!profile && !editMode} style={{ flex: 1, padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }} />
+              <input type="tel" name="phone_number" value={formData.phone_number} onChange={handleChange} placeholder="Digits only" required disabled={!!profile && (!editMode || (editMode && !editRequest?.approved_fields?.includes('phone_number')))} style={{ flex: 1, padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }} />
             </div>
           </div>
           <div>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '4px' }}>Address</label>
-            <textarea name="address" value={formData.address} onChange={handleChange} rows="3" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }} />
+            <textarea name="address" value={formData.address} onChange={handleChange} rows="3" disabled={!!profile && (!editMode || (editMode && !editRequest?.approved_fields?.includes('address')))} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }} />
           </div>
         </div>
       </div>
@@ -311,7 +321,7 @@ const BrokerProfile = ({ user, onComplete }) => {
         <div style={{ display: 'grid', gap: '16px', marginTop: '16px' }}>
           <div>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '4px' }}>License Number *</label>
-            <input type="text" name="license_number" value={formData.license_number} onChange={handleChange} required style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }} />
+            <input type="text" name="license_number" value={formData.license_number} onChange={handleChange} required disabled={!!profile && (!editMode || (editMode && !editRequest?.approved_fields?.includes('license_number')))} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }} />
           </div>
         </div>
       </div>
@@ -354,9 +364,17 @@ const BrokerProfile = ({ user, onComplete }) => {
     return (
       <div className="unified-profile-container" style={{ padding: '24px' }}>
         <div className="form-registration-view">
-          <div className="profile-info-banner" style={{ background: '#eff6ff', padding: '16px', borderRadius: '8px', marginBottom: '24px' }}>
+          <div className="profile-info-banner" style={{ background: '#eff6ff', padding: '20px', borderRadius: '12px', marginBottom: '24px', border: '1px solid #bfdbfe' }}>
             <h3 style={{ margin: '0 0 8px 0', color: '#1e40af' }}>📋 Complete Your Broker Profile</h3>
-            <p style={{ margin: 0, color: '#3b82f6', fontSize: '14px' }}>Please complete your profile to start managing properties.</p>
+            <p style={{ margin: '0 0 12px 0', color: '#3b82f6', fontSize: '14px' }}>Your account has been activated. Please complete your profile to get full access.</p>
+            <div style={{ background: '#dbeafe', padding: '12px', borderRadius: '8px', fontSize: '13px', color: '#1e3a8a' }}>
+              <strong>How it works:</strong>
+              <ol style={{ margin: '8px 0 0 0', paddingLeft: '18px' }}>
+                <li style={{ marginBottom: '4px' }}>✅ <strong>Step 1:</strong> Application Approved — Account Activated <em>(Done!)</em></li>
+                <li style={{ marginBottom: '4px' }}>👉 <strong>Step 2:</strong> Complete your profile below and submit</li>
+                <li>🔒 <strong>Step 3:</strong> Admin reviews and approves your profile → Full dashboard access</li>
+              </ol>
+            </div>
           </div>
           {renderProfileForm()}
         </div>
@@ -383,11 +401,18 @@ const BrokerProfile = ({ user, onComplete }) => {
         )}
 
         {profile.profile_status !== 'approved' && (
-          <div className="security-note" style={{ background: profile.profile_status === 'pending' ? '#fffbeb' : '#fef2f2', borderColor: profile.profile_status === 'pending' ? '#fcd34d' : '#fecaca' }}>
+          <div className="security-note" style={{ background: profile.profile_status === 'pending' ? '#fffbeb' : '#fef2f2', borderColor: profile.profile_status === 'pending' ? '#fcd34d' : '#fecaca', padding: '16px' }}>
             <i>{profile.profile_status === 'pending' ? '⏳' : '❌'}</i>
             <div>
-              <strong style={{ display: 'block', color: '#111827' }}>Status: {profile.profile_status.toUpperCase()}</strong>
-              {profile.profile_status === 'rejected' ? profile.rejection_reason : 'Awaiting administrator approval.'}
+              <strong style={{ display: 'block', color: '#111827', marginBottom: '6px' }}>Profile Status: {(profile.profile_status || '').toUpperCase()}</strong>
+              {profile.profile_status === 'pending' ? (
+                <div>
+                  <p style={{ margin: '0 0 8px 0', fontSize: '14px', color: '#92400e' }}>Your profile has been submitted and is awaiting administrator approval.</p>
+                  <p style={{ margin: 0, fontSize: '13px', color: '#b45309' }}>⚠️ You will NOT have access to the broker dashboard or services until your profile is approved. You will be notified by email once a decision is made.</p>
+                </div>
+              ) : (
+                <p style={{ margin: 0, fontSize: '14px', color: '#991b1b' }}>{profile.rejection_reason || 'Your profile was not approved. Please contact support.'}</p>
+              )}
             </div>
           </div>
         )}
@@ -529,6 +554,32 @@ const BrokerProfile = ({ user, onComplete }) => {
                           value={editReason}
                           onChange={(e) => setEditReason(e.target.value)}
                         />
+                        <div style={{ margin: '16px 0' }}>
+                          <h5 style={{ margin: '0 0 8px 0' }}>Select Fields to Edit:</h5>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                            {[
+                              { id: 'full_name', label: 'Full Name' },
+                              { id: 'phone_number', label: 'Phone Number' },
+                              { id: 'address', label: 'Address' },
+                              { id: 'license_number', label: 'License Number' },
+                              { id: 'profile_photo', label: 'Profile Photo' },
+                              { id: 'id_document', label: 'ID Document' },
+                              { id: 'broker_license', label: 'Broker License' }
+                            ].map(field => (
+                              <label key={field.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer' }}>
+                                <input 
+                                  type="checkbox" 
+                                  checked={requestedFields.includes(field.id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) setRequestedFields([...requestedFields, field.id]);
+                                    else setRequestedFields(requestedFields.filter(f => f !== field.id));
+                                  }}
+                                />
+                                {field.label}
+                              </label>
+                            ))}
+                          </div>
+                        </div>
                         <button className="btn-submit-edit" onClick={() => {
                           handleRequestEdit();
                           setActiveDetailTab('Personal Info');

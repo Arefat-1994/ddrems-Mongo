@@ -19,7 +19,7 @@ const InProgressView = ({ user, onLogout, setCurrentPage, onBack }) => {
     const fetchEngagements = async () => {
       setLoading(true);
       try {
-        const res = await axios.get(`http://localhost:5000/api/broker-engagement/broker/${user.id}`);
+        const res = await axios.get(`http://${window.location.hostname}:5000/api/broker-engagement/broker/${user.id}`);
         const all = res.data.engagements || [];
         // Filter to only in-progress (not completed/cancelled/declined)
         const inProgress = all.filter(e => !['completed', 'cancelled', 'declined', 'rejected', 'broker_declined'].includes(e.status));
@@ -254,7 +254,7 @@ const AgentDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
   const fetchAgentData = async () => {
     try {
       // Fetch ONLY broker's own properties
-      const propertiesRes = await axios.get(`http://localhost:5000/api/properties/broker/${user.id}`);
+      const propertiesRes = await axios.get(`http://${window.location.hostname}:5000/api/properties/broker/${user.id}`);
       
       const brokerProperties = propertiesRes.data.filter(p => Number(p.broker_id) === Number(user.id)); // Safety filter
       setMyProperties(brokerProperties);
@@ -273,14 +273,14 @@ const AgentDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
       });
 
       try {
-        const messagesRes = await axios.get(`http://localhost:5000/api/messages/user/${user.id}`);
+        const messagesRes = await axios.get(`http://${window.location.hostname}:5000/api/messages/user/${user.id}`);
         setMessages(messagesRes.data.slice(0, 5));
       } catch (error) {
         setMessages([]);
       }
 
       try {
-        const announcementsRes = await axios.get('http://localhost:5000/api/announcements');
+        const announcementsRes = await axios.get(`http://${window.location.hostname}:5000/api/announcements`);
         setAnnouncements(announcementsRes.data.slice(0, 3));
       } catch (error) {
         setAnnouncements([]);
@@ -289,7 +289,7 @@ const AgentDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
 
       // Fetch broker's agreements
       try {
-        const agreementsRes = await axios.get(`http://localhost:5000/api/agreements/broker/${user.id}`);
+        const agreementsRes = await axios.get(`http://${window.location.hostname}:5000/api/agreements/broker/${user.id}`);
         setAgreements(agreementsRes.data);
       } catch (error) {
         setAgreements([]);
@@ -331,7 +331,7 @@ const AgentDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
   const handleUpdateProperty = async (e) => {
     e.preventDefault();
     try {
-      await axios.put(`http://localhost:5000/api/properties/${selectedProperty.id}`, {
+      await axios.put(`http://${window.location.hostname}:5000/api/properties/${selectedProperty.id}`, {
         ...propertyForm
       });
       alert('Property updated successfully!');
@@ -349,7 +349,7 @@ const AgentDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
     }
 
     try {
-      await axios.delete(`http://localhost:5000/api/properties/${propertyId}`);
+      await axios.delete(`http://${window.location.hostname}:5000/api/properties/${propertyId}`);
       alert('Property deleted successfully');
       fetchAgentData();
     } catch (error) {

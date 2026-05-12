@@ -21,12 +21,12 @@ const CustomerDashboard = ({ user, onLogout, setCurrentPage: setGlobalPage, setV
 
   const checkProfileStatus = async () => {
     try {
-      const response = await axios.get(`http://localhost:5000/api/profiles/customer/${user.id}`);
+      const response = await axios.get(`http://${window.location.hostname}:5000/api/profiles/customer/${user.id}`);
       setProfileStatus(response.data.profile_status);
       
       // Update user profile_approved and profile_completed in users table
       if (response.data.profile_status === 'approved') {
-        await axios.put(`http://localhost:5000/api/users/${user.id}`, {
+        await axios.put(`http://${window.location.hostname}:5000/api/users/${user.id}`, {
           profile_approved: true,
           profile_completed: true
         });

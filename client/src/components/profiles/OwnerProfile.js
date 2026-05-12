@@ -26,6 +26,7 @@ const OwnerProfile = ({ user, onComplete }) => {
   const [licensePreview, setLicensePreview] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [editReason, setEditReason] = useState('');
+  const [requestedFields, setRequestedFields] = useState([]);
   const [activeDetailTab, setActiveDetailTab] = useState('Personal Info');
 
   const countryCodes = [
@@ -128,12 +129,13 @@ const OwnerProfile = ({ user, onComplete }) => {
   };
 
   const handleChange = (e) => {
-    // Only allow changes if profile string is not active OR if in edit mode
-    if (!!profile && !editMode) {
+    const { name, value } = e.target;
+    // If in edit mode, only allow changes if the field is approved
+    if (!!profile && editMode && editRequest) {
+      if (!editRequest.approved_fields?.includes(name)) return;
+    } else if (!!profile && !editMode) {
       return;
     }
-
-    const { name, value } = e.target;
 
     if (name === 'full_name') {
       const alphabeticValue = value.replace(/[^a-zA-Z\s]/g, '');
@@ -229,6 +231,11 @@ const OwnerProfile = ({ user, onComplete }) => {
       return;
     }
 
+    if (requestedFields.length === 0) {
+      alert('Please select at least one field to edit.');
+      return;
+    }
+
     if (!window.confirm('Are you sure you want to request permission to edit your profile? This will notify the admin team.')) {
       return;
     }
@@ -238,7 +245,8 @@ const OwnerProfile = ({ user, onComplete }) => {
         user_id: user.id,
         profile_type: 'owner',
         profile_id: profile.id,
-        reason: editReason
+        reason: editReason,
+        requested_fields: requestedFields
       });
       try {
         const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -250,6 +258,7 @@ const OwnerProfile = ({ user, onComplete }) => {
       } catch(e) {}
       alert('✅ Edit request sent successfully! Admin will review your request.');
       setEditReason('');
+      setRequestedFields([]);
       fetchEditRequest();
     } catch (error) {
       console.error('Error requesting edit:', error);
@@ -268,7 +277,7 @@ const OwnerProfile = ({ user, onComplete }) => {
         <div style={{ display: 'grid', gap: '16px', marginTop: '16px' }}>
           <div>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '4px' }}>Full Name *</label>
-            <input type="text" name="full_name" value={formData.full_name} onChange={handleChange} required style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }} />
+            <input type="text" name="full_name" value={formData.full_name} onChange={handleChange} required disabled={!!profile && (!editMode || (editMode && !editRequest?.approved_fields?.includes('full_name')))} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }} />
           </div>
           <div>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '4px' }}>Phone Number *</label>
@@ -277,18 +286,18 @@ const OwnerProfile = ({ user, onComplete }) => {
                 value={selectedCountryCode} 
                 onChange={(e) => setSelectedCountryCode(e.target.value)}
                 style={{ width: '100px', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }}
-                disabled={!!profile && !editMode}
+                disabled={!!profile && (!editMode || (editMode && !editRequest?.approved_fields?.includes('phone_number')))}
               >
                 {countryCodes.map(c => (
                   <option key={c.code} value={c.code}>{c.code}</option>
                 ))}
               </select>
-              <input type="tel" name="phone_number" value={formData.phone_number} onChange={handleChange} placeholder="Digits only" required disabled={!!profile && !editMode} style={{ flex: 1, padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }} />
+              <input type="tel" name="phone_number" value={formData.phone_number} onChange={handleChange} placeholder="Digits only" required disabled={!!profile && (!editMode || (editMode && !editRequest?.approved_fields?.includes('phone_number')))} style={{ flex: 1, padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }} />
             </div>
           </div>
           <div>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '4px' }}>Address</label>
-            <textarea name="address" value={formData.address} onChange={handleChange} rows="3" style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }} />
+            <textarea name="address" value={formData.address} onChange={handleChange} rows="3" disabled={!!profile && (!editMode || (editMode && !editRequest?.approved_fields?.includes('address')))} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }} />
           </div>
         </div>
       </div>
@@ -506,6 +515,31 @@ const OwnerProfile = ({ user, onComplete }) => {
                           value={editReason}
                           onChange={(e) => setEditReason(e.target.value)}
                         />
+                        <div style={{ margin: '16px 0' }}>
+                          <h5 style={{ margin: '0 0 8px 0' }}>Select Fields to Edit:</h5>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                            {[
+                              { id: 'full_name', label: 'Full Name' },
+                              { id: 'phone_number', label: 'Phone Number' },
+                              { id: 'address', label: 'Address' },
+                              { id: 'profile_photo', label: 'Profile Photo' },
+                              { id: 'id_document', label: 'ID Document' },
+                              { id: 'business_license', label: 'Business License' }
+                            ].map(field => (
+                              <label key={field.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer' }}>
+                                <input 
+                                  type="checkbox" 
+                                  checked={requestedFields.includes(field.id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) setRequestedFields([...requestedFields, field.id]);
+                                    else setRequestedFields(requestedFields.filter(f => f !== field.id));
+                                  }}
+                                />
+                                {field.label}
+                              </label>
+                            ))}
+                          </div>
+                        </div>
                         <button className="btn-submit-edit" onClick={() => {
                           handleRequestEdit();
                           setActiveDetailTab('Personal Info');

@@ -1,47 +1,92 @@
 const express = require("express");
 const router = express.Router();
-const db = require("../config/db");
-const crypto = require("crypto");
+const mongoose = require("mongoose");
+const { 
+  Users, 
+  BrokerProfiles, 
+  Properties, 
+  BrokerEngagements, 
+  BrokerEngagementHistory, 
+  BrokerEngagementMessages, 
+  BrokerEngagementSignatures,
+  Notifications,
+  CommissionTracking,
+  PropertyDocuments,
+  AgreementDocuments
+} = require("../models");
 const { generateRentalSchedule } = require("./rental-payments");
+const crypto = require("crypto");
+const fs = require("fs");
+const path = require("path");
 
 // ============================================================================
 // HELPER: Log engagement history
 // ============================================================================
 async function logHistory(engagementId, action, userId, userRole, prevStatus, newStatus, notes, metadata) {
-  await db.query(
-    `INSERT INTO broker_engagement_history
-       (engagement_id, action, action_by_id, action_by_role, previous_status, new_status, notes, metadata)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-    [engagementId, action, userId, userRole, prevStatus, newStatus, notes, metadata ? JSON.stringify(metadata) : null]
-  );
+  try {
+    await BrokerEngagementHistory.create({
+      engagement_id: engagementId,
+      action,
+      action_by_id: userId,
+      action_by_role: userRole,
+      previous_status: prevStatus,
+      new_status: newStatus,
+      notes,
+      metadata: metadata || null,
+      created_at: new Date()
+    });
+  } catch (error) {
+    console.error("Error in logHistory:", error);
+  }
 }
 
 // HELPER: Add system message to engagement thread
 async function systemMessage(engagementId, message, metadata) {
-  await db.query(
-    `INSERT INTO broker_engagement_messages
-       (engagement_id, sender_id, sender_role, message_type, message, metadata)
-     VALUES (?, NULL, 'system', 'system', ?, ?)`,
-    [engagementId, message, metadata ? JSON.stringify(metadata) : null]
-  );
+  try {
+    await BrokerEngagementMessages.create({
+      engagement_id: engagementId,
+      sender_id: null,
+      sender_role: 'system',
+      message_type: 'system',
+      message,
+      metadata: metadata || null,
+      created_at: new Date()
+    });
+  } catch (error) {
+    console.error("Error in systemMessage:", error);
+  }
 }
 
 // HELPER: Add a private system message (hidden from opposing party)
 async function systemMessagePrivate(engagementId, message, metadata) {
-  await db.query(
-    `INSERT INTO broker_engagement_messages
-       (engagement_id, sender_id, sender_role, message_type, message, metadata)
-     VALUES (?, NULL, 'system', 'advice', ?, ?)`,
-    [engagementId, message, metadata ? JSON.stringify(metadata) : null]
-  );
+  try {
+    await BrokerEngagementMessages.create({
+      engagement_id: engagementId,
+      sender_id: null,
+      sender_role: 'system',
+      message_type: 'advice',
+      message,
+      metadata: metadata || null,
+      created_at: new Date()
+    });
+  } catch (error) {
+    console.error("Error in systemMessagePrivate:", error);
+  }
 }
 
 // HELPER: Notify user
 async function notifyUser(userId, title, message, type) {
-  await db.query(
-    "INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)",
-    [userId, title, message, type || "info"]
-  );
+  try {
+    await Notifications.create({
+      user_id: userId,
+      title,
+      message,
+      type: type || "info",
+      created_at: new Date()
+    });
+  } catch (error) {
+    console.error("Error in notifyUser:", error);
+  }
 }
 
 // ============================================================================
@@ -50,15 +95,22 @@ async function notifyUser(userId, title, message, type) {
 // ============================================================================
 router.get("/available-brokers", async (req, res) => {
   try {
-    const [brokers] = await db.query(`
-      SELECT u.id, u.name, u.email, u.phone,
-             bp.license_number, bp.profile_photo, bp.address,
-             bp.profile_status
-      FROM users u
-      LEFT JOIN broker_profiles bp ON u.id = bp.user_id
-      WHERE u.role = 'broker' AND u.status = 'active'
-      ORDER BY u.name ASC
-    `);
+    const brokers = await Users.aggregate([
+      { $match: { role: 'broker', status: 'active' } },
+      { $lookup: { from: 'brokerprofiles', localField: '_id', foreignField: 'user_id', as: 'profile' } },
+      { $unwind: { path: '$profile', preserveNullAndEmptyArrays: true } },
+      { $project: {
+        id: '$_id',
+        name: 1,
+        email: 1,
+        phone: 1,
+        license_number: '$profile.license_number',
+        profile_photo: '$profile.profile_photo',
+        address: '$profile.address',
+        profile_status: '$profile.profile_status'
+      }},
+      { $sort: { name: 1 } }
+    ]);
     res.json({ success: true, brokers });
   } catch (error) {
     console.error("Error fetching available brokers:", error);
@@ -81,68 +133,71 @@ router.post("/hire", async (req, res) => {
       return res.status(400).json({ success: false, message: "Buyer ID, Broker ID, and Property ID are required" });
     }
 
-    // Get property details (owner)
-    const [property] = await db.query("SELECT owner_id, price, listing_type FROM properties WHERE id = ?", [property_id]);
-    if (property.length === 0) {
+    if (!mongoose.Types.ObjectId.isValid(property_id)) return res.status(400).json({ message: 'Invalid Property ID' });
+
+    const property = await Properties.findById(property_id);
+    if (!property) {
       return res.status(404).json({ success: false, message: "Property not found" });
     }
-    const owner_id = property[0].owner_id;
+    const owner_id = property.owner_id;
     if (!owner_id) {
       return res.status(400).json({ success: false, message: "Property has no owner assigned" });
     }
     
-    // Resolve type
-    const resolvedType = engagement_type || property[0].listing_type || 'sale';
+    const resolvedType = engagement_type || property.listing_type || 'sale';
 
-    // Check for existing active engagement
-    const [existing] = await db.query(
-      `SELECT id FROM broker_engagements
-       WHERE buyer_id = ? AND property_id = ? AND status NOT IN ('completed', 'cancelled', 'broker_declined')`,
-      [buyer_id, property_id]
-    );
-    if (existing.length > 0) {
+    const existing = await BrokerEngagements.findOne({
+      buyer_id,
+      property_id,
+      status: { $nin: ['completed', 'cancelled', 'broker_declined'] }
+    });
+
+    if (existing) {
       return res.status(400).json({ success: false, message: "You already have an active broker engagement for this property" });
     }
 
-    // Create engagement with commission offer
-    const offer = starting_offer || property[0].price;
+    const offer = starting_offer || property.price;
     const commissionOffer = buyer_commission_offer || 2;
     const feePayer = system_fee_payer || 'buyer';
-    const [result] = await db.query(
-      `INSERT INTO broker_engagements
-         (buyer_id, broker_id, property_id, owner_id, status, starting_offer, current_offer, buyer_message,
-          engagement_type, rental_duration_months, payment_schedule, security_deposit,
-          buyer_commission_offer, commission_negotiation_status, system_fee_payer)
-       VALUES (?, ?, ?, ?, 'pending_broker_acceptance', ?, ?, ?, ?, ?, ?, ?, ?, 'buyer_offered', ?)`,
-      [buyer_id, broker_id, property_id, owner_id, offer, offer, buyer_message || null,
-       resolvedType,
-       resolvedType === 'rent' ? (rental_duration_months || 12) : null,
-       resolvedType === 'rent' ? (payment_schedule || 'monthly') : null,
-       resolvedType === 'rent' ? (security_deposit || null) : null,
-       commissionOffer, feePayer
-      ]
-    );
 
-    const engId = result.insertId;
+    const newEngagement = await BrokerEngagements.create({
+      buyer_id,
+      broker_id,
+      property_id,
+      owner_id,
+      status: 'pending_broker_acceptance',
+      starting_offer: offer,
+      current_offer: offer,
+      buyer_message: buyer_message || null,
+      engagement_type: resolvedType,
+      rental_duration_months: resolvedType === 'rent' ? (rental_duration_months || 12) : null,
+      payment_schedule: resolvedType === 'rent' ? (payment_schedule || 'monthly') : null,
+      security_deposit: resolvedType === 'rent' ? (security_deposit || null) : null,
+      buyer_commission_offer: commissionOffer,
+      commission_negotiation_status: 'buyer_offered',
+      system_fee_payer: feePayer,
+      created_at: new Date(),
+      updated_at: new Date()
+    });
 
-    // Log history
+    const engId = newEngagement._id;
+
     await logHistory(engId, "engagement_created", buyer_id, "buyer", null, "pending_broker_acceptance",
       `Step 1/12: Buyer hired broker with ${commissionOffer}% commission offer`, { starting_offer: offer, commission_offer: commissionOffer });
 
-    // System message (private to buyer/broker)
     await systemMessagePrivate(engId, `📋 Step 1/12: Buyer has requested broker representation.\n• Starting offer: ${Number(offer).toLocaleString()} ETB\n• Proposed broker commission: ${commissionOffer}%\n• System fee (5%) paid by: ${feePayer}`);
 
-    // If buyer sent a message, record it (as advice so owner doesn't see it)
     if (buyer_message) {
-      await db.query(
-        `INSERT INTO broker_engagement_messages
-           (engagement_id, sender_id, sender_role, message_type, message)
-         VALUES (?, ?, 'buyer', 'advice', ?)`,
-        [engId, buyer_id, buyer_message]
-      );
+      await BrokerEngagementMessages.create({
+        engagement_id: engId,
+        sender_id: buyer_id,
+        sender_role: 'buyer',
+        message_type: 'advice',
+        message: buyer_message,
+        created_at: new Date()
+      });
     }
 
-    // Notify broker
     const offerType = resolvedType === 'rent' ? 'Monthly Rent' : 'Offer Price';
     await notifyUser(broker_id, "🤝 Step 1/12: New Broker Engagement Request",
       `A buyer has requested you to represent them. ${offerType}: ${Number(offer).toLocaleString()} ETB. Commission offer: ${commissionOffer}%. Please review and accept/decline.`, "info");
@@ -168,33 +223,33 @@ router.put("/:id/broker-accept", async (req, res) => {
     const { id } = req.params;
     const { broker_id, decision, decline_reason } = req.body;
 
-    const [engagement] = await db.query("SELECT * FROM broker_engagements WHERE id = ?", [id]);
-    if (engagement.length === 0) return res.status(404).json({ success: false, message: "Engagement not found" });
+    const eng = await BrokerEngagements.findById(id);
+    if (!eng) return res.status(404).json({ success: false, message: "Engagement not found" });
 
-    const eng = engagement[0];
     if (eng.status !== "pending_broker_acceptance") {
       return res.status(400).json({ success: false, message: "Engagement is not pending broker acceptance" });
     }
-    if (eng.broker_id !== broker_id) {
+    if (eng.broker_id.toString() !== broker_id) {
       return res.status(403).json({ success: false, message: "You are not the assigned broker" });
     }
 
     if (decision === "accept") {
-      // Move to commission negotiation phase instead of directly to broker_negotiating
-      await db.query(
-        `UPDATE broker_engagements SET status = 'commission_negotiation', broker_accepted_at = NOW(), updated_at = NOW() WHERE id = ?`,
-        [id]
-      );
+      eng.status = 'commission_negotiation';
+      eng.broker_accepted_at = new Date();
+      eng.updated_at = new Date();
+      await eng.save();
+
       await logHistory(id, "broker_accepted", broker_id, "broker", "pending_broker_acceptance", "commission_negotiation", "Step 2/12: Broker accepted — commission negotiation starts");
       await systemMessage(id, "📋 Step 2/12: Broker has accepted the engagement. Commission negotiation is now in progress.");
       await notifyUser(eng.buyer_id, "✅ Step 2/12: Broker Accepted", `Your broker has accepted. Now negotiate the commission. Your offer: ${eng.buyer_commission_offer || 2}%. Next: Step 3 — Commission Agreement.`, "success");
 
       res.json({ success: true, message: "Engagement accepted. Commission negotiation started.", status: "commission_negotiation" });
     } else {
-      await db.query(
-        `UPDATE broker_engagements SET status = 'broker_declined', broker_decline_reason = ?, updated_at = NOW() WHERE id = ?`,
-        [decline_reason || null, id]
-      );
+      eng.status = 'broker_declined';
+      eng.broker_decline_reason = decline_reason || null;
+      eng.updated_at = new Date();
+      await eng.save();
+
       await logHistory(id, "broker_declined", broker_id, "broker", "pending_broker_acceptance", "broker_declined",
         decline_reason || "Broker declined representation");
       await systemMessagePrivate(id, `Broker has declined the engagement.${decline_reason ? " Reason: " + decline_reason : ""}`);
@@ -217,17 +272,15 @@ router.put("/:id/commission-respond", async (req, res) => {
     const { id } = req.params;
     const { user_id, user_role, action, counter_commission, system_fee_payer } = req.body;
 
-    const [engagement] = await db.query("SELECT * FROM broker_engagements WHERE id = ?", [id]);
-    if (engagement.length === 0) return res.status(404).json({ success: false, message: "Engagement not found" });
+    const eng = await BrokerEngagements.findById(id);
+    if (!eng) return res.status(404).json({ success: false, message: "Engagement not found" });
 
-    const eng = engagement[0];
     if (eng.status !== "commission_negotiation") {
       return res.status(400).json({ success: false, message: "Not in commission negotiation phase. Current: " + eng.status });
     }
 
-    // Validate the user is buyer or broker
-    const isBuyerUser = eng.buyer_id === user_id;
-    const isBrokerUser = eng.broker_id === user_id;
+    const isBuyerUser = eng.buyer_id.toString() === user_id;
+    const isBrokerUser = eng.broker_id.toString() === user_id;
     if (!isBuyerUser && !isBrokerUser) {
       return res.status(403).json({ success: false, message: "You are not a party to this commission negotiation" });
     }
@@ -238,29 +291,24 @@ router.put("/:id/commission-respond", async (req, res) => {
 
     const currentBuyerOffer = Number(eng.buyer_commission_offer || 2);
     const currentBrokerCounter = Number(eng.broker_commission_counter || 0);
-    const commStatus = eng.commission_negotiation_status;
 
     if (action === 'accept_commission') {
-      // Determine the agreed commission
       let agreedPct;
       if (isBrokerUser) {
-        // Broker accepts buyer's offer
         agreedPct = currentBuyerOffer;
       } else {
-        // Buyer accepts broker's counter
         agreedPct = currentBrokerCounter || currentBuyerOffer;
       }
 
       const feePayer = system_fee_payer || eng.system_fee_payer || 'buyer';
 
-      await db.query(
-        `UPDATE broker_engagements SET 
-           agreed_commission_pct = ?, commission_negotiation_status = 'agreed',
-           commission_percentage = ?, system_fee_payer = ?,
-           status = 'broker_negotiating', updated_at = NOW()
-         WHERE id = ?`,
-        [agreedPct, agreedPct, feePayer, id]
-      );
+      eng.agreed_commission_pct = agreedPct;
+      eng.commission_negotiation_status = 'agreed';
+      eng.commission_percentage = agreedPct;
+      eng.system_fee_payer = feePayer;
+      eng.status = 'broker_negotiating';
+      eng.updated_at = new Date();
+      await eng.save();
 
       const roleLabel = isBrokerUser ? 'Broker' : 'Buyer';
       await logHistory(id, "commission_agreed", user_id, user_role, "commission_negotiation", "broker_negotiating",
@@ -268,7 +316,6 @@ router.put("/:id/commission-respond", async (req, res) => {
         { agreed_commission_pct: agreedPct, system_fee_payer: feePayer });
       await systemMessage(id, `💰 Step 3/12: Commission Deal Agreed!\n• Broker Commission: ${agreedPct}%\n• System Fee: 5% (paid by ${feePayer})\n• ${roleLabel} accepted the offer. Proceeding to property negotiation.`);
 
-      // Notify both parties
       await notifyUser(eng.buyer_id, "💰 Step 3/12: Commission Agreed!",
         `Commission agreed at ${agreedPct}%. System fee 5% paid by ${feePayer}. Next: Step 4 — Property Offer Negotiation.`, "success");
       await notifyUser(eng.broker_id, "💰 Step 3/12: Commission Agreed!",
@@ -277,10 +324,10 @@ router.put("/:id/commission-respond", async (req, res) => {
       res.json({ success: true, message: `Commission agreed at ${agreedPct}%. Proceeding to property negotiation.`, status: "broker_negotiating", agreed_commission_pct: agreedPct });
 
     } else if (action === 'reject_commission') {
-      await db.query(
-        `UPDATE broker_engagements SET status = 'cancelled', commission_negotiation_status = 'rejected', updated_at = NOW() WHERE id = ?`,
-        [id]
-      );
+      eng.status = 'cancelled';
+      eng.commission_negotiation_status = 'rejected';
+      eng.updated_at = new Date();
+      await eng.save();
 
       const roleLabel = isBrokerUser ? 'Broker' : 'Buyer';
       await logHistory(id, "commission_rejected", user_id, user_role, "commission_negotiation", "cancelled",
@@ -299,20 +346,22 @@ router.put("/:id/commission-respond", async (req, res) => {
       }
 
       if (isBrokerUser) {
-        await db.query(
-          `UPDATE broker_engagements SET broker_commission_counter = ?, commission_negotiation_status = 'broker_countered', updated_at = NOW() WHERE id = ?`,
-          [counter_commission, id]
-        );
+        eng.broker_commission_counter = counter_commission;
+        eng.commission_negotiation_status = 'broker_countered';
+        eng.updated_at = new Date();
+        await eng.save();
+
         await logHistory(id, "broker_commission_counter", user_id, "broker", "commission_negotiation", "commission_negotiation",
           `Broker counter-offered commission at ${counter_commission}%`, { counter_commission });
         await systemMessagePrivate(id, `🔄 Broker proposed a counter commission of ${counter_commission}%. Awaiting buyer's response.`);
         await notifyUser(eng.buyer_id, "🔄 Step 3/12: Broker Commission Counter-Offer",
           `Your broker has counter-offered a commission of ${counter_commission}% (your offer was ${currentBuyerOffer}%). Please Accept, Reject, or Counter.`, "warning");
       } else {
-        await db.query(
-          `UPDATE broker_engagements SET buyer_commission_offer = ?, commission_negotiation_status = 'buyer_offered', updated_at = NOW() WHERE id = ?`,
-          [counter_commission, id]
-        );
+        eng.buyer_commission_offer = counter_commission;
+        eng.commission_negotiation_status = 'buyer_offered';
+        eng.updated_at = new Date();
+        await eng.save();
+
         await logHistory(id, "buyer_commission_counter", user_id, "buyer", "commission_negotiation", "commission_negotiation",
           `Buyer counter-offered commission at ${counter_commission}%`, { counter_commission });
         await systemMessagePrivate(id, `🔄 Buyer proposed a counter commission of ${counter_commission}%. Awaiting broker's response.`);
@@ -320,9 +369,9 @@ router.put("/:id/commission-respond", async (req, res) => {
           `The buyer has counter-offered a commission of ${counter_commission}% (your counter was ${currentBrokerCounter || 'N/A'}%). Please Accept, Reject, or Counter.`, "warning");
       }
 
-      const feePayer = system_fee_payer || eng.system_fee_payer;
-      if (feePayer && feePayer !== eng.system_fee_payer) {
-        await db.query(`UPDATE broker_engagements SET system_fee_payer = ? WHERE id = ?`, [feePayer, id]);
+      if (system_fee_payer && system_fee_payer !== eng.system_fee_payer) {
+        eng.system_fee_payer = system_fee_payer;
+        await eng.save();
       }
 
       res.json({ success: true, message: `Counter commission of ${counter_commission}% sent.`, status: "commission_negotiation" });
@@ -341,23 +390,13 @@ router.get("/:id/property-media", async (req, res) => {
   try {
     const { id } = req.params;
 
-    const [engagement] = await db.query("SELECT * FROM v_broker_engagements WHERE id = ?", [id]);
-    if (engagement.length === 0) return res.status(404).json({ success: false, message: "Engagement not found" });
+    const eng = await BrokerEngagements.findById(id);
+    if (!eng) return res.status(404).json({ success: false, message: "Engagement not found" });
 
-    const eng = engagement[0];
+    const property = await Properties.findById(eng.property_id).select('id title location latitude longitude video_url images').lean();
+    const documents = await PropertyDocuments.find({ property_id: eng.property_id }).lean();
 
-    // Get property details for video and coordinates
-    const [property] = await db.query(
-      "SELECT id, title, location, latitude, longitude, video_url, images FROM properties WHERE id = ?",
-      [eng.property_id]
-    );
-
-    // Get property documents
-    const [documents] = await db.query(
-      "SELECT id, document_type, document_name, document_path, access_key, uploaded_at FROM property_documents WHERE property_id = ?",
-      [eng.property_id]
-    );
-    const prop = property[0] || {};
+    const prop = property || {};
     let video_url = prop.video_url;
     if (video_url && video_url.startsWith('/uploads/')) {
       video_url = `http://${req.headers.host}${video_url}`;
@@ -393,33 +432,33 @@ router.put("/:id/broker-negotiate", async (req, res) => {
     const { id } = req.params;
     const { broker_id, offer_price, message, system_fee_payer } = req.body;
 
-    const [engagement] = await db.query("SELECT * FROM broker_engagements WHERE id = ?", [id]);
-    if (engagement.length === 0) return res.status(404).json({ success: false, message: "Engagement not found" });
+    const eng = await BrokerEngagements.findById(id);
+    if (!eng) return res.status(404).json({ success: false, message: "Engagement not found" });
 
-    const eng = engagement[0];
     if (!["broker_negotiating"].includes(eng.status)) {
       return res.status(400).json({ success: false, message: "Cannot negotiate in current status: " + eng.status });
     }
-    if (eng.broker_id !== broker_id) {
+    if (eng.broker_id.toString() !== broker_id) {
       return res.status(403).json({ success: false, message: "You are not the assigned broker" });
     }
 
     const price = offer_price || eng.current_offer;
 
-    // Save draft offer price and set pending_buyer_approval
-    await db.query(
-      `UPDATE broker_engagements SET draft_offer_price = ?, system_fee_payer = ?, status = 'pending_buyer_approval', updated_at = NOW() WHERE id = ?`,
-      [price, system_fee_payer || eng.system_fee_payer, id]
-    );
+    eng.draft_offer_price = price;
+    eng.system_fee_payer = system_fee_payer || eng.system_fee_payer;
+    eng.status = 'pending_buyer_approval';
+    eng.updated_at = new Date();
+    await eng.save();
 
-
-    // Record draft message (private — advice type so owner can't see it)
-    await db.query(
-      `INSERT INTO broker_engagement_messages
-         (engagement_id, sender_id, sender_role, message_type, message, metadata)
-       VALUES (?, ?, 'broker', 'advice', ?, ?)`,
-      [id, broker_id, message || `Broker drafted an offer of ${Number(price).toLocaleString()} ETB for buyer approval`, JSON.stringify({ draft_offer_price: price })]
-    );
+    await BrokerEngagementMessages.create({
+      engagement_id: id,
+      sender_id: broker_id,
+      sender_role: 'broker',
+      message_type: 'advice',
+      message: message || `Broker drafted an offer of ${Number(price).toLocaleString()} ETB for buyer approval`,
+      metadata: { draft_offer_price: price },
+      created_at: new Date()
+    });
 
     await logHistory(id, "broker_drafted_offer", broker_id, "broker", "broker_negotiating", "pending_buyer_approval",
       `Step 4/12: Broker drafted offer of ${Number(price).toLocaleString()} ETB — awaiting buyer approval`, { draft_offer_price: price });
@@ -443,69 +482,70 @@ router.put("/:id/buyer-approve-draft", async (req, res) => {
     const { id } = req.params;
     const { buyer_id, decision, reject_reason } = req.body;
 
-    const [engagement] = await db.query("SELECT * FROM broker_engagements WHERE id = ?", [id]);
-    if (engagement.length === 0) return res.status(404).json({ success: false, message: "Engagement not found" });
+    const eng = await BrokerEngagements.findById(id);
+    if (!eng) return res.status(404).json({ success: false, message: "Engagement not found" });
 
-    const eng = engagement[0];
     if (eng.status !== "pending_buyer_approval") {
       return res.status(400).json({ success: false, message: "No draft pending approval. Current status: " + eng.status });
     }
-    if (eng.buyer_id !== buyer_id) {
+    if (eng.buyer_id.toString() !== buyer_id) {
       return res.status(403).json({ success: false, message: "You are not the buyer" });
     }
 
     const draftPrice = eng.draft_offer_price;
 
     if (decision === "approve") {
-      // Update current_offer and send to owner
-      await db.query(
-        `UPDATE broker_engagements SET current_offer = ?, draft_offer_price = NULL, status = 'broker_negotiating', updated_at = NOW() WHERE id = ?`,
-        [draftPrice, id]
-      );
+      eng.current_offer = draftPrice;
+      eng.draft_offer_price = undefined;
+      eng.status = 'pending_owner_response';
+      eng.updated_at = new Date();
+      await eng.save();
 
-      // Record the official negotiation message (visible to owner)
-      await db.query(
-        `INSERT INTO broker_engagement_messages
-           (engagement_id, sender_id, sender_role, message_type, message, metadata)
-         VALUES (?, ?, 'broker', 'negotiation', ?, ?)`,
-        [id, eng.broker_id, `Offer of ${Number(draftPrice).toLocaleString()} ETB`, JSON.stringify({ offer_price: draftPrice })]
-      );
+      await BrokerEngagementMessages.create({
+        engagement_id: id,
+        sender_id: eng.broker_id,
+        sender_role: 'broker',
+        message_type: 'negotiation',
+        message: `Offer of ${Number(draftPrice).toLocaleString()} ETB`,
+        metadata: { offer_price: draftPrice },
+        created_at: new Date()
+      });
 
-      await logHistory(id, "buyer_approved_draft", buyer_id, "buyer", "pending_buyer_approval", "broker_negotiating",
+      await logHistory(id, "buyer_approved_draft", buyer_id, "buyer", "pending_buyer_approval", "pending_owner_response",
         `Buyer approved draft offer of ${Number(draftPrice).toLocaleString()} ETB — offer sent to owner`, { offer_price: draftPrice });
 
       await systemMessage(id, `Buyer approved the draft offer. Offer of ${Number(draftPrice).toLocaleString()} ETB has been sent to the owner.`);
 
-      // Notify owner
       await notifyUser(eng.owner_id, "📋 New Offer from Broker",
         `A broker has sent an offer of ${Number(draftPrice).toLocaleString()} ETB for your property. Please review and respond.`, "info");
-      // Notify broker
+      
       await notifyUser(eng.broker_id, "✅ Buyer Approved Your Offer",
         `The buyer approved your draft offer of ${Number(draftPrice).toLocaleString()} ETB. It has been sent to the owner.`, "success");
 
-      res.json({ success: true, message: "Offer approved and sent to owner", status: "broker_negotiating" });
+      res.json({ success: true, message: "Offer approved and sent to owner", status: "pending_owner_response" });
     } else {
-      // Buyer rejected — revert to broker_negotiating
-      await db.query(
-        `UPDATE broker_engagements SET draft_offer_price = NULL, status = 'broker_negotiating', updated_at = NOW() WHERE id = ?`,
-        [id]
-      );
+      eng.draft_offer_price = undefined;
+      eng.status = 'broker_negotiating';
+      eng.updated_at = new Date();
+      await eng.save();
 
       const reason = reject_reason || "No reason provided";
 
-      await db.query(
-        `INSERT INTO broker_engagement_messages
-           (engagement_id, sender_id, sender_role, message_type, message, metadata)
-         VALUES (?, ?, 'buyer', 'authorization', ?, ?)`,
-        [id, buyer_id, `Buyer rejected draft offer of ${Number(draftPrice).toLocaleString()} ETB. Reason: ${reason}`, JSON.stringify({ rejected_price: draftPrice, reason })]
-      );
+      await BrokerEngagementMessages.create({
+        engagement_id: id,
+        sender_id: buyer_id,
+        sender_role: 'buyer',
+        message_type: 'authorization',
+        message: `Buyer rejected draft offer of ${Number(draftPrice).toLocaleString()} ETB. Reason: ${reason}`,
+        metadata: { rejected_price: draftPrice, reason },
+        created_at: new Date()
+      });
 
       await logHistory(id, "buyer_rejected_draft", buyer_id, "buyer", "pending_buyer_approval", "broker_negotiating",
         `Buyer rejected draft offer of ${Number(draftPrice).toLocaleString()} ETB. Reason: ${reason}`, { rejected_price: draftPrice, reason });
 
       await systemMessagePrivate(id, `Buyer rejected the draft offer of ${Number(draftPrice).toLocaleString()} ETB. Reason: ${reason}. Broker should draft a new offer.`);
 
-      // Notify broker
       await notifyUser(eng.broker_id, "❌ Buyer Rejected Draft Offer",
         `The buyer rejected your draft of ${Number(draftPrice).toLocaleString()} ETB. Reason: ${reason}. Please draft a revised offer.`, "warning");
 
@@ -526,92 +566,91 @@ router.put("/:id/owner-respond", async (req, res) => {
     const { id } = req.params;
     const { owner_id, decision, counter_price, message, system_fee_payer } = req.body;
 
-    const [engagement] = await db.query("SELECT * FROM broker_engagements WHERE id = ?", [id]);
-    if (engagement.length === 0) return res.status(404).json({ success: false, message: "Engagement not found" });
+    const eng = await BrokerEngagements.findById(id);
+    if (!eng) return res.status(404).json({ success: false, message: "Engagement not found" });
 
-    const eng = engagement[0];
-    if (!["broker_negotiating"].includes(eng.status)) {
+    if (!["pending_owner_response"].includes(eng.status)) {
       return res.status(400).json({ success: false, message: "Cannot respond in current status: " + eng.status });
     }
-    if (eng.owner_id !== owner_id) {
+    if (eng.owner_id.toString() !== owner_id) {
       return res.status(403).json({ success: false, message: "You are not the property owner" });
     }
 
     if (decision === "accept") {
-      // Owner accepted the broker's offer
-      await db.query(
-        `UPDATE broker_engagements SET
-           status = 'broker_finalizing', agreed_price = ?, system_fee_payer = ?, owner_responded_at = NOW(), updated_at = NOW()
-         WHERE id = ?`,
-        [eng.current_offer, system_fee_payer || eng.system_fee_payer, id]
-      );
+      eng.status = 'broker_finalizing';
+      eng.agreed_price = eng.current_offer;
+      eng.system_fee_payer = system_fee_payer || eng.system_fee_payer;
+      eng.owner_responded_at = new Date();
+      eng.updated_at = new Date();
+      await eng.save();
 
-
-      await db.query(
-        `INSERT INTO broker_engagement_messages
-           (engagement_id, sender_id, sender_role, message_type, message, metadata)
-         VALUES (?, ?, 'owner', 'negotiation', ?, ?)`,
-        [id, owner_id, message || "Owner accepted the offer.", JSON.stringify({ decision: "accept", accepted_price: eng.current_offer })]
-      );
+      await BrokerEngagementMessages.create({
+        engagement_id: id,
+        sender_id: owner_id,
+        sender_role: 'owner',
+        message_type: 'negotiation',
+        message: message || "Owner accepted the offer.",
+        metadata: { decision: "accept", accepted_price: eng.current_offer },
+        created_at: new Date()
+      });
 
       await logHistory(id, "owner_accepted", owner_id, "owner", eng.status, "broker_finalizing",
         `Owner accepted offer of ${Number(eng.current_offer).toLocaleString()} ETB`, { accepted_price: eng.current_offer });
       await systemMessage(id, `Owner has accepted the offer of ${Number(eng.current_offer).toLocaleString()} ETB.`);
 
-      // Notify broker
       await notifyUser(eng.broker_id, "✅ Owner Accepted Offer",
         `The owner has accepted your offer of ${Number(eng.current_offer).toLocaleString()} ETB. Please finalize with the buyer.`, "success");
-      // Notify buyer
       await notifyUser(eng.buyer_id, "✅ Offer Accepted!",
         `Great news! The owner has accepted the offer. Your broker will finalize the deal.`, "success");
 
       res.json({ success: true, message: "Offer accepted by owner", status: "broker_finalizing", agreed_price: eng.current_offer });
 
     } else if (decision === "counter") {
-      // Owner sends counter-offer → goes to broker
       if (!counter_price) {
         return res.status(400).json({ success: false, message: "Counter price is required" });
       }
 
-      await db.query(
-        `UPDATE broker_engagements SET
-           status = 'broker_reviewing_counter', owner_counter_price = ?, owner_counter_message = ?,
-           system_fee_payer = ?, owner_responded_at = NOW(), updated_at = NOW()
-         WHERE id = ?`,
-        [counter_price, message || null, system_fee_payer || eng.system_fee_payer, id]
-      );
+      eng.status = 'broker_reviewing_counter';
+      eng.owner_counter_price = counter_price;
+      eng.owner_counter_message = message || null;
+      eng.system_fee_payer = system_fee_payer || eng.system_fee_payer;
+      eng.owner_responded_at = new Date();
+      eng.updated_at = new Date();
+      await eng.save();
 
-
-      await db.query(
-        `INSERT INTO broker_engagement_messages
-           (engagement_id, sender_id, sender_role, message_type, message, metadata)
-         VALUES (?, ?, 'owner', 'counter_offer', ?, ?)`,
-        [id, owner_id, message || `Counter offer: ${Number(counter_price).toLocaleString()} ETB`,
-         JSON.stringify({ counter_price, original_offer: eng.current_offer })]
-      );
+      await BrokerEngagementMessages.create({
+        engagement_id: id,
+        sender_id: owner_id,
+        sender_role: 'owner',
+        message_type: 'counter_offer',
+        message: message || `Counter offer: ${Number(counter_price).toLocaleString()} ETB`,
+        metadata: { counter_price, original_offer: eng.current_offer },
+        created_at: new Date()
+      });
 
       await logHistory(id, "owner_counter_offered", owner_id, "owner", eng.status, "broker_reviewing_counter",
         `Owner sent counter-offer of ${Number(counter_price).toLocaleString()} ETB`, { counter_price });
       await systemMessage(id, `Owner has sent a counter-offer of ${Number(counter_price).toLocaleString()} ETB.`);
 
-      // Notify broker only (NOT buyer — broker reviews first)
       await notifyUser(eng.broker_id, "🔄 Owner Counter-Offer",
         `The owner has sent a counter-offer of ${Number(counter_price).toLocaleString()} ETB. Please review and advise the buyer.`, "info");
 
       res.json({ success: true, message: "Counter-offer sent to broker", status: "broker_reviewing_counter", counter_price });
 
     } else if (decision === "reject") {
-      await db.query(
-        `UPDATE broker_engagements SET status = 'cancelled', owner_responded_at = NOW(), updated_at = NOW() WHERE id = ?`,
-        [id]
-      );
+      eng.status = 'cancelled';
+      eng.owner_responded_at = new Date();
+      eng.updated_at = new Date();
+      await eng.save();
 
-      await db.query(
-        `INSERT INTO broker_engagement_messages
-           (engagement_id, sender_id, sender_role, message_type, message)
-         VALUES (?, ?, 'owner', 'negotiation', ?)`,
-        [id, owner_id, message || "Owner rejected the offer."]
-      );
+      await BrokerEngagementMessages.create({
+        engagement_id: id,
+        sender_id: owner_id,
+        sender_role: 'owner',
+        message_type: 'negotiation',
+        message: message || "Owner rejected the offer.",
+        created_at: new Date()
+      });
 
       await logHistory(id, "owner_rejected", owner_id, "owner", eng.status, "cancelled", "Owner rejected the offer");
       await systemMessage(id, "Owner has rejected the offer. The engagement has been cancelled.");
@@ -637,50 +676,47 @@ router.put("/:id/broker-advise", async (req, res) => {
     const { id } = req.params;
     const { broker_id, recommendation, advice_message } = req.body;
 
-    const [engagement] = await db.query("SELECT * FROM broker_engagements WHERE id = ?", [id]);
-    if (engagement.length === 0) return res.status(404).json({ success: false, message: "Engagement not found" });
+    const eng = await BrokerEngagements.findById(id);
+    if (!eng) return res.status(404).json({ success: false, message: "Engagement not found" });
 
-    const eng = engagement[0];
     if (eng.status !== "broker_reviewing_counter") {
       return res.status(400).json({ success: false, message: "No counter-offer to review in current status: " + eng.status });
     }
-    if (eng.broker_id !== broker_id) {
+    if (eng.broker_id.toString() !== broker_id) {
       return res.status(403).json({ success: false, message: "You are not the assigned broker" });
     }
     if (!["accept", "counter", "walk_away"].includes(recommendation)) {
       return res.status(400).json({ success: false, message: "Recommendation must be 'accept', 'counter', or 'walk_away'" });
     }
 
-    await db.query(
-      `UPDATE broker_engagements SET
-         status = 'awaiting_buyer_authorization', broker_advice = ?, broker_recommendation = ?,
-         broker_advised_at = NOW(), updated_at = NOW()
-       WHERE id = ?`,
-      [advice_message || null, recommendation, id]
-    );
+    eng.status = 'awaiting_buyer_authorization';
+    eng.broker_advice = advice_message || null;
+    eng.broker_recommendation = recommendation;
+    eng.broker_advised_at = new Date();
+    eng.updated_at = new Date();
+    await eng.save();
 
-    // Record advice as message
     const recEmoji = recommendation === "accept" ? "✅" : recommendation === "counter" ? "🔄" : "🚫";
     const recLabel = recommendation === "accept" ? "Accept" : recommendation === "counter" ? "Counter" : "Walk Away";
 
-    await db.query(
-      `INSERT INTO broker_engagement_messages
-         (engagement_id, sender_id, sender_role, message_type, message, metadata)
-       VALUES (?, ?, 'broker', 'advice', ?, ?)`,
-      [id, broker_id,
-       `${recEmoji} Broker Recommendation: ${recLabel}\n\n${advice_message || "No additional comments."}`,
-       JSON.stringify({
-         recommendation,
-         owner_counter_price: eng.owner_counter_price,
-         current_offer: eng.current_offer
-       })]
-    );
+    await BrokerEngagementMessages.create({
+      engagement_id: id,
+      sender_id: broker_id,
+      sender_role: 'broker',
+      message_type: 'advice',
+      message: `${recEmoji} Broker Recommendation: ${recLabel}\n\n${advice_message || "No additional comments."}`,
+      metadata: {
+        recommendation,
+        owner_counter_price: eng.owner_counter_price,
+        current_offer: eng.current_offer
+      },
+      created_at: new Date()
+    });
 
     await logHistory(id, "broker_advised", broker_id, "broker", "broker_reviewing_counter", "awaiting_buyer_authorization",
       `Broker recommends: ${recLabel}`, { recommendation, owner_counter_price: eng.owner_counter_price });
     await systemMessage(id, `Broker has reviewed the counter-offer and recommends: ${recLabel}. Awaiting buyer authorization.`);
 
-    // Notify buyer — they need to authorize
     await notifyUser(eng.buyer_id, `📬 Broker Advice: ${recEmoji} ${recLabel}`,
       `Your broker has reviewed the owner's counter-offer of ${Number(eng.owner_counter_price).toLocaleString()} ETB and recommends: ${recLabel}. Please review and authorize.`, "info");
 
@@ -705,14 +741,13 @@ router.put("/:id/buyer-authorize", async (req, res) => {
     const { id } = req.params;
     const { buyer_id, authorization, counter_price, message, system_fee_payer } = req.body;
 
-    const [engagement] = await db.query("SELECT * FROM broker_engagements WHERE id = ?", [id]);
-    if (engagement.length === 0) return res.status(404).json({ success: false, message: "Engagement not found" });
+    const eng = await BrokerEngagements.findById(id);
+    if (!eng) return res.status(404).json({ success: false, message: "Engagement not found" });
 
-    const eng = engagement[0];
     if (eng.status !== "awaiting_buyer_authorization") {
       return res.status(400).json({ success: false, message: "Not awaiting buyer authorization. Current status: " + eng.status });
     }
-    if (eng.buyer_id !== buyer_id) {
+    if (eng.buyer_id.toString() !== buyer_id) {
       return res.status(403).json({ success: false, message: "You are not the buyer" });
     }
     if (!["authorize_accept", "authorize_counter", "cancel"].includes(authorization)) {
@@ -720,24 +755,25 @@ router.put("/:id/buyer-authorize", async (req, res) => {
     }
 
     if (authorization === "authorize_accept") {
-      // Buyer accepts the owner's counter-offer price
-      await db.query(
-        `UPDATE broker_engagements SET
-           status = 'broker_finalizing', buyer_authorization = 'authorize_accept',
-           agreed_price = ?, current_offer = ?, system_fee_payer = ?,
-           buyer_auth_message = ?, buyer_authorized_at = NOW(), updated_at = NOW()
-         WHERE id = ?`,
-        [eng.owner_counter_price, eng.owner_counter_price, system_fee_payer || eng.system_fee_payer, message || null, id]
-      );
+      eng.status = 'broker_finalizing';
+      eng.buyer_authorization = 'authorize_accept';
+      eng.agreed_price = eng.owner_counter_price;
+      eng.current_offer = eng.owner_counter_price;
+      eng.system_fee_payer = system_fee_payer || eng.system_fee_payer;
+      eng.buyer_auth_message = message || null;
+      eng.buyer_authorized_at = new Date();
+      eng.updated_at = new Date();
+      await eng.save();
 
-
-      await db.query(
-        `INSERT INTO broker_engagement_messages
-           (engagement_id, sender_id, sender_role, message_type, message, metadata)
-         VALUES (?, ?, 'buyer', 'authorization', ?, ?)`,
-        [id, buyer_id, message || "Buyer authorized acceptance of the counter-offer.",
-         JSON.stringify({ authorization: "authorize_accept", accepted_price: eng.owner_counter_price })]
-      );
+      await BrokerEngagementMessages.create({
+        engagement_id: id,
+        sender_id: buyer_id,
+        sender_role: 'buyer',
+        message_type: 'authorization',
+        message: message || "Buyer authorized acceptance of the counter-offer.",
+        metadata: { authorization: "authorize_accept", accepted_price: eng.owner_counter_price },
+        created_at: new Date()
+      });
 
       await logHistory(id, "buyer_authorized_accept", buyer_id, "buyer", eng.status, "broker_finalizing",
         `Buyer authorized acceptance at ${Number(eng.owner_counter_price).toLocaleString()} ETB`,
@@ -754,49 +790,52 @@ router.put("/:id/buyer-authorize", async (req, res) => {
         return res.status(400).json({ success: false, message: "Counter price is required for authorize_counter" });
       }
 
-      await db.query(
-        `UPDATE broker_engagements SET
-           status = 'broker_negotiating', buyer_authorization = 'authorize_counter',
-           buyer_auth_counter_price = ?, current_offer = ?, system_fee_payer = ?,
-           buyer_auth_message = ?, buyer_authorized_at = NOW(), updated_at = NOW()
-         WHERE id = ?`,
-        [counter_price, counter_price, system_fee_payer || eng.system_fee_payer, message || null, id]
-      );
+      eng.status = 'pending_owner_response';
+      eng.buyer_authorization = 'authorize_counter';
+      eng.buyer_auth_counter_price = counter_price;
+      eng.current_offer = counter_price;
+      eng.system_fee_payer = system_fee_payer || eng.system_fee_payer;
+      eng.buyer_auth_message = message || null;
+      eng.buyer_authorized_at = new Date();
+      eng.updated_at = new Date();
+      await eng.save();
 
-      await db.query(
-        `INSERT INTO broker_engagement_messages
-           (engagement_id, sender_id, sender_role, message_type, message, metadata)
-         VALUES (?, ?, 'buyer', 'authorization', ?, ?)`,
-        [id, buyer_id, message || `Buyer authorized counter at ${Number(counter_price).toLocaleString()} ETB.`,
-         JSON.stringify({ authorization: "authorize_counter", counter_price })]
-      );
+      await BrokerEngagementMessages.create({
+        engagement_id: id,
+        sender_id: buyer_id,
+        sender_role: 'buyer',
+        message_type: 'authorization',
+        message: message || `Buyer authorized counter at ${Number(counter_price).toLocaleString()} ETB.`,
+        metadata: { authorization: "authorize_counter", counter_price },
+        created_at: new Date()
+      });
 
-      await logHistory(id, "buyer_authorized_counter", buyer_id, "buyer", eng.status, "broker_negotiating",
+      await logHistory(id, "buyer_authorized_counter", buyer_id, "buyer", eng.status, "pending_owner_response",
         `Buyer authorized counter-offer at ${Number(counter_price).toLocaleString()} ETB`,
         { counter_price });
-      await systemMessage(id, `Buyer has authorized a counter-offer of ${Number(counter_price).toLocaleString()} ETB. Broker returns to negotiation.`);
+      await systemMessage(id, `Buyer has authorized a counter-offer of ${Number(counter_price).toLocaleString()} ETB. Offer sent to owner.`);
 
-      await notifyUser(eng.broker_id, "🔄 Buyer Authorized Counter",
-        `The buyer has authorized a counter-offer of ${Number(counter_price).toLocaleString()} ETB. Please negotiate with the owner.`, "info");
+      await notifyUser(eng.owner_id, "🔄 New Counter-Offer",
+        `The buyer has sent a counter-offer of ${Number(counter_price).toLocaleString()} ETB. Please respond.`, "info");
 
-      res.json({ success: true, message: "Counter authorized. Broker will negotiate.", status: "broker_negotiating" });
+      res.json({ success: true, message: "Counter authorized and sent to owner.", status: "pending_owner_response" });
 
     } else {
-      // cancel
-      await db.query(
-        `UPDATE broker_engagements SET
-           status = 'cancelled', buyer_authorization = 'cancel',
-           buyer_auth_message = ?, buyer_authorized_at = NOW(), updated_at = NOW()
-         WHERE id = ?`,
-        [message || null, id]
-      );
+      eng.status = 'cancelled';
+      eng.buyer_authorization = 'cancel';
+      eng.buyer_auth_message = message || null;
+      eng.buyer_authorized_at = new Date();
+      eng.updated_at = new Date();
+      await eng.save();
 
-      await db.query(
-        `INSERT INTO broker_engagement_messages
-           (engagement_id, sender_id, sender_role, message_type, message)
-         VALUES (?, ?, 'buyer', 'authorization', ?)`,
-        [id, buyer_id, message || "Buyer cancelled broker representation."]
-      );
+      await BrokerEngagementMessages.create({
+        engagement_id: id,
+        sender_id: buyer_id,
+        sender_role: 'buyer',
+        message_type: 'authorization',
+        message: message || "Buyer cancelled broker representation.",
+        created_at: new Date()
+      });
 
       await logHistory(id, "buyer_cancelled", buyer_id, "buyer", eng.status, "cancelled", "Buyer cancelled representation");
       await systemMessage(id, "Buyer has cancelled broker representation. The engagement is now closed.");
@@ -821,32 +860,29 @@ router.put("/:id/broker-finalize", async (req, res) => {
     const { id } = req.params;
     const { broker_id } = req.body;
 
-    const [engagement] = await db.query("SELECT * FROM broker_engagements WHERE id = ?", [id]);
-    if (engagement.length === 0) return res.status(404).json({ success: false, message: "Engagement not found" });
+    const eng = await BrokerEngagements.findById(id);
+    if (!eng) return res.status(404).json({ success: false, message: "Engagement not found" });
 
-    const eng = engagement[0];
     if (eng.status !== "broker_finalizing") {
       return res.status(400).json({ success: false, message: "Cannot finalize in current status: " + eng.status });
     }
-    if (eng.broker_id !== broker_id) {
+    if (eng.broker_id.toString() !== broker_id) {
       return res.status(403).json({ success: false, message: "You are not the assigned broker" });
     }
 
-    await db.query(
-      `UPDATE broker_engagements SET
-         status = 'agreement_generated', finalized_at = NOW(), updated_at = NOW()
-       WHERE id = ?`,
-      [id]
-    );
+    eng.status = 'agreement_generated';
+    eng.finalized_at = new Date();
+    eng.updated_at = new Date();
+    await eng.save();
 
     await logHistory(id, "broker_finalized", broker_id, "broker", "broker_finalizing", "agreement_generated",
       `Broker finalized deal at ${Number(eng.agreed_price).toLocaleString()} ETB`);
     await systemMessage(id, `Broker has finalized the deal at ${Number(eng.agreed_price).toLocaleString()} ETB. Admin will generate the contract.`);
 
     // Notify admin
-    const [admins] = await db.query("SELECT id FROM users WHERE role IN ('property_admin', 'system_admin') LIMIT 1");
-    if (admins.length > 0) {
-      await notifyUser(admins[0].id, "📄 Contract Ready for Generation",
+    const admin = await Users.findOne({ role: { $in: ['property_admin', 'system_admin'] } });
+    if (admin) {
+      await notifyUser(admin._id, "📄 Contract Ready for Generation",
         `Broker-assisted deal finalized at ${Number(eng.agreed_price).toLocaleString()} ETB. Please generate the PDF contract.`, "info");
     }
 
@@ -871,10 +907,46 @@ router.post("/:id/generate-contract", async (req, res) => {
     const { id } = req.params;
     const { admin_id } = req.body;
 
-    const [engagement] = await db.query("SELECT * FROM v_broker_engagements WHERE id = ?", [id]);
-    if (engagement.length === 0) return res.status(404).json({ success: false, message: "Engagement not found" });
+    const engagements = await BrokerEngagements.aggregate([
+      { $match: { _id: new mongoose.Types.ObjectId(id) } },
+      { $lookup: { from: 'users', localField: 'buyer_id', foreignField: '_id', as: 'buyer' } },
+      { $lookup: { from: 'users', localField: 'broker_id', foreignField: '_id', as: 'broker' } },
+      { $lookup: { from: 'users', localField: 'owner_id', foreignField: '_id', as: 'owner' } },
+      { $lookup: { from: 'properties', localField: 'property_id', foreignField: '_id', as: 'property' } },
+      { $unwind: '$buyer' },
+      { $unwind: '$broker' },
+      { $unwind: '$owner' },
+      { $unwind: '$property' },
+      { $project: {
+        id: '$_id',
+        status: 1,
+        agreed_price: 1,
+        agreed_commission_pct: 1,
+        commission_percentage: 1,
+        system_fee_payer: 1,
+        engagement_type: 1,
+        rental_duration_months: 1,
+        payment_schedule: 1,
+        security_deposit: 1,
+        buyer_id: 1,
+        broker_id: 1,
+        owner_id: 1,
+        buyer_name: '$buyer.name',
+        buyer_email: '$buyer.email',
+        broker_name: '$broker.name',
+        broker_email: '$broker.email',
+        owner_name: '$owner.name',
+        owner_email: '$owner.email',
+        property_title: '$property.title',
+        property_location: '$property.location',
+        property_type: '$property.property_type',
+        property_price: '$property.price'
+      }}
+    ]);
 
-    const eng = engagement[0];
+    if (engagements.length === 0) return res.status(404).json({ success: false, message: "Engagement not found" });
+
+    const eng = engagements[0];
     if (eng.status !== "agreement_generated") {
       return res.status(400).json({ success: false, message: "Deal must be finalized before generating contract. Status: " + eng.status });
     }
@@ -977,7 +1049,7 @@ router.post("/:id/generate-contract", async (req, res) => {
   </div>
 
   <div class="meta-row">
-    <span>Agreement Reference: <strong>BALEASE-${String(eng.id).padStart(5, '0')}</strong></span>
+    <span>Agreement Reference: <strong>BALEASE-${String(eng.id).substring(19, 24)}</strong></span>
     <span>Date: <strong>${today}</strong></span>
     <span>Status: <strong>Pending Signatures</strong></span>
   </div>
@@ -1084,7 +1156,7 @@ router.post("/:id/generate-contract", async (req, res) => {
 
   <div class="footer">
     <p>This document was generated by the Dire Dawa Real Estate Management System (DDREMS)</p>
-    <p>Agreement Reference: BALEASE-${String(eng.id).padStart(5, '0')} | Generated: ${today}</p>
+    <p>Agreement Reference: BALEASE-${String(eng.id).substring(19, 24)} | Generated: ${today}</p>
     <div class="stamp">OFFICIAL DDREMS LEASE DOCUMENT</div>
   </div>
 </body>
@@ -1111,7 +1183,7 @@ router.post("/:id/generate-contract", async (req, res) => {
   </div>
 
   <div class="meta-row">
-    <span>Agreement Reference: <strong>BA-${String(eng.id).padStart(5, '0')}</strong></span>
+    <span>Agreement Reference: <strong>BA-${String(eng.id).substring(19, 24)}</strong></span>
     <span>Date: <strong>${today}</strong></span>
     <span>Status: <strong>Pending Signatures</strong></span>
   </div>
@@ -1210,34 +1282,29 @@ router.post("/:id/generate-contract", async (req, res) => {
 
   <div class="footer">
     <p>This document was generated by the Dire Dawa Real Estate Management System (DDREMS)</p>
-    <p>Agreement Reference: BA-${String(eng.id).padStart(5, '0')} | Generated: ${today}</p>
+    <p>Agreement Reference: BA-${String(eng.id).substring(19, 24)} | Generated: ${today}</p>
     <div class="stamp">OFFICIAL DDREMS DOCUMENT</div>
   </div>
 </body>
 </html>`;
     }
 
-    // Store in agreement_documents
-    await db.query(
-      `INSERT INTO agreement_documents
-         (agreement_request_id, version, document_type, document_content, generated_by_id)
-       VALUES (NULL, 1, 'broker_assisted', ?, ?)`,
-      [contractHTML, admin_id]
-    );
+    const newDoc = await AgreementDocuments.create({
+      agreement_request_id: null,
+      version: 1,
+      document_type: 'broker_assisted',
+      document_content: contractHTML,
+      generated_by_id: admin_id,
+      created_at: new Date()
+    });
 
-    // Link the document to the engagement
-    const [docResult] = await db.query(
-      `SELECT id FROM agreement_documents WHERE document_type = 'broker_assisted' AND (document_content LIKE ? OR document_content LIKE ?) ORDER BY id DESC LIMIT 1`,
-      [`%BA-${String(eng.id).padStart(5, '0')}%`, `%BALEASE-${String(eng.id).padStart(5, '0')}%`]
-    );
-    const docId = docResult.length > 0 ? docResult[0].id : null;
+    const docId = newDoc._id;
 
-    await db.query(
-      `UPDATE broker_engagements SET
-         status = 'pending_signatures', contract_generated_at = NOW(), updated_at = NOW()
-       WHERE id = ?`,
-      [id]
-    );
+    await BrokerEngagements.findByIdAndUpdate(id, {
+      status: 'pending_signatures',
+      contract_generated_at: new Date(),
+      updated_at: new Date()
+    });
 
     await logHistory(id, "contract_generated", admin_id, "admin", "agreement_generated", "pending_signatures",
       "Admin generated the agreement contract");
@@ -1265,31 +1332,31 @@ router.get("/:id/view-contract", async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Find the contract document for this engagement
-    const [docs] = await db.query(
-      `SELECT * FROM agreement_documents 
-       WHERE document_type = 'broker_assisted' 
-       AND (document_content LIKE ? OR document_content LIKE ?)
-       ORDER BY id DESC LIMIT 1`,
-      [`%BA-${String(id).padStart(5, '0')}%`, `%BALEASE-${String(id).padStart(5, '0')}%`]
-    );
+    const doc = await AgreementDocuments.findOne({
+      document_type: 'broker_assisted',
+      document_content: { $regex: new RegExp(id.substring(19, 24)) }
+    }).sort({ created_at: -1 });
 
-    if (docs.length === 0) {
+    if (!doc) {
       return res.status(404).json({ success: false, message: "No contract found for this engagement" });
     }
 
-    // Also get signatures to inject into the HTML
-    const [signatures] = await db.query(
-      `SELECT bes.*, u.name AS signer_name
-       FROM broker_engagement_signatures bes
-       JOIN users u ON bes.signer_id = u.id
-       WHERE bes.engagement_id = ? ORDER BY bes.signed_at ASC`,
-      [id]
-    );
+    const signatures = await BrokerEngagementSignatures.aggregate([
+      { $match: { engagement_id: new mongoose.Types.ObjectId(id) } },
+      { $lookup: { from: 'users', localField: 'signer_id', foreignField: '_id', as: 'signer' } },
+      { $unwind: '$signer' },
+      { $project: {
+        signer_id: 1,
+        signer_role: 1,
+        signature_data: 1,
+        signed_at: 1,
+        signer_name: '$signer.name'
+      }},
+      { $sort: { signed_at: 1 } }
+    ]);
 
-    let html = docs[0].document_content;
+    let html = doc.document_content;
 
-    // Inject signatures into the HTML
     for (const sig of signatures) {
       const role = sig.signer_role;
       const sigDate = new Date(sig.signed_at).toLocaleString("en-US", { 
@@ -1302,16 +1369,14 @@ router.get("/:id/view-contract", async (req, res) => {
       
       const sigText = sig.signature_data.includes("digital_signature") ? "digital_signature" : "Signed Digitally";
       
-      // Replace "Awaiting Signature" with actual signature style
       const sigLineRegex = new RegExp(`<div class="signature-line" id="sig-${role}">Awaiting Signature</div>`);
       html = html.replace(sigLineRegex, `<div class="signature-line signed" id="sig-${role}">${sigText}</div>`);
       
-      // Replace date placeholder
       const dateRegex = new RegExp(`<div class="signature-date" id="sig-${role}-date">Date: ___________</div>`);
       html = html.replace(dateRegex, `<div class="signature-date" id="sig-${role}-date">Date: ${sigDate}</div>`);
     }
 
-    res.json({ success: true, html, document_id: docs[0].id, signatures });
+    res.json({ success: true, html, document_id: doc._id, signatures });
   } catch (error) {
     console.error("Error viewing contract:", error);
     res.status(500).json({ success: false, message: "Server error", error: error.message });
@@ -1331,30 +1396,24 @@ router.put("/:id/sign", async (req, res) => {
       return res.status(400).json({ success: false, message: "Invalid signer role" });
     }
 
-    const [engagement] = await db.query("SELECT * FROM broker_engagements WHERE id = ?", [id]);
-    if (engagement.length === 0) return res.status(404).json({ success: false, message: "Engagement not found" });
+    const eng = await BrokerEngagements.findById(id);
+    if (!eng) return res.status(404).json({ success: false, message: "Engagement not found" });
 
-    const eng = engagement[0];
     if (!["pending_signatures", "agreement_generated"].includes(eng.status)) {
       return res.status(400).json({ success: false, message: "Not in signing phase. Status: " + eng.status });
     }
 
-    // Verify signer identity
     const expectedSignerId =
-      signer_role === "buyer" ? eng.buyer_id :
-      signer_role === "broker" ? eng.broker_id : eng.owner_id;
+      signer_role === "buyer" ? eng.buyer_id.toString() :
+      signer_role === "broker" ? eng.broker_id.toString() : eng.owner_id.toString();
+    
     if (signer_id !== expectedSignerId) {
       return res.status(403).json({ success: false, message: "You are not authorized to sign as " + signer_role });
     }
 
-    // Check existing signatures to enforce order
-    const [existingSigs] = await db.query(
-      "SELECT signer_role FROM broker_engagement_signatures WHERE engagement_id = ? ORDER BY signed_at ASC",
-      [id]
-    );
+    const existingSigs = await BrokerEngagementSignatures.find({ engagement_id: id }).sort({ signed_at: 1 });
     const signedRoles = existingSigs.map(s => s.signer_role);
 
-    // Enforce order: buyer → broker → owner
     if (signer_role === "broker" && !signedRoles.includes("buyer")) {
       return res.status(400).json({ success: false, message: "Buyer must sign before broker" });
     }
@@ -1365,13 +1424,13 @@ router.put("/:id/sign", async (req, res) => {
       return res.status(400).json({ success: false, message: signer_role + " has already signed" });
     }
 
-    // Record signature
-    await db.query(
-      `INSERT INTO broker_engagement_signatures
-         (engagement_id, signer_id, signer_role, signature_data)
-       VALUES (?, ?, ?, ?)`,
-      [id, signer_id, signer_role, signature_data || "digital_signature_" + Date.now()]
-    );
+    await BrokerEngagementSignatures.create({
+      engagement_id: id,
+      signer_id: signer_id,
+      signer_role: signer_role,
+      signature_data: signature_data || "digital_signature_" + Date.now(),
+      signed_at: new Date()
+    });
 
     await logHistory(id, signer_role + "_signed", signer_id, signer_role, eng.status, eng.status,
       signer_role.charAt(0).toUpperCase() + signer_role.slice(1) + " signed the contract",
@@ -1380,13 +1439,13 @@ router.put("/:id/sign", async (req, res) => {
     const roleLabel = signer_role.charAt(0).toUpperCase() + signer_role.slice(1);
     await systemMessage(id, `${roleLabel} has signed the contract.`);
 
-    // Check if all three have signed
     const allSigned = [...signedRoles, signer_role];
     if (allSigned.includes("buyer") && allSigned.includes("broker") && allSigned.includes("owner")) {
-      await db.query(
-        `UPDATE broker_engagements SET status = 'fully_signed', completed_at = NOW(), updated_at = NOW() WHERE id = ?`,
-        [id]
-      );
+      eng.status = 'fully_signed';
+      eng.completed_at = new Date();
+      eng.updated_at = new Date();
+      await eng.save();
+
       await logHistory(id, "fully_signed", signer_id, signer_role, eng.status, "fully_signed",
         "All three parties have signed. Contract is legally binding.");
       await systemMessage(id, "🎉 All three parties have signed the contract. The agreement is now legally binding!");
@@ -1397,7 +1456,6 @@ router.put("/:id/sign", async (req, res) => {
 
       res.json({ success: true, message: "All parties signed. Contract is binding.", status: "fully_signed" });
     } else {
-      // Notify next signer
       const nextRole = !allSigned.includes("buyer") ? "buyer" : !allSigned.includes("broker") ? "broker" : "owner";
       const nextId = nextRole === "buyer" ? eng.buyer_id : nextRole === "broker" ? eng.broker_id : eng.owner_id;
       await notifyUser(nextId, `✍️ Your Signature Needed`,
@@ -1419,45 +1477,64 @@ router.get("/:id", async (req, res) => {
   try {
     const { id } = req.params;
 
-    const [engagement] = await db.query("SELECT * FROM v_broker_engagements WHERE id = ?", [id]);
-    if (engagement.length === 0) return res.status(404).json({ success: false, message: "Engagement not found" });
+    const engagements = await BrokerEngagements.aggregate([
+      { $match: { _id: new mongoose.Types.ObjectId(id) } },
+      { $lookup: { from: 'users', localField: 'buyer_id', foreignField: '_id', as: 'buyer' } },
+      { $lookup: { from: 'users', localField: 'broker_id', foreignField: '_id', as: 'broker' } },
+      { $lookup: { from: 'users', localField: 'owner_id', foreignField: '_id', as: 'owner' } },
+      { $lookup: { from: 'properties', localField: 'property_id', foreignField: '_id', as: 'property' } },
+      { $unwind: { path: '$buyer', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$broker', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$owner', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$property', preserveNullAndEmptyArrays: true } },
+      { $project: {
+        id: '$_id',
+        buyer_id: 1, broker_id: 1, owner_id: 1, property_id: 1,
+        status: 1, engagement_type: 1, current_offer: 1, agreed_price: 1,
+        commission_percentage: 1, agreed_commission_pct: 1, system_fee_payer: 1,
+        created_at: 1, updated_at: 1, finalized_at: 1, completed_at: 1,
+        buyer_name: '$buyer.name', buyer_email: '$buyer.email',
+        broker_name: '$broker.name', broker_email: '$broker.email',
+        owner_name: '$owner.name', owner_email: '$owner.email',
+        property_title: '$property.title', property_location: '$property.location'
+      }}
+    ]);
 
-    // Get signatures
-    const [signatures] = await db.query(
-      `SELECT bes.*, u.name AS signer_name
-       FROM broker_engagement_signatures bes
-       JOIN users u ON bes.signer_id = u.id
-       WHERE bes.engagement_id = ? ORDER BY bes.signed_at ASC`,
-      [id]
-    );
+    if (engagements.length === 0) return res.status(404).json({ success: false, message: "Engagement not found" });
 
-    // Get history (filtered for Owner)
+    const signatures = await BrokerEngagementSignatures.aggregate([
+      { $match: { engagement_id: new mongoose.Types.ObjectId(id) } },
+      { $lookup: { from: 'users', localField: 'signer_id', foreignField: '_id', as: 'signer' } },
+      { $unwind: '$signer' },
+      { $project: {
+        signer_id: 1, signer_role: 1, signature_data: 1, signed_at: 1, signer_name: '$signer.name'
+      }},
+      { $sort: { signed_at: 1 } }
+    ]);
+
     const { role } = req.query;
-    let historyFilter = "";
+    let historyMatch = { engagement_id: new mongoose.Types.ObjectId(id) };
     if (role === "owner") {
-      historyFilter = ` AND action NOT IN (
-        'engagement_created', 
-        'broker_drafted_offer', 
-        'buyer_approved_draft', 
-        'buyer_rejected_draft', 
-        'broker_sent_advice',
-        'broker_accepted',
-        'broker_declined'
-      ) `;
+      historyMatch.action = { $nin: [
+        'engagement_created', 'broker_drafted_offer', 'buyer_approved_draft', 
+        'buyer_rejected_draft', 'broker_sent_advice', 'broker_accepted', 'broker_declined'
+      ]};
     }
 
-    const [history] = await db.query(
-      `SELECT beh.*, u.name AS action_by_name
-       FROM broker_engagement_history beh
-       LEFT JOIN users u ON beh.action_by_id = u.id
-       WHERE beh.engagement_id = ? ${historyFilter}
-       ORDER BY beh.created_at DESC`,
-      [id]
-    );
+    const history = await BrokerEngagementHistory.aggregate([
+      { $match: historyMatch },
+      { $lookup: { from: 'users', localField: 'action_by_id', foreignField: '_id', as: 'user' } },
+      { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+      { $project: {
+        action: 1, action_by_id: 1, action_by_role: 1, previous_status: 1, new_status: 1,
+        notes: 1, metadata: 1, created_at: 1, action_by_name: '$user.name'
+      }},
+      { $sort: { created_at: -1 } }
+    ]);
 
     res.json({
       success: true,
-      engagement: engagement[0],
+      engagement: engagements[0],
       signatures,
       history
     });
@@ -1476,19 +1553,21 @@ router.get("/:id/messages", async (req, res) => {
     const { id } = req.params;
     const { role } = req.query;
 
-    let filterClause = "";
+    let messageMatch = { engagement_id: new mongoose.Types.ObjectId(id) };
     if (role === "owner") {
-      filterClause = " AND bem.message_type NOT IN ('advice', 'authorization') ";
+      messageMatch.message_type = { $nin: ['advice', 'authorization'] };
     }
 
-    const [messages] = await db.query(
-      `SELECT bem.*, u.name AS sender_name
-       FROM broker_engagement_messages bem
-       LEFT JOIN users u ON bem.sender_id = u.id
-       WHERE bem.engagement_id = ? ${filterClause}
-       ORDER BY bem.created_at ASC`,
-      [id]
-    );
+    const messages = await BrokerEngagementMessages.aggregate([
+      { $match: messageMatch },
+      { $lookup: { from: 'users', localField: 'sender_id', foreignField: '_id', as: 'user' } },
+      { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+      { $project: {
+        sender_id: 1, sender_role: 1, message_type: 1, message: 1, created_at: 1,
+        sender_name: '$user.name'
+      }},
+      { $sort: { created_at: 1 } }
+    ]);
 
     res.json({ success: true, messages });
   } catch (error) {
@@ -1510,29 +1589,27 @@ router.post("/:id/messages", async (req, res) => {
       return res.status(400).json({ success: false, message: "Sender ID and message are required" });
     }
 
-    // Verify engagement exists
-    const [engagement] = await db.query("SELECT * FROM broker_engagements WHERE id = ?", [id]);
-    if (engagement.length === 0) return res.status(404).json({ success: false, message: "Engagement not found" });
+    const eng = await BrokerEngagements.findById(id);
+    if (!eng) return res.status(404).json({ success: false, message: "Engagement not found" });
 
-    // Verify sender is a party
-    const eng = engagement[0];
-    const isParty = [eng.buyer_id, eng.broker_id, eng.owner_id].includes(sender_id);
+    const isParty = [eng.buyer_id.toString(), eng.broker_id.toString(), eng.owner_id.toString()].includes(sender_id);
     if (!isParty) {
-      // Check if admin
-      const [user] = await db.query("SELECT role FROM users WHERE id = ?", [sender_id]);
-      if (user.length === 0 || !["property_admin", "system_admin", "admin"].includes(user[0].role)) {
+      const user = await Users.findById(sender_id);
+      if (!user || !["property_admin", "system_admin", "admin"].includes(user.role)) {
         return res.status(403).json({ success: false, message: "You are not a party to this engagement" });
       }
     }
 
-    const [result] = await db.query(
-      `INSERT INTO broker_engagement_messages
-         (engagement_id, sender_id, sender_role, message_type, message)
-       VALUES (?, ?, ?, ?, ?)`,
-      [id, sender_id, sender_role || "buyer", message_type || "general", message]
-    );
+    const newMessage = await BrokerEngagementMessages.create({
+      engagement_id: id,
+      sender_id: sender_id,
+      sender_role: sender_role || "buyer",
+      message_type: message_type || "general",
+      message: message,
+      created_at: new Date()
+    });
 
-    res.json({ success: true, message: "Message sent", message_id: result.insertId });
+    res.json({ success: true, message: "Message sent", message_id: newMessage._id });
   } catch (error) {
     console.error("Error sending message:", error);
     res.status(500).json({ success: false, message: "Server error", error: error.message });
@@ -1546,13 +1623,16 @@ router.post("/:id/messages", async (req, res) => {
 router.get("/:id/history", async (req, res) => {
   try {
     const { id } = req.params;
-    const [history] = await db.query(
-      `SELECT beh.*, u.name AS action_by_name
-       FROM broker_engagement_history beh
-       LEFT JOIN users u ON beh.action_by_id = u.id
-       WHERE beh.engagement_id = ? ORDER BY beh.created_at DESC`,
-      [id]
-    );
+    const history = await BrokerEngagementHistory.aggregate([
+      { $match: { engagement_id: new mongoose.Types.ObjectId(id) } },
+      { $lookup: { from: 'users', localField: 'action_by_id', foreignField: '_id', as: 'user' } },
+      { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+      { $project: {
+        action: 1, action_by_id: 1, action_by_role: 1, previous_status: 1, new_status: 1,
+        notes: 1, metadata: 1, created_at: 1, action_by_name: '$user.name'
+      }},
+      { $sort: { created_at: -1 } }
+    ]);
     res.json({ success: true, history });
   } catch (error) {
     console.error("Error fetching history:", error);
@@ -1566,10 +1646,34 @@ router.get("/:id/history", async (req, res) => {
 // ============================================================================
 router.get("/buyer/:buyerId", async (req, res) => {
   try {
-    const [engagements] = await db.query(
-      "SELECT * FROM v_broker_engagements WHERE buyer_id = ? ORDER BY created_at DESC",
-      [req.params.buyerId]
-    );
+    const engagements = await BrokerEngagements.aggregate([
+      { $match: { buyer_id: new mongoose.Types.ObjectId(req.params.buyerId) } },
+      { $lookup: { from: 'users', localField: 'broker_id', foreignField: '_id', as: 'broker' } },
+      { $lookup: { from: 'users', localField: 'owner_id', foreignField: '_id', as: 'owner' } },
+      { $lookup: { from: 'properties', localField: 'property_id', foreignField: '_id', as: 'property' } },
+      { $unwind: { path: '$broker', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$owner', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$property', preserveNullAndEmptyArrays: true } },
+      { $project: {
+        id: '$_id',
+        buyer_id: 1, broker_id: 1, owner_id: 1, property_id: 1,
+        status: 1, starting_offer: 1, current_offer: 1, agreed_price: 1,
+        engagement_type: 1, created_at: 1, updated_at: 1,
+        buyer_commission_offer: 1, broker_commission_counter: 1,
+        agreed_commission_pct: 1, commission_negotiation_status: 1,
+        commission_percentage: 1, system_fee_payer: 1,
+        draft_offer_price: 1, broker_advice: 1, broker_recommendation: 1,
+        owner_counter_price: 1, owner_counter_message: 1,
+        buyer_authorization: 1, buyer_auth_counter_price: 1,
+        rental_duration_months: 1, payment_schedule: 1, security_deposit: 1,
+        buyer_handover_confirmed: 1, owner_handover_confirmed: 1,
+        payment_method: 1, payment_reference: 1,
+        broker_name: '$broker.name', owner_name: '$owner.name',
+        property_title: '$property.title', property_price: '$property.price',
+        property_location: '$property.location'
+      }},
+      { $sort: { created_at: -1 } }
+    ]);
     res.json({ success: true, engagements });
   } catch (error) {
     console.error("Error fetching buyer engagements:", error);
@@ -1583,10 +1687,34 @@ router.get("/buyer/:buyerId", async (req, res) => {
 // ============================================================================
 router.get("/broker/:brokerId", async (req, res) => {
   try {
-    const [engagements] = await db.query(
-      "SELECT * FROM v_broker_engagements WHERE broker_id = ? ORDER BY created_at DESC",
-      [req.params.brokerId]
-    );
+    const engagements = await BrokerEngagements.aggregate([
+      { $match: { broker_id: new mongoose.Types.ObjectId(req.params.brokerId) } },
+      { $lookup: { from: 'users', localField: 'buyer_id', foreignField: '_id', as: 'buyer' } },
+      { $lookup: { from: 'users', localField: 'owner_id', foreignField: '_id', as: 'owner' } },
+      { $lookup: { from: 'properties', localField: 'property_id', foreignField: '_id', as: 'property' } },
+      { $unwind: { path: '$buyer', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$owner', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$property', preserveNullAndEmptyArrays: true } },
+      { $project: {
+        id: '$_id',
+        buyer_id: 1, broker_id: 1, owner_id: 1, property_id: 1,
+        status: 1, starting_offer: 1, current_offer: 1, agreed_price: 1,
+        engagement_type: 1, created_at: 1, updated_at: 1,
+        buyer_commission_offer: 1, broker_commission_counter: 1,
+        agreed_commission_pct: 1, commission_negotiation_status: 1,
+        commission_percentage: 1, system_fee_payer: 1,
+        draft_offer_price: 1, broker_advice: 1, broker_recommendation: 1,
+        owner_counter_price: 1, owner_counter_message: 1,
+        buyer_authorization: 1, buyer_auth_counter_price: 1,
+        rental_duration_months: 1, payment_schedule: 1, security_deposit: 1,
+        buyer_handover_confirmed: 1, owner_handover_confirmed: 1,
+        payment_method: 1, payment_reference: 1,
+        buyer_name: '$buyer.name', owner_name: '$owner.name',
+        property_title: '$property.title', property_price: '$property.price',
+        property_location: '$property.location'
+      }},
+      { $sort: { created_at: -1 } }
+    ]);
     res.json({ success: true, engagements });
   } catch (error) {
     console.error("Error fetching broker engagements:", error);
@@ -1600,10 +1728,34 @@ router.get("/broker/:brokerId", async (req, res) => {
 // ============================================================================
 router.get("/owner/:ownerId", async (req, res) => {
   try {
-    const [engagements] = await db.query(
-      "SELECT * FROM v_broker_engagements WHERE owner_id = ? ORDER BY created_at DESC",
-      [req.params.ownerId]
-    );
+    const engagements = await BrokerEngagements.aggregate([
+      { $match: { owner_id: new mongoose.Types.ObjectId(req.params.ownerId) } },
+      { $lookup: { from: 'users', localField: 'buyer_id', foreignField: '_id', as: 'buyer' } },
+      { $lookup: { from: 'users', localField: 'broker_id', foreignField: '_id', as: 'broker' } },
+      { $lookup: { from: 'properties', localField: 'property_id', foreignField: '_id', as: 'property' } },
+      { $unwind: { path: '$buyer', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$broker', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$property', preserveNullAndEmptyArrays: true } },
+      { $project: {
+        id: '$_id',
+        buyer_id: 1, broker_id: 1, owner_id: 1, property_id: 1,
+        status: 1, starting_offer: 1, current_offer: 1, agreed_price: 1,
+        engagement_type: 1, created_at: 1, updated_at: 1,
+        buyer_commission_offer: 1, broker_commission_counter: 1,
+        agreed_commission_pct: 1, commission_negotiation_status: 1,
+        commission_percentage: 1, system_fee_payer: 1,
+        draft_offer_price: 1, broker_advice: 1, broker_recommendation: 1,
+        owner_counter_price: 1, owner_counter_message: 1,
+        buyer_authorization: 1, buyer_auth_counter_price: 1,
+        rental_duration_months: 1, payment_schedule: 1, security_deposit: 1,
+        buyer_handover_confirmed: 1, owner_handover_confirmed: 1,
+        payment_method: 1, payment_reference: 1,
+        buyer_name: '$buyer.name', broker_name: '$broker.name',
+        property_title: '$property.title', property_price: '$property.price',
+        property_location: '$property.location'
+      }},
+      { $sort: { created_at: -1 } }
+    ]);
     res.json({ success: true, engagements });
   } catch (error) {
     console.error("Error fetching owner engagements:", error);
@@ -1617,9 +1769,35 @@ router.get("/owner/:ownerId", async (req, res) => {
 // ============================================================================
 router.get("/admin/all", async (req, res) => {
   try {
-    const [engagements] = await db.query(
-      "SELECT * FROM v_broker_engagements ORDER BY created_at DESC"
-    );
+    const engagements = await BrokerEngagements.aggregate([
+      { $lookup: { from: 'users', localField: 'buyer_id', foreignField: '_id', as: 'buyer' } },
+      { $lookup: { from: 'users', localField: 'broker_id', foreignField: '_id', as: 'broker' } },
+      { $lookup: { from: 'users', localField: 'owner_id', foreignField: '_id', as: 'owner' } },
+      { $lookup: { from: 'properties', localField: 'property_id', foreignField: '_id', as: 'property' } },
+      { $unwind: { path: '$buyer', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$broker', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$owner', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$property', preserveNullAndEmptyArrays: true } },
+      { $project: {
+        id: '$_id',
+        buyer_id: 1, broker_id: 1, owner_id: 1, property_id: 1,
+        status: 1, starting_offer: 1, current_offer: 1, agreed_price: 1,
+        engagement_type: 1, created_at: 1, updated_at: 1,
+        buyer_commission_offer: 1, broker_commission_counter: 1,
+        agreed_commission_pct: 1, commission_negotiation_status: 1,
+        commission_percentage: 1, system_fee_payer: 1,
+        draft_offer_price: 1, broker_advice: 1, broker_recommendation: 1,
+        owner_counter_price: 1, owner_counter_message: 1,
+        buyer_authorization: 1, buyer_auth_counter_price: 1,
+        rental_duration_months: 1, payment_schedule: 1, security_deposit: 1,
+        buyer_handover_confirmed: 1, owner_handover_confirmed: 1,
+        payment_method: 1, payment_reference: 1,
+        buyer_name: '$buyer.name', broker_name: '$broker.name', owner_name: '$owner.name',
+        property_title: '$property.title', property_price: '$property.price',
+        property_location: '$property.location'
+      }},
+      { $sort: { created_at: -1 } }
+    ]);
     res.json({ success: true, engagements });
   } catch (error) {
     console.error("Error fetching all engagements:", error);
@@ -1636,20 +1814,19 @@ router.put("/:id/release-media", async (req, res) => {
     const { id } = req.params;
     const { admin_id } = req.body;
 
-    const [engagement] = await db.query("SELECT * FROM broker_engagements WHERE id = ?", [id]);
-    if (engagement.length === 0) return res.status(404).json({ success: false, message: "Engagement not found" });
+    const eng = await BrokerEngagements.findById(id);
+    if (!eng) return res.status(404).json({ success: false, message: "Engagement not found" });
 
-    const eng = engagement[0];
     if (eng.status !== "media_uploaded") {
       return res.status(400).json({ success: false, message: "Property media must be uploaded by the owner first. Current status: " + eng.status });
     }
 
-    await db.query(
-      `UPDATE broker_engagements SET status = 'media_released', updated_at = NOW() WHERE id = ?`,
-      [id]
-    );
+    const oldStatus = eng.status;
+    eng.status = 'media_released';
+    eng.updated_at = new Date();
+    await eng.save();
 
-    await logHistory(id, "media_released", admin_id, "admin", eng.status, "media_released",
+    await logHistory(id, "media_released", admin_id, "admin", oldStatus, "media_released",
       "Admin released property media and document keys for buyer review.");
     await systemMessage(id, "🔑 Property media and documents have been unlocked by the admin. The buyer can now review them.");
 
@@ -1673,21 +1850,19 @@ router.put("/:id/mark-media-viewed", async (req, res) => {
     const { id } = req.params;
     const { buyer_id } = req.body;
 
-    const [engagement] = await db.query("SELECT * FROM broker_engagements WHERE id = ?", [id]);
-    if (engagement.length === 0) return res.status(404).json({ success: false, message: "Engagement not found" });
+    const eng = await BrokerEngagements.findById(id);
+    if (!eng) return res.status(404).json({ success: false, message: "Engagement not found" });
 
-    const eng = engagement[0];
     if (eng.status !== "media_released") {
       return res.status(400).json({ success: false, message: "Media has not been released yet." });
     }
-    if (eng.buyer_id !== buyer_id) {
+    if (eng.buyer_id.toString() !== buyer_id) {
       return res.status(403).json({ success: false, message: "Only the buyer can mark media as viewed." });
     }
 
-    await db.query(
-      `UPDATE broker_engagements SET status = 'media_viewed', updated_at = NOW() WHERE id = ?`,
-      [id]
-    );
+    eng.status = 'media_viewed';
+    eng.updated_at = new Date();
+    await eng.save();
 
     await logHistory(id, "media_viewed", buyer_id, "buyer", "media_released", "media_viewed",
       "Buyer confirmed review of property media and documents.");
@@ -1709,50 +1884,107 @@ router.put("/:id/owner-submit-media", async (req, res) => {
     const { id } = req.params;
     const { owner_id, video_url, video_file, additional_docs } = req.body;
 
-    const [engagement] = await db.query("SELECT * FROM broker_engagements WHERE id = ?", [id]);
-    if (engagement.length === 0) return res.status(404).json({ success: false, message: "Engagement not found" });
+    const eng = await BrokerEngagements.findById(id);
+    if (!eng) return res.status(404).json({ success: false, message: "Engagement not found" });
 
-    const eng = engagement[0];
     if (eng.status !== "fully_signed") {
       return res.status(400).json({ success: false, message: "Contract must be fully signed before submitting media. Current status: " + eng.status });
     }
-    if (eng.owner_id !== owner_id) {
+    if (eng.owner_id.toString() !== owner_id) {
       return res.status(403).json({ success: false, message: "You are not the property owner" });
     }
 
     // Update property video URL
-    if (video_url || video_file) {
-      await db.query(
-        "UPDATE properties SET video_url = ?, updated_at = NOW() WHERE id = ?",
-        [video_url || video_file, eng.property_id]
-      );
+    // Update property video URL
+    let final_video_url = video_url || "";
+    if (video_file && video_file.startsWith('data:')) {
+      try {
+        const parts = video_file.split(',');
+        if (parts.length === 2) {
+          const mimeMatch = parts[0].match(/data:(.*?);/);
+          let ext = 'mp4';
+          if (mimeMatch && mimeMatch[1]) {
+             const mimeParts = mimeMatch[1].split('/');
+             ext = mimeParts[1] || 'mp4';
+          }
+          const buffer = Buffer.from(parts[1], 'base64');
+          const fileName = `video_${eng.property_id}_${Date.now()}.${ext}`;
+          const dirPath = path.join(__dirname, '../uploads/videos');
+          if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
+          const filePath = path.join(dirPath, fileName);
+          fs.writeFileSync(filePath, buffer);
+          final_video_url = `/uploads/videos/${fileName}`;
+        }
+      } catch (err) {
+        console.error("Error saving video file:", err);
+      }
+    } else if (video_file && !video_file.startsWith('data:')) {
+      final_video_url = video_file;
+    }
+
+    if (final_video_url) {
+      await Properties.findByIdAndUpdate(eng.property_id, {
+        video_url: final_video_url,
+        updated_at: new Date()
+      });
     }
 
     // Process additional documents if any
     if (additional_docs && Array.isArray(additional_docs)) {
       for (const doc of additional_docs) {
-         // Generate access key
+         let docPath = doc.content || doc;
+         if (docPath && docPath.startsWith('data:')) {
+            try {
+               const parts = docPath.split(',');
+               if (parts.length === 2) {
+                  const mimeMatch = parts[0].match(/data:(.*?);/);
+                  let ext = 'pdf';
+                  if (mimeMatch && mimeMatch[1]) {
+                     const mimeParts = mimeMatch[1].split('/');
+                     ext = mimeParts[1] || 'pdf';
+                     if (mimeMatch[1] === 'application/pdf') ext = 'pdf';
+                     else if (mimeMatch[1] === 'image/jpeg') ext = 'jpg';
+                     else if (mimeMatch[1] === 'image/png') ext = 'png';
+                  }
+                  
+                  const buffer = Buffer.from(parts[1], 'base64');
+                  const fileName = `doc_${eng.property_id}_${Date.now()}_${Math.floor(Math.random()*1000)}.${ext}`;
+                  const dirPath = path.join(__dirname, '../uploads/documents');
+                  if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
+                  const filePath = path.join(dirPath, fileName);
+                  fs.writeFileSync(filePath, buffer);
+                  docPath = `/uploads/documents/${fileName}`;
+               }
+            } catch (err) {
+               console.error("Error saving document file:", err);
+            }
+         }
+
          const access_key = crypto.randomBytes(4).toString('hex').toUpperCase();
-         
-         await db.query(
-           "INSERT INTO property_documents (property_id, document_name, document_path, document_type, access_key, uploaded_by) VALUES (?, ?, ?, 'other', ?, ?)",
-           [eng.property_id, doc.name || 'Additional Media', doc.content || doc, access_key, owner_id]
-         );
+         await PropertyDocuments.create({
+           property_id: eng.property_id,
+           document_name: doc.name || 'Additional Media',
+           document_path: docPath,
+           document_type: 'other',
+           access_key: access_key,
+           uploaded_by: owner_id,
+           created_at: new Date()
+         });
       }
     }
-    await db.query(
-      `UPDATE broker_engagements SET status = 'media_uploaded', updated_at = NOW() WHERE id = ?`,
-      [id]
-    );
+
+    eng.status = 'media_uploaded';
+    eng.updated_at = new Date();
+    await eng.save();
 
     await logHistory(id, "media_uploaded", owner_id, "owner", "fully_signed", "media_uploaded",
       "Owner submitted property video and additional media for verification.");
     await systemMessage(id, "🎥 Property owner has uploaded the media and documents. Awaiting admin verification and release.");
 
     // Notify admins
-    const [admins] = await db.query("SELECT id FROM users WHERE role IN ('property_admin', 'system_admin', 'admin') LIMIT 5");
+    const admins = await Users.find({ role: { $in: ['property_admin', 'system_admin', 'admin'] } }).limit(5);
     for (const admin of admins) {
-      await notifyUser(admin.id, "🎥 Media Submitted for Review",
+      await notifyUser(admin._id, "🎥 Media Submitted for Review",
         `Owner of engagement #${id} has submitted property media. Please review and release it.`, "info");
     }
 
@@ -1776,34 +2008,61 @@ router.put("/:id/submit-payment", async (req, res) => {
       return res.status(400).json({ success: false, message: "Payment method and reference are required" });
     }
 
-    const [engagement] = await db.query("SELECT * FROM broker_engagements WHERE id = ?", [id]);
-    if (engagement.length === 0) return res.status(404).json({ success: false, message: "Engagement not found" });
+    const eng = await BrokerEngagements.findById(id);
+    if (!eng) return res.status(404).json({ success: false, message: "Engagement not found" });
 
-    const eng = engagement[0];
     if (eng.status !== "media_viewed" && eng.status !== "payment_rejected") {
       return res.status(400).json({ success: false, message: "Contract must be fully signed and media reviewed before payment. Current status: " + eng.status });
     }
-    if (eng.buyer_id !== buyer_id) {
+    if (eng.buyer_id.toString() !== buyer_id) {
       return res.status(403).json({ success: false, message: "You are not the buyer" });
     }
 
-    await db.query(
-      `UPDATE broker_engagements SET
-         status = 'payment_submitted', payment_method = ?, payment_reference = ?,
-         payment_receipt = ?, payment_submitted_at = NOW(), updated_at = NOW()
-       WHERE id = ?`,
-      [payment_method, payment_reference, payment_receipt || null, id]
-    );
+    let final_receipt_path = payment_receipt || null;
+    if (payment_receipt && payment_receipt.startsWith('data:')) {
+      try {
+        const parts = payment_receipt.split(',');
+        if (parts.length === 2) {
+          const mimeMatch = parts[0].match(/data:(.*?);/);
+          let ext = 'jpg';
+          if (mimeMatch && mimeMatch[1]) {
+             const mimeParts = mimeMatch[1].split('/');
+             ext = mimeParts[1] || 'jpg';
+             if (mimeMatch[1] === 'application/pdf') ext = 'pdf';
+             else if (mimeMatch[1] === 'image/jpeg') ext = 'jpg';
+             else if (mimeMatch[1] === 'image/png') ext = 'png';
+          }
+          const buffer = Buffer.from(parts[1], 'base64');
+          const fileName = `receipt_${eng._id}_${Date.now()}.${ext}`;
+          const dirPath = path.join(__dirname, '../uploads/receipts');
+          if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
+          const filePath = path.join(dirPath, fileName);
+          fs.writeFileSync(filePath, buffer);
+          final_receipt_path = `/uploads/receipts/${fileName}`;
+        }
+      } catch (err) {
+        console.error("Error saving payment receipt file:", err);
+      }
+    }
 
-    await logHistory(id, "payment_submitted", buyer_id, "buyer", "media_viewed", "payment_submitted",
+    const oldStatus = eng.status;
+    eng.status = 'payment_submitted';
+    eng.payment_method = payment_method;
+    eng.payment_reference = payment_reference;
+    eng.payment_receipt = final_receipt_path;
+    eng.payment_submitted_at = new Date();
+    eng.updated_at = new Date();
+    await eng.save();
+
+    await logHistory(id, "payment_submitted", buyer_id, "buyer", oldStatus, "payment_submitted",
       `Buyer submitted payment via ${payment_method} (Ref: ${payment_reference})`,
       { payment_method, payment_reference, agreed_price: eng.agreed_price });
     await systemMessage(id, `Buyer has submitted payment of ${Number(eng.agreed_price).toLocaleString()} ETB via ${payment_method}. Reference: ${payment_reference}. Awaiting admin verification.`);
 
     // Notify admin
-    const [admins] = await db.query("SELECT id FROM users WHERE role IN ('property_admin', 'system_admin', 'admin') LIMIT 5");
+    const admins = await Users.find({ role: { $in: ['property_admin', 'system_admin', 'admin'] } }).limit(5);
     for (const admin of admins) {
-      await notifyUser(admin.id, "💰 Payment Submitted for Verification",
+      await notifyUser(admin._id, "💰 Payment Submitted for Verification",
         `Buyer has submitted payment of ${Number(eng.agreed_price).toLocaleString()} ETB for engagement #${id}. Please verify.`, "info");
     }
     // Notify broker
@@ -1826,20 +2085,18 @@ router.put("/:id/verify-payment", async (req, res) => {
     const { id } = req.params;
     const { admin_id } = req.body;
 
-    const [engagement] = await db.query("SELECT * FROM broker_engagements WHERE id = ?", [id]);
-    if (engagement.length === 0) return res.status(404).json({ success: false, message: "Engagement not found" });
+    const eng = await BrokerEngagements.findById(id);
+    if (!eng) return res.status(404).json({ success: false, message: "Engagement not found" });
 
-    const eng = engagement[0];
     if (eng.status !== "payment_submitted") {
       return res.status(400).json({ success: false, message: "No payment to verify. Current status: " + eng.status });
     }
 
-    await db.query(
-      `UPDATE broker_engagements SET
-         status = 'payment_verified', payment_verified_at = NOW(), payment_verified_by = ?, updated_at = NOW()
-       WHERE id = ?`,
-      [admin_id, id]
-    );
+    eng.status = 'payment_verified';
+    eng.payment_verified_at = new Date();
+    eng.payment_verified_by = admin_id;
+    eng.updated_at = new Date();
+    await eng.save();
 
     await logHistory(id, "payment_verified", admin_id, "admin", "payment_submitted", "payment_verified",
       "Admin verified payment has been received");
@@ -1871,20 +2128,16 @@ router.put("/:id/reject-payment", async (req, res) => {
     const { id } = req.params;
     const { admin_id, reason } = req.body;
 
-    const [engagement] = await db.query("SELECT * FROM broker_engagements WHERE id = ?", [id]);
-    if (engagement.length === 0) return res.status(404).json({ success: false, message: "Engagement not found" });
+    const eng = await BrokerEngagements.findById(id);
+    if (!eng) return res.status(404).json({ success: false, message: "Engagement not found" });
 
-    const eng = engagement[0];
     if (eng.status !== "payment_submitted") {
       return res.status(400).json({ success: false, message: "No payment to reject. Current status: " + eng.status });
     }
 
-    await db.query(
-      `UPDATE broker_engagements SET
-         status = 'payment_rejected', updated_at = NOW()
-       WHERE id = ?`,
-      [id]
-    );
+    eng.status = 'payment_rejected';
+    eng.updated_at = new Date();
+    await eng.save();
 
     const logMsg = reason ? `Payment rejected by admin. Reason: ${reason}` : "Payment rejected by admin. Please resubmit.";
     await logHistory(id, "payment_rejected", admin_id, "admin", "payment_submitted", "payment_rejected", logMsg);
@@ -1913,35 +2166,32 @@ router.put("/:id/confirm-handover", async (req, res) => {
     const { id } = req.params;
     const { user_id } = req.body;
 
-    const [engagement] = await db.query("SELECT * FROM broker_engagements WHERE id = ?", [id]);
-    if (engagement.length === 0) return res.status(404).json({ success: false, message: "Engagement not found" });
+    const eng = await BrokerEngagements.findById(id);
+    if (!eng) return res.status(404).json({ success: false, message: "Engagement not found" });
 
-    const eng = engagement[0];
     if (eng.status !== "payment_verified") {
       return res.status(400).json({ success: false, message: "Payment must be verified first. Current status: " + eng.status });
     }
-    if (eng.buyer_id !== user_id && eng.owner_id !== user_id) {
+    if (eng.buyer_id.toString() !== user_id && eng.owner_id.toString() !== user_id) {
       return res.status(403).json({ success: false, message: "You are not authorized to confirm handover" });
     }
 
-    const isBuyer = eng.buyer_id === user_id;
+    const isBuyer = eng.buyer_id.toString() === user_id;
     const roleStr = isBuyer ? "Buyer" : "Owner";
 
     if (isBuyer) {
-      await db.query("UPDATE broker_engagements SET buyer_handover_confirmed = true, updated_at = NOW() WHERE id = ?", [id]);
+      eng.buyer_handover_confirmed = true;
     } else {
-      await db.query("UPDATE broker_engagements SET owner_handover_confirmed = true, updated_at = NOW() WHERE id = ?", [id]);
+      eng.owner_handover_confirmed = true;
     }
+    eng.updated_at = new Date();
 
-    // Refetch strictly to guarantee accurate state evaluation regardless of SQL driver casting
-    const [checkEng] = await db.query("SELECT buyer_handover_confirmed, owner_handover_confirmed FROM broker_engagements WHERE id = ?", [id]);
-    const bConfirmed = checkEng[0].buyer_handover_confirmed === true || checkEng[0].buyer_handover_confirmed === 1 || checkEng[0].buyer_handover_confirmed === 'true';
-    const oConfirmed = checkEng[0].owner_handover_confirmed === true || checkEng[0].owner_handover_confirmed === 1 || checkEng[0].owner_handover_confirmed === 'true';
-    const bothConfirmed = bConfirmed && oConfirmed;
-
+    const bothConfirmed = eng.buyer_handover_confirmed && eng.owner_handover_confirmed;
     if (bothConfirmed) {
-      await db.query("UPDATE broker_engagements SET status = 'handover_confirmed', handover_confirmed_at = NOW(), updated_at = NOW() WHERE id = ?", [id]);
+      eng.status = 'handover_confirmed';
+      eng.handover_confirmed_at = new Date();
     }
+    await eng.save();
 
     await logHistory(id, "handover_confirmed_partial", user_id, isBuyer ? "buyer" : "owner", "payment_verified", 
       bothConfirmed ? "handover_confirmed" : "payment_verified",
@@ -1952,9 +2202,9 @@ router.put("/:id/confirm-handover", async (req, res) => {
 
     if (bothConfirmed) {
       // Notify admin
-      const [admins] = await db.query("SELECT id FROM users WHERE role IN ('property_admin', 'system_admin', 'admin') LIMIT 5");
+      const admins = await Users.find({ role: { $in: ['property_admin', 'system_admin', 'admin'] } }).limit(5);
       for (const admin of admins) {
-        await notifyUser(admin.id, "🔑 Handover Completed",
+        await notifyUser(admin._id, "🔑 Handover Completed",
           `Both Buyer and Owner have confirmed handover for engagement #${id}. You can now release funds.`, "info");
       }
       
@@ -1986,10 +2236,9 @@ router.put("/:id/release-funds", async (req, res) => {
     const { id } = req.params;
     const { admin_id, system_commission_pct, broker_commission_pct } = req.body;
 
-    const [engagement] = await db.query("SELECT * FROM broker_engagements WHERE id = ?", [id]);
-    if (engagement.length === 0) return res.status(404).json({ success: false, message: "Engagement not found" });
+    const eng = await BrokerEngagements.findById(id);
+    if (!eng) return res.status(404).json({ success: false, message: "Engagement not found" });
 
-    const eng = engagement[0];
     if (eng.status !== "handover_confirmed") {
       return res.status(400).json({ success: false, message: "Handover must be confirmed first. Current status: " + eng.status });
     }
@@ -1999,13 +2248,9 @@ router.put("/:id/release-funds", async (req, res) => {
     let brkPct = Number(broker_commission_pct || eng.agreed_commission_pct || eng.broker_commission_pct || 2);
 
     // Dual-Hiring Check: If property owner also hired this broker, give 3%
-    try {
-      const [propRows] = await db.query('SELECT broker_id FROM properties WHERE id = ?', [eng.property_id]);
-      if (propRows.length > 0 && propRows[0].broker_id === eng.broker_id) {
-         brkPct = 3;
-      }
-    } catch (e) {
-      console.warn('Property lookup failed during commission calculation', e.message);
+    const prop = await Properties.findById(eng.property_id);
+    if (prop && prop.broker_id && prop.broker_id.toString() === eng.broker_id.toString()) {
+       brkPct = 3;
     }
 
     const sysAmount = Math.round(agreedPrice * sysPct / 100 * 100) / 100;
@@ -2013,87 +2258,116 @@ router.put("/:id/release-funds", async (req, res) => {
     const ownerPayout = Math.round((agreedPrice - sysAmount - brkAmount) * 100) / 100;
 
     // Update engagement
-    await db.query(
-      `UPDATE broker_engagements SET
-         status = 'completed',
-         system_commission_pct = ?, broker_commission_pct = ?,
-         system_commission_amount = ?, broker_commission_amount = ?, owner_payout_amount = ?,
-         funds_released_at = NOW(), funds_released_by = ?, completed_at = NOW(), updated_at = NOW()
-       WHERE id = ?`,
-      [sysPct, brkPct, sysAmount, brkAmount, ownerPayout, admin_id, id]
-    );
+    const oldStatus = eng.status;
+    eng.status = 'completed';
+    eng.system_commission_pct = sysPct;
+    eng.broker_commission_pct = brkPct;
+    eng.system_commission_amount = sysAmount;
+    eng.broker_commission_amount = brkAmount;
+    eng.owner_payout_amount = ownerPayout;
+    eng.funds_released_at = new Date();
+    eng.funds_released_by = admin_id;
+    eng.completed_at = new Date();
+    eng.updated_at = new Date();
+    await eng.save();
 
     // Record standard broker commission in commission_tracking
     try {
-      await db.query(
-        `INSERT INTO commission_tracking
-           (broker_engagement_id, broker_id, property_id, agreement_amount, 
-            customer_commission_percentage, owner_commission_percentage,
-            customer_commission, owner_commission, total_commission, status, commission_type)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'paid', 'deal')`,
-        [id, eng.broker_id, eng.property_id, agreedPrice, 
-         sysPct, brkPct, sysAmount, brkAmount, sysAmount + brkAmount]
-      );
+      await CommissionTracking.create({
+        broker_engagement_id: id,
+        broker_id: eng.broker_id,
+        property_id: eng.property_id,
+        agreement_amount: agreedPrice, 
+        customer_commission_percentage: sysPct,
+        owner_commission_percentage: brkPct,
+        customer_commission: sysAmount,
+        owner_commission: brkAmount,
+        total_commission: sysAmount + brkAmount,
+        status: 'paid',
+        commission_type: 'deal',
+        created_at: new Date()
+      });
     } catch (commErr) {
       console.error("Commission tracking insert error (non-fatal):", commErr.message);
+    }
+
+    // Record the overall transaction for the Transactions page
+    try {
+      const AgreementTransactions = require('../models/AgreementTransactions');
+      await AgreementTransactions.create({
+        agreement_request_id: null, // Broker-led, no direct agreement ID
+        broker_engagement_id: eng._id,
+        transaction_type: prop && prop.listing_type === 'rent' ? 'rent' : 'sale',
+        transaction_status: 'funds_released',
+        buyer_id: eng.buyer_id,
+        seller_id: eng.owner_id,
+        broker_id: eng.broker_id,
+        property_id: eng.property_id,
+        transaction_amount: agreedPrice,
+        commission_amount: sysAmount + brkAmount,
+        net_amount: ownerPayout,
+        payout_payment_method: null,
+        payout_receipt_path: null,
+        completion_date: new Date(),
+        created_at: new Date()
+      });
+    } catch (txErr) {
+      console.error("Transaction tracking insert error (non-fatal):", txErr.message);
     }
 
     // Process 5-Property Broker Bonus
     try {
       if (eng.broker_id) {
-        const [profileRows] = await db.query('SELECT completed_properties_count, bonus_eligible_value, total_bonus_earned FROM broker_profiles WHERE user_id = ?', [eng.broker_id]);
-        if (profileRows.length > 0) {
-           let count = (profileRows[0].completed_properties_count || 0) + 1;
-           let eligibleVal = Number(profileRows[0].bonus_eligible_value || 0) + agreedPrice;
-           let totalBonus = Number(profileRows[0].total_bonus_earned || 0);
+        let profile = await BrokerProfiles.findOne({ user_id: eng.broker_id });
+        if (profile) {
+           let count = (profile.completed_properties_count || 0) + 1;
+           let eligibleVal = Number(profile.bonus_eligible_value || 0) + agreedPrice;
+           let totalBonus = Number(profile.total_bonus_earned || 0);
 
            if (count >= 5) {
-              // Awared 2% bonus from total deal values
               const bonusAmount = Math.round(eligibleVal * 0.02 * 100) / 100;
-              await db.query(
-                `INSERT INTO commission_tracking (broker_id, agreement_amount, owner_commission, total_commission, status, commission_type) 
-                 VALUES (?, ?, ?, ?, 'paid', 'bonus')`,
-                [eng.broker_id, eligibleVal, bonusAmount, bonusAmount]
-              );
+              await CommissionTracking.create({
+                broker_id: eng.broker_id,
+                agreement_amount: eligibleVal,
+                owner_commission: bonusAmount,
+                total_commission: bonusAmount,
+                status: 'paid',
+                commission_type: 'bonus',
+                created_at: new Date()
+              });
               
               totalBonus += bonusAmount;
               count = 0;
               eligibleVal = 0;
               
-              // Send system message directly to the broker
-              await db.query("INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, 'success')", 
-                [eng.broker_id, "🎁 5-Property Bonus Earned!", `Congratulations! You've completed 5 properties and earned a bonus of ${bonusAmount.toLocaleString()} ETB!`]
-              );
+              await notifyUser(eng.broker_id, "🎁 5-Property Bonus Earned!", `Congratulations! You've completed 5 properties and earned a bonus of ${bonusAmount.toLocaleString()} ETB!`, 'success');
            }
 
-           await db.query(
-             'UPDATE broker_profiles SET completed_properties_count = ?, bonus_eligible_value = ?, total_bonus_earned = ? WHERE user_id = ?',
-             [count, eligibleVal, totalBonus, eng.broker_id]
-           );
+           profile.completed_properties_count = count;
+           profile.bonus_eligible_value = eligibleVal;
+           profile.total_bonus_earned = totalBonus;
+           profile.updated_at = new Date();
+           await profile.save();
         }
       }
     } catch (bErr) {
        console.error("Bonus tracking error:", bErr.message);
     }
 
-    await logHistory(id, "funds_released", admin_id, "admin", "handover_confirmed", "completed",
+    await logHistory(id, "funds_released", admin_id, "admin", oldStatus, "completed",
       `Funds released: Owner gets ${ownerPayout.toLocaleString()} ETB, Broker earns ${brkAmount.toLocaleString()} ETB (${brkPct}%), System fee ${sysAmount.toLocaleString()} ETB (${sysPct}%)`,
       { agreed_price: agreedPrice, system_pct: sysPct, broker_pct: brkPct, system_amount: sysAmount, broker_amount: brkAmount, owner_payout: ownerPayout });
     await systemMessage(id, `🎉 Funds released! Owner payout: ${ownerPayout.toLocaleString()} ETB | Broker commission: ${brkAmount.toLocaleString()} ETB (${brkPct}%) | System fee: ${sysAmount.toLocaleString()} ETB (${sysPct}%). Transaction complete!`);
 
-
-    // Check if this is a rental engagement
     const isRental = eng.engagement_type === 'rent';
 
     if (isRental) {
-      // Mark property as rented (not sold)
-      try {
-        await db.query("UPDATE properties SET status = 'rented' WHERE id = ?", [eng.property_id]);
-      } catch (propErr) {
-        console.error("Property status update error (non-fatal):", propErr.message);
+      if (prop) {
+        prop.status = 'rented';
+        prop.updated_at = new Date();
+        await prop.save();
       }
 
-      // Auto-generate rental payment schedule for months 2+
       try {
         const rentalMonths = Number(eng.rental_duration_months) || 12;
         const scheduleCount = await generateRentalSchedule({
@@ -2114,7 +2388,6 @@ router.put("/:id/release-funds", async (req, res) => {
         console.error("Rental schedule generation error (non-fatal):", schedErr.message);
       }
 
-      // Notify all parties (rental wording)
       await notifyUser(eng.buyer_id, "🎉 Lease Active!",
         `Your lease is now active. First month's rent processed. ${Number(eng.rental_duration_months || 12) - 1} future payments scheduled. Check your Rent Payments tab.`, "success");
       await notifyUser(eng.broker_id, "🎉 Commission Earned!",
@@ -2122,14 +2395,12 @@ router.put("/:id/release-funds", async (req, res) => {
       await notifyUser(eng.owner_id, "🎉 Lease Finalized!",
         `Your rental property lease is active. First payout: ${ownerPayout.toLocaleString()} ETB. Future rent payments will be collected automatically.`, "success");
     } else {
-      // Mark property as sold
-      try {
-        await db.query("UPDATE properties SET status = 'sold' WHERE id = ?", [eng.property_id]);
-      } catch (propErr) {
-        console.error("Property status update error (non-fatal):", propErr.message);
+      if (prop) {
+        prop.status = 'sold';
+        prop.updated_at = new Date();
+        await prop.save();
       }
 
-      // Notify all parties (sale wording)
       await notifyUser(eng.buyer_id, "🎉 Purchase Complete!",
         `Congratulations! Your property purchase is complete. Total paid: ${agreedPrice.toLocaleString()} ETB.`, "success");
       await notifyUser(eng.broker_id, "🎉 Commission Earned!",
@@ -2162,15 +2433,44 @@ router.put("/:id/release-funds", async (req, res) => {
 router.get("/broker/:brokerId/customers", async (req, res) => {
   try {
     const { brokerId } = req.params;
-    const [customers] = await db.query(`
-      SELECT DISTINCT u.id, u.name, u.email, u.phone,
-             (SELECT COUNT(*) FROM broker_engagements WHERE broker_id = ? AND buyer_id = u.id) as engagement_count,
-             (SELECT status FROM broker_engagements WHERE broker_id = ? AND buyer_id = u.id ORDER BY updated_at DESC LIMIT 1) as latest_status
-      FROM users u
-      JOIN broker_engagements be ON u.id = be.buyer_id
-      WHERE be.broker_id = ?
-      ORDER BY u.name ASC
-    `, [brokerId, brokerId, brokerId]);
+
+    const customers = await BrokerEngagements.aggregate([
+      { $match: { broker_id: new mongoose.Types.ObjectId(brokerId) } },
+      { $group: {
+        _id: '$buyer_id',
+        engagement_count: { $sum: 1 },
+        latest_updated_at: { $max: '$updated_at' }
+      }},
+      { $lookup: {
+        from: 'users',
+        localField: '_id',
+        foreignField: '_id',
+        as: 'user'
+      }},
+      { $unwind: '$user' },
+      // Get the latest status for each buyer
+      { $lookup: {
+        from: 'brokerengagements',
+        let: { buyerId: '$_id', brokerId: new mongoose.Types.ObjectId(brokerId) },
+        pipeline: [
+          { $match: { $expr: { $and: [ { $eq: ['$buyer_id', '$$buyerId'] }, { $eq: ['$broker_id', '$$brokerId'] } ] } } },
+          { $sort: { updated_at: -1 } },
+          { $limit: 1 },
+          { $project: { status: 1 } }
+        ],
+        as: 'latest_eng'
+      }},
+      { $unwind: { path: '$latest_eng', preserveNullAndEmptyArrays: true } },
+      { $project: {
+        id: '$user._id',
+        name: '$user.name',
+        email: '$user.email',
+        phone: '$user.phone',
+        engagement_count: 1,
+        latest_status: '$latest_eng.status'
+      }},
+      { $sort: { name: 1 } }
+    ]);
     
     res.json({ success: true, customers });
   } catch (error) {

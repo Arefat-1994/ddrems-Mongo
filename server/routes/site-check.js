@@ -1,572 +1,420 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/db');
+const mongoose = require('mongoose');
+const { SiteChecks, LegalDocuments, Properties, Users } = require('../models');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 
-// Ensure upload directories exist
-const siteCheckUploadDir = path.join(__dirname, '../uploads/site-checks');
-const legalDocsUploadDir = path.join(__dirname, '../uploads/legal-documents');
-if (!fs.existsSync(siteCheckUploadDir)) fs.mkdirSync(siteCheckUploadDir, { recursive: true });
-if (!fs.existsSync(legalDocsUploadDir)) fs.mkdirSync(legalDocsUploadDir, { recursive: true });
-
-// Multer config for site check photos
-const siteCheckStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, siteCheckUploadDir),
-  filename: (req, file, cb) => {
-    const uniqueName = `sitecheck_${Date.now()}_${Math.round(Math.random() * 1E9)}${path.extname(file.originalname)}`;
-    cb(null, uniqueName);
-  }
-});
-
-// Multer config for legal documents
-const legalDocStorage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, legalDocsUploadDir),
-  filename: (req, file, cb) => {
-    const uniqueName = `legaldoc_${Date.now()}_${Math.round(Math.random() * 1E9)}${path.extname(file.originalname)}`;
-    cb(null, uniqueName);
-  }
-});
-
-const uploadSitePhoto = multer({ storage: siteCheckStorage, limits: { fileSize: 50 * 1024 * 1024 } });
-const uploadLegalDoc = multer({ storage: legalDocStorage, limits: { fileSize: 50 * 1024 * 1024 } });
-
-// ─── Haversine formula: calculate distance between two GPS points ───
-function haversineDistance(lat1, lng1, lat2, lng2) {
-  const R = 6371000; // Earth radius in meters
-  const toRad = (deg) => (deg * Math.PI) / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLng = toRad(lng2 - lng1);
-  const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-    Math.sin(dLng / 2) * Math.sin(dLng / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
+// Configure Local Storage for Site Checks
+const localUploadDir = path.join(__dirname, '../uploads');
+if (!fs.existsSync(localUploadDir)) {
+  fs.mkdirSync(localUploadDir, { recursive: true });
 }
 
-// ─── Audit log helper ───
-async function logAudit(propertyId, action, performedBy, performerRole, details) {
-  try {
-    await db.query(
-      'INSERT INTO verification_audit_log (property_id, action, performed_by, performer_role, details) VALUES (?, ?, ?, ?, ?)',
-      [propertyId, action, performedBy, performerRole, typeof details === 'string' ? details : JSON.stringify(details)]
-    );
-  } catch (e) {
-    console.error('Audit log error:', e.message);
-  }
-}
-
-// ════════════════════════════════════════════════════════════════
-//  SITE CHECK ENDPOINTS
-// ════════════════════════════════════════════════════════════════
-
-// POST /start — Property Admin starts a site check
-router.post('/start', uploadSitePhoto.single('photo'), async (req, res) => {
-  try {
-    const { property_id, inspector_id, inspector_lat, inspector_lng } = req.body;
-
-    if (!property_id || !inspector_id || !inspector_lat || !inspector_lng) {
-      return res.status(400).json({ message: 'Missing required fields: property_id, inspector_id, inspector_lat, inspector_lng' });
-    }
-
-    // Get property coordinates
-    const [property] = await db.query('SELECT id, title, latitude, longitude FROM properties WHERE id = ?', [property_id]);
-    if (property.length === 0) {
-      return res.status(404).json({ message: 'Property not found' });
-    }
-
-    const prop = property[0];
-    const propLat = parseFloat(prop.latitude);
-    const propLng = parseFloat(prop.longitude);
-
-    if (!propLat || !propLng) {
-      return res.status(400).json({ message: 'Property has no GPS coordinates set. Please update the property with latitude/longitude first.' });
-    }
-
-    // Calculate distance
-    const distance = haversineDistance(
-      parseFloat(inspector_lat), parseFloat(inspector_lng),
-      propLat, propLng
-    );
-
-    const withinRadius = distance <= 100; // 100 meters
-
-    // Photo URL
-    const photoUrl = req.file ? `/uploads/site-checks/${req.file.filename}` : null;
-
-    // Save site check record
-    const [result] = await db.query(
-      `INSERT INTO site_checks (property_id, inspector_id, inspector_gps_lat, inspector_gps_lng, property_lat, property_lng, distance_meters, within_radius, photo_url, photo_timestamp, status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?)`,
-      [
-        property_id, inspector_id,
-        parseFloat(inspector_lat), parseFloat(inspector_lng),
-        propLat, propLng,
-        Math.round(distance * 100) / 100,
-        withinRadius,
-        photoUrl,
-        'pending'
-      ]
-    );
-
-    // Log audit
-    await logAudit(property_id, 'site_check_started', inspector_id, 'property_admin', {
-      distance_meters: Math.round(distance * 100) / 100,
-      within_radius: withinRadius,
-      has_photo: !!photoUrl
-    });
-
-    // Send notification to all system admins
-    try {
-      const [admins] = await db.query("SELECT id FROM users WHERE role IN ('system_admin', 'admin')");
-      const [inspector] = await db.query('SELECT name FROM users WHERE id = ?', [inspector_id]);
-      const inspectorName = inspector.length > 0 ? inspector[0].name : 'Unknown';
-
-      for (const admin of admins) {
-        await db.query(
-          'INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)',
-          [
-            admin.id,
-            '📍 New Site Check Submitted',
-            `${inspectorName} submitted a site check for property "${prop.title}" (${Math.round(distance)}m from property). ${withinRadius ? '✅ Within radius' : '⚠️ Outside radius'}`,
-            withinRadius ? 'info' : 'warning'
-          ]
-        );
-      }
-    } catch (notifErr) {
-      console.error('Site check notification error:', notifErr.message);
-    }
-
-    res.status(201).json({
-      id: result.insertId,
-      message: withinRadius
-        ? `✅ Site check submitted successfully! You are ${Math.round(distance)}m from the property (within allowed radius).`
-        : `⚠️ Site check submitted but you are ${Math.round(distance)}m from the property (outside 100m radius). Admin review required.`,
-      distance: Math.round(distance * 100) / 100,
-      within_radius: withinRadius
-    });
-
-  } catch (error) {
-    console.error('Start site check error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+const localStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, localUploadDir);
+  },
+  filename: function (req, file, cb) {
+    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+    cb(null, 'sitecheck-' + uniqueSuffix + path.extname(file.originalname));
   }
 });
 
-// GET /property/:propertyId — Get site checks for a property
-router.get('/property/:propertyId', async (req, res) => {
-  try {
-    const [checks] = await db.query(
-      `SELECT sc.*, u.name as inspector_name, u.email as inspector_email,
-              ru.name as reviewer_name
-       FROM site_checks sc
-       LEFT JOIN users u ON sc.inspector_id = u.id
-       LEFT JOIN users ru ON sc.reviewed_by = ru.id
-       WHERE sc.property_id = ?
-       ORDER BY sc.created_at DESC`,
-      [req.params.propertyId]
-    );
-    res.json(checks);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
+const uploadLocal = multer({ storage: localStorage, limits: { fileSize: 50 * 1024 * 1024 } });
 
-// GET /all — System Admin gets all site checks
-router.get('/all', async (req, res) => {
-  try {
-    const { status } = req.query;
-    let query = `
-      SELECT sc.*, u.name as inspector_name, u.email as inspector_email,
-             ru.name as reviewer_name, p.title as property_title, p.location as property_location
-      FROM site_checks sc
-      LEFT JOIN users u ON sc.inspector_id = u.id
-      LEFT JOIN users ru ON sc.reviewed_by = ru.id
-      LEFT JOIN properties p ON sc.property_id = p.id
-    `;
-    const params = [];
-    if (status && status !== 'all') {
-      query += ' WHERE sc.status = ?';
-      params.push(status);
-    }
-    query += ' ORDER BY sc.created_at DESC';
-
-    const [checks] = await db.query(query, params);
-    res.json(checks);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-
-// GET /stats — Get site check stats
+// ═══════════════════════════════════════════════════════════════
+// GET /stats — Aggregate counts for the admin dashboard cards
+// ═══════════════════════════════════════════════════════════════
 router.get('/stats', async (req, res) => {
   try {
-    const [total] = await db.query('SELECT COUNT(*) as count FROM site_checks');
-    const [pending] = await db.query("SELECT COUNT(*) as count FROM site_checks WHERE status = 'pending'");
-    const [approved] = await db.query("SELECT COUNT(*) as count FROM site_checks WHERE status = 'approved'");
-    const [rejected] = await db.query("SELECT COUNT(*) as count FROM site_checks WHERE status = 'rejected'");
-    const [recheckRequested] = await db.query("SELECT COUNT(*) as count FROM site_checks WHERE status = 'recheck_requested'");
-    const [pendingDocs] = await db.query("SELECT COUNT(*) as count FROM legal_documents WHERE status = 'pending'");
-
+    const [totalChecks, pendingChecks, approvedChecks, rejectedChecks, pendingDocs] = await Promise.all([
+      SiteChecks.countDocuments(),
+      SiteChecks.countDocuments({ status: 'pending' }),
+      SiteChecks.countDocuments({ status: 'approved' }),
+      SiteChecks.countDocuments({ status: 'rejected' }),
+      LegalDocuments.countDocuments({ status: 'pending' })
+    ]);
     res.json({
-      total: total[0].count,
-      pending: pending[0].count,
-      approved: approved[0].count,
-      rejected: rejected[0].count,
-      recheck_requested: recheckRequested[0].count,
-      pending_documents: pendingDocs[0].count
+      total: totalChecks,
+      pending: pendingChecks,
+      approved: approvedChecks,
+      rejected: rejectedChecks,
+      pending_documents: pendingDocs
     });
   } catch (error) {
+    console.error('Stats error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// PUT /:id/review — System Admin reviews site check
-router.put('/:id/review', async (req, res) => {
+// ═══════════════════════════════════════════════════════════════
+// GET /all — Fetch all site checks with property + inspector info
+// Used by SiteCheckAdmin to display the full review list
+// ═══════════════════════════════════════════════════════════════
+router.get('/all', async (req, res) => {
   try {
-    const { status, admin_comment, reviewed_by } = req.body;
-
-    if (!['approved', 'rejected', 'recheck_requested'].includes(status)) {
-      return res.status(400).json({ message: 'Invalid status. Must be: approved, rejected, or recheck_requested' });
+    const matchStage = {};
+    if (req.query.status) {
+      matchStage.status = req.query.status;
     }
 
-    await db.query(
-      'UPDATE site_checks SET status = ?, admin_comment = ?, reviewed_by = ?, reviewed_at = NOW() WHERE id = ?',
-      [status, admin_comment || null, reviewed_by, req.params.id]
-    );
+    const siteChecks = await SiteChecks.aggregate([
+      { $match: matchStage },
+      // Join with properties to get title, location, lat/lng
+      {
+        $lookup: {
+          from: 'properties',
+          localField: 'property_id',
+          foreignField: '_id',
+          as: 'property'
+        }
+      },
+      { $unwind: { path: '$property', preserveNullAndEmptyArrays: true } },
+      // Join with users to get inspector name
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'inspector_id',
+          foreignField: '_id',
+          as: 'inspector'
+        }
+      },
+      { $unwind: { path: '$inspector', preserveNullAndEmptyArrays: true } },
+      // Join with users to get reviewer name
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'reviewed_by',
+          foreignField: '_id',
+          as: 'reviewer'
+        }
+      },
+      { $unwind: { path: '$reviewer', preserveNullAndEmptyArrays: true } },
+      // Project all fields the frontend needs
+      {
+        $addFields: {
+          id: '$_id',
+          property_title: { $ifNull: ['$property.title', 'Unknown Property'] },
+          property_location: { $ifNull: ['$property.location', ''] },
+          property_lat: { $ifNull: ['$property.latitude', null] },
+          property_lng: { $ifNull: ['$property.longitude', null] },
+          inspector_name: { $ifNull: ['$inspector.name', 'Unknown'] },
+          reviewer_name: { $ifNull: ['$reviewer.name', null] }
+        }
+      },
+      { $sort: { created_at: -1 } }
+    ]);
 
-    // Get site check info for notification
-    const [check] = await db.query(
-      `SELECT sc.*, p.title as property_title FROM site_checks sc
-       LEFT JOIN properties p ON sc.property_id = p.id WHERE sc.id = ?`,
-      [req.params.id]
-    );
-
-    if (check.length > 0) {
-      const sc = check[0];
-
-      // Log audit
-      await logAudit(sc.property_id, `site_check_${status}`, reviewed_by, 'system_admin', {
-        site_check_id: req.params.id,
-        comment: admin_comment
-      });
-
-      // Notify the inspector
-      const statusLabels = { approved: '✅ Approved', rejected: '❌ Rejected', recheck_requested: '🔄 Re-check Requested' };
-      await db.query(
-        'INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)',
-        [
-          sc.inspector_id,
-          `Site Check ${statusLabels[status]}`,
-          `Your site check for "${sc.property_title}" has been ${status.replace('_', ' ')}. ${admin_comment ? 'Comment: ' + admin_comment : ''}`,
-          status === 'approved' ? 'success' : status === 'rejected' ? 'error' : 'warning'
-        ]
-      );
-
-      // Check if property should be fully verified (both site check + legal docs approved)
-      if (status === 'approved') {
-        await checkFullVerification(sc.property_id);
-      }
-    }
-
-    res.json({ message: `Site check ${status} successfully` });
+    res.json(siteChecks);
   } catch (error) {
+    console.error('Fetch all checks error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// ════════════════════════════════════════════════════════════════
-//  LEGAL DOCUMENT ENDPOINTS
-// ════════════════════════════════════════════════════════════════
-
-// POST /legal-documents — Upload a legal document
-router.post('/legal-documents', uploadLegalDoc.single('document'), async (req, res) => {
-  try {
-    const { property_id, uploaded_by, document_type } = req.body;
-
-    if (!property_id || !uploaded_by || !document_type || !req.file) {
-      return res.status(400).json({ message: 'Missing required fields: property_id, uploaded_by, document_type, and document file' });
-    }
-
-    const validTypes = ['title_deed', 'ownership_document', 'id_card'];
-    if (!validTypes.includes(document_type)) {
-      return res.status(400).json({ message: 'Invalid document_type. Must be: title_deed, ownership_document, or id_card' });
-    }
-
-    const documentUrl = `/uploads/legal-documents/${req.file.filename}`;
-
-    const [result] = await db.query(
-      `INSERT INTO legal_documents (property_id, uploaded_by, document_type, document_url, original_filename, status)
-       VALUES (?, ?, ?, ?, ?, 'pending')`,
-      [property_id, uploaded_by, document_type, documentUrl, req.file.originalname]
-    );
-
-    // Log audit
-    await logAudit(property_id, 'document_uploaded', uploaded_by, 'property_admin', {
-      document_type,
-      filename: req.file.originalname
-    });
-
-    // Notify system admins
-    try {
-      const [admins] = await db.query("SELECT id FROM users WHERE role IN ('system_admin', 'admin')");
-      const [prop] = await db.query('SELECT title FROM properties WHERE id = ?', [property_id]);
-      const propTitle = prop.length > 0 ? prop[0].title : `#${property_id}`;
-      const typeLabels = { title_deed: 'Title Deed', ownership_document: 'Ownership Document', id_card: 'ID Card' };
-
-      for (const admin of admins) {
-        await db.query(
-          'INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)',
-          [admin.id, '📄 New Legal Document', `A ${typeLabels[document_type]} was uploaded for property "${propTitle}". Review required.`, 'info']
-        );
-      }
-    } catch (notifErr) {
-      console.error('Legal doc notification error:', notifErr.message);
-    }
-
-    res.status(201).json({ id: result.insertId, message: 'Document uploaded successfully', url: documentUrl });
-  } catch (error) {
-    console.error('Upload legal document error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-
-// GET /legal-documents/:propertyId — Get legal documents for a property
-router.get('/legal-documents/:propertyId', async (req, res) => {
-  try {
-    const [docs] = await db.query(
-      `SELECT ld.*, u.name as uploader_name, ru.name as reviewer_name
-       FROM legal_documents ld
-       LEFT JOIN users u ON ld.uploaded_by = u.id
-       LEFT JOIN users ru ON ld.reviewed_by = ru.id
-       WHERE ld.property_id = ?
-       ORDER BY ld.created_at DESC`,
-      [req.params.propertyId]
-    );
-    res.json(docs);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-
-// GET /legal-documents-all — System Admin gets all legal documents
+// ═══════════════════════════════════════════════════════════════
+// GET /legal-documents-all — Fetch ALL legal docs with property + uploader info
+// Used by SiteCheckAdmin "Legal Documents" tab
+// ═══════════════════════════════════════════════════════════════
 router.get('/legal-documents-all', async (req, res) => {
   try {
-    const { status } = req.query;
-    let query = `
-      SELECT ld.*, u.name as uploader_name, ru.name as reviewer_name,
-             p.title as property_title, p.location as property_location
-      FROM legal_documents ld
-      LEFT JOIN users u ON ld.uploaded_by = u.id
-      LEFT JOIN users ru ON ld.reviewed_by = ru.id
-      LEFT JOIN properties p ON ld.property_id = p.id
-    `;
-    const params = [];
-    if (status && status !== 'all') {
-      query += ' WHERE ld.status = ?';
-      params.push(status);
+    const matchStage = {};
+    if (req.query.status) {
+      matchStage.status = req.query.status;
     }
-    query += ' ORDER BY ld.created_at DESC';
 
-    const [docs] = await db.query(query, params);
+    const docs = await LegalDocuments.aggregate([
+      { $match: matchStage },
+      // Join with properties
+      {
+        $lookup: {
+          from: 'properties',
+          localField: 'property_id',
+          foreignField: '_id',
+          as: 'property'
+        }
+      },
+      { $unwind: { path: '$property', preserveNullAndEmptyArrays: true } },
+      // Join with users for uploader name
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'uploaded_by',
+          foreignField: '_id',
+          as: 'uploader'
+        }
+      },
+      { $unwind: { path: '$uploader', preserveNullAndEmptyArrays: true } },
+      // Join with users for reviewer name
+      {
+        $lookup: {
+          from: 'users',
+          localField: 'reviewed_by',
+          foreignField: '_id',
+          as: 'reviewer'
+        }
+      },
+      { $unwind: { path: '$reviewer', preserveNullAndEmptyArrays: true } },
+      {
+        $addFields: {
+          id: '$_id',
+          property_title: { $ifNull: ['$property.title', 'Unknown Property'] },
+          property_location: { $ifNull: ['$property.location', ''] },
+          uploader_name: { $ifNull: ['$uploader.name', 'Unknown'] },
+          reviewer_name: { $ifNull: ['$reviewer.name', null] }
+        }
+      },
+      { $sort: { created_at: -1 } }
+    ]);
+
     res.json(docs);
   } catch (error) {
+    console.error('Fetch all docs error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// PUT /legal-documents/:id/review — System Admin reviews a legal document
-router.put('/legal-documents/:id/review', async (req, res) => {
+// ═══════════════════════════════════════════════════════════════
+// GET /audit-log/:propertyId — Build a synthetic audit trail
+// from site checks + legal docs for a given property
+// ═══════════════════════════════════════════════════════════════
+router.get('/audit-log/:propertyId', async (req, res) => {
   try {
-    const { status, admin_comment, reviewed_by } = req.body;
+    const propertyId = req.params.propertyId;
+    if (!mongoose.Types.ObjectId.isValid(propertyId)) return res.json([]);
 
-    if (!['verified', 'rejected'].includes(status)) {
-      return res.status(400).json({ message: 'Invalid status. Must be: verified or rejected' });
-    }
+    const pid = new mongoose.Types.ObjectId(propertyId);
 
-    await db.query(
-      'UPDATE legal_documents SET status = ?, admin_comment = ?, reviewed_by = ?, reviewed_at = NOW() WHERE id = ?',
-      [status, admin_comment || null, reviewed_by, req.params.id]
-    );
+    // Get all site checks for this property
+    const checks = await SiteChecks.aggregate([
+      { $match: { property_id: pid } },
+      { $lookup: { from: 'users', localField: 'inspector_id', foreignField: '_id', as: 'inspector' } },
+      { $unwind: { path: '$inspector', preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: 'users', localField: 'reviewed_by', foreignField: '_id', as: 'reviewer' } },
+      { $unwind: { path: '$reviewer', preserveNullAndEmptyArrays: true } },
+      { $sort: { created_at: 1 } }
+    ]);
 
-    const [doc] = await db.query(
-      `SELECT ld.*, p.title as property_title FROM legal_documents ld
-       LEFT JOIN properties p ON ld.property_id = p.id WHERE ld.id = ?`,
-      [req.params.id]
-    );
+    // Get all legal docs for this property
+    const docs = await LegalDocuments.aggregate([
+      { $match: { property_id: pid } },
+      { $lookup: { from: 'users', localField: 'uploaded_by', foreignField: '_id', as: 'uploader' } },
+      { $unwind: { path: '$uploader', preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: 'users', localField: 'reviewed_by', foreignField: '_id', as: 'reviewer' } },
+      { $unwind: { path: '$reviewer', preserveNullAndEmptyArrays: true } },
+      { $sort: { created_at: 1 } }
+    ]);
 
-    if (doc.length > 0) {
-      const d = doc[0];
-      const typeLabels = { title_deed: 'Title Deed', ownership_document: 'Ownership Document', id_card: 'ID Card' };
+    // Build timeline entries
+    const auditLogs = [];
 
-      await logAudit(d.property_id, `document_${status}`, reviewed_by, 'system_admin', {
-        document_id: req.params.id,
-        document_type: d.document_type,
-        comment: admin_comment
+    checks.forEach(check => {
+      // Site check started
+      auditLogs.push({
+        id: check._id + '_started',
+        action: 'site_check_started',
+        created_at: check.created_at || check.createdAt,
+        performer_name: check.inspector?.name || 'Unknown',
+        performer_role: 'inspector',
+        details: JSON.stringify({
+          distance: `${check.distance_meters || 0}m`,
+          within_radius: check.within_radius ? 'Yes' : 'No'
+        })
       });
 
-      // Notify uploader
-      await db.query(
-        'INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)',
-        [
-          d.uploaded_by,
-          `Document ${status === 'verified' ? '✅ Verified' : '❌ Rejected'}`,
-          `Your ${typeLabels[d.document_type]} for "${d.property_title}" has been ${status}. ${admin_comment ? 'Comment: ' + admin_comment : ''}`,
-          status === 'verified' ? 'success' : 'error'
-        ]
-      );
-
-      // Check full verification if approved
-      if (status === 'verified') {
-        await checkFullVerification(d.property_id);
+      // If reviewed
+      if (check.status === 'approved' || check.status === 'rejected' || check.status === 'recheck_requested') {
+        auditLogs.push({
+          id: check._id + '_reviewed',
+          action: `site_check_${check.status}`,
+          created_at: check.reviewed_at || check.updatedAt,
+          performer_name: check.reviewer?.name || 'Admin',
+          performer_role: 'admin',
+          details: check.admin_comment ? JSON.stringify({ comment: check.admin_comment }) : null
+        });
       }
-    }
+    });
 
-    res.json({ message: `Document ${status} successfully` });
+    docs.forEach(doc => {
+      // Document uploaded
+      auditLogs.push({
+        id: doc._id + '_uploaded',
+        action: 'document_uploaded',
+        created_at: doc.created_at || doc.createdAt,
+        performer_name: doc.uploader?.name || 'Unknown',
+        performer_role: 'property_admin',
+        details: JSON.stringify({ type: doc.document_type, filename: doc.original_filename })
+      });
+
+      // If reviewed
+      if (doc.status === 'verified' || doc.status === 'rejected') {
+        auditLogs.push({
+          id: doc._id + '_reviewed',
+          action: `document_${doc.status}`,
+          created_at: doc.reviewed_at || doc.updatedAt,
+          performer_name: doc.reviewer?.name || 'Admin',
+          performer_role: 'admin',
+          details: doc.admin_comment ? JSON.stringify({ comment: doc.admin_comment }) : null
+        });
+      }
+    });
+
+    // Sort by date
+    auditLogs.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+
+    res.json(auditLogs);
   } catch (error) {
+    console.error('Audit log error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// ════════════════════════════════════════════════════════════════
-//  VERIFICATION STATUS & AUDIT LOG
-// ════════════════════════════════════════════════════════════════
-
-// GET /verification-status/:propertyId — Combined verification status
+// ═══════════════════════════════════════════════════════════════
+// GET /verification-status/:propertyId
+// ═══════════════════════════════════════════════════════════════
 router.get('/verification-status/:propertyId', async (req, res) => {
   try {
     const propertyId = req.params.propertyId;
+    if (!mongoose.Types.ObjectId.isValid(propertyId)) return res.json({ site_check_status: 'not_started', all_documents_verified: false, fully_verified: false, documents: {} });
 
-    // Latest site check
-    const [siteChecks] = await db.query(
-      "SELECT status FROM site_checks WHERE property_id = ? ORDER BY created_at DESC LIMIT 1",
-      [propertyId]
-    );
+    const siteCheck = await SiteChecks.findOne({ property_id: propertyId }).sort({ created_at: -1 }).lean();
+    const legalDocs = await LegalDocuments.find({ property_id: propertyId }).lean();
 
-    // Legal documents status
-    const [docs] = await db.query(
-      "SELECT document_type, status FROM legal_documents WHERE property_id = ?",
-      [propertyId]
-    );
+    const documents = {};
+    legalDocs.forEach(d => { documents[d.document_type] = d.status; });
 
-    const siteCheckStatus = siteChecks.length > 0 ? siteChecks[0].status : 'not_started';
-
-    const docStatuses = {};
-    for (const d of docs) {
-      docStatuses[d.document_type] = d.status;
-    }
-
-    const allDocsVerified = ['title_deed', 'ownership_document', 'id_card'].every(
-      type => docStatuses[type] === 'verified'
-    );
-
-    const fullyVerified = siteCheckStatus === 'approved' && allDocsVerified;
+    const all_documents_verified = legalDocs.length >= 3 && legalDocs.every(d => d.status === 'verified');
+    const site_check_status = siteCheck ? siteCheck.status : 'not_started';
 
     res.json({
-      property_id: propertyId,
-      site_check_status: siteCheckStatus,
-      documents: docStatuses,
-      all_documents_verified: allDocsVerified,
-      fully_verified: fullyVerified
+      site_check_status,
+      all_documents_verified,
+      fully_verified: site_check_status === 'approved' && all_documents_verified,
+      documents
     });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// GET /property/:propertyId — Fetch site checks for one property
+// Used by SiteCheckManager to show previous checks
+// ═══════════════════════════════════════════════════════════════
+router.get('/property/:propertyId', async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.propertyId)) return res.json([]);
+    const siteChecks = await SiteChecks.aggregate([
+      { $match: { property_id: new mongoose.Types.ObjectId(req.params.propertyId) } },
+      { $lookup: { from: 'users', localField: 'inspector_id', foreignField: '_id', as: 'inspector' } },
+      { $unwind: { path: '$inspector', preserveNullAndEmptyArrays: true } },
+      { $addFields: { id: '$_id', inspector_name: { $ifNull: ['$inspector.name', 'Unknown'] } } },
+      { $sort: { created_at: -1 } }
+    ]);
+    res.json(siteChecks);
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
+});
+
+// ═══════════════════════════════════════════════════════════════
+// POST /start — Submit a new site check (local file upload)
+// ═══════════════════════════════════════════════════════════════
+router.post('/start', uploadLocal.single('photo'), async (req, res) => {
+  try {
+    const { property_id, inspector_id, inspector_gps_lat, inspector_gps_lng, within_radius, distance_meters } = req.body;
+    let photo_url = '';
+    if (req.file) photo_url = `/uploads/${req.file.filename}`;
+
+    // Also grab property lat/lng to store alongside
+    let property_lat = null, property_lng = null;
+    if (mongoose.Types.ObjectId.isValid(property_id)) {
+      const prop = await Properties.findById(property_id).select('latitude longitude').lean();
+      if (prop) {
+        property_lat = prop.latitude;
+        property_lng = prop.longitude;
+      }
+    }
+
+    const siteCheck = await SiteChecks.create({
+      property_id,
+      inspector_id,
+      inspector_gps_lat: parseFloat(inspector_gps_lat) || 0,
+      inspector_gps_lng: parseFloat(inspector_gps_lng) || 0,
+      property_lat,
+      property_lng,
+      distance_meters: parseFloat(distance_meters) || 0,
+      within_radius: within_radius === 'true' || within_radius === true,
+      photo_url,
+      photo_timestamp: new Date(),
+      status: 'pending',
+      created_at: new Date()
+    });
+    res.json({ message: 'Site check started successfully', success: true, id: siteCheck._id });
   } catch (error) {
+    console.error('Site check start error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// GET /audit-log/:propertyId — Audit trail
-router.get('/audit-log/:propertyId', async (req, res) => {
+// ═══════════════════════════════════════════════════════════════
+// PUT /:id/review — Admin reviews a site check
+// ═══════════════════════════════════════════════════════════════
+router.put('/:id/review', async (req, res) => {
   try {
-    const [logs] = await db.query(
-      `SELECT val.*, u.name as performer_name
-       FROM verification_audit_log val
-       LEFT JOIN users u ON val.performed_by = u.id
-       WHERE val.property_id = ?
-       ORDER BY val.created_at DESC`,
-      [req.params.propertyId]
-    );
-    res.json(logs);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+    const { status, admin_comment, reviewed_by } = req.body;
+    await SiteChecks.findByIdAndUpdate(req.params.id, {
+      status,
+      admin_comment,
+      reviewed_by: mongoose.Types.ObjectId.isValid(reviewed_by) ? new mongoose.Types.ObjectId(reviewed_by) : reviewed_by,
+      reviewed_at: new Date()
+    });
+    res.json({ message: 'Site check reviewed', success: true });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
-// ─── Helper: check if property should be fully verified ───
-async function checkFullVerification(propertyId) {
+// ═══════════════════════════════════════════════════════════════
+// POST /legal-documents — Upload a legal document (local)
+// ═══════════════════════════════════════════════════════════════
+router.post('/legal-documents', uploadLocal.single('document'), async (req, res) => {
   try {
-    const [siteChecks] = await db.query(
-      "SELECT status FROM site_checks WHERE property_id = ? AND status = 'approved' LIMIT 1",
-      [propertyId]
-    );
+    const { property_id, uploaded_by, document_type, original_filename } = req.body;
+    if (!req.file) return res.status(400).json({ message: 'No file uploaded', success: false });
 
-    const [docs] = await db.query(
-      "SELECT document_type, status FROM legal_documents WHERE property_id = ?",
-      [propertyId]
-    );
+    const doc = await LegalDocuments.create({
+      property_id, uploaded_by, document_type,
+      original_filename: original_filename || req.file.originalname,
+      document_url: `/uploads/${req.file.filename}`,
+      status: 'pending',
+      created_at: new Date()
+    });
+    res.json({ message: 'Legal document uploaded', success: true, id: doc._id });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
+});
 
-    const docStatuses = {};
-    for (const d of docs) {
-      docStatuses[d.document_type] = d.status;
-    }
+// ═══════════════════════════════════════════════════════════════
+// GET /legal-documents/:propertyId — Legal docs for one property
+// ═══════════════════════════════════════════════════════════════
+router.get('/legal-documents/:propertyId', async (req, res) => {
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.propertyId)) return res.json([]);
+    const docs = await LegalDocuments.find({ property_id: req.params.propertyId }).lean();
+    res.json(docs.map(d => ({ ...d, id: d._id })));
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
+});
 
-    const siteCheckApproved = siteChecks.length > 0;
-    const allDocsVerified = ['title_deed', 'ownership_document', 'id_card'].every(
-      type => docStatuses[type] === 'verified'
-    );
-
-    if (siteCheckApproved && allDocsVerified) {
-      // Mark property as fully verified
-      await db.query(
-        "UPDATE properties SET verified = TRUE, status = 'active', verification_date = NOW() WHERE id = ?",
-        [propertyId]
-      );
-
-      // Update property_verification table
-      const [existing] = await db.query('SELECT id FROM property_verification WHERE property_id = ?', [propertyId]);
-      if (existing.length > 0) {
-        await db.query(
-          "UPDATE property_verification SET verification_status = 'approved', verified_at = NOW() WHERE property_id = ?",
-          [propertyId]
-        );
-      } else {
-        await db.query(
-          "INSERT INTO property_verification (property_id, verification_status, verified_at) VALUES (?, 'approved', NOW())",
-          [propertyId]
-        );
-      }
-
-      await logAudit(propertyId, 'property_fully_verified', null, 'system', {
-        reason: 'Site check approved and all legal documents verified'
-      });
-
-      // Notify property owner/broker
-      const [prop] = await db.query('SELECT title, owner_id, broker_id FROM properties WHERE id = ?', [propertyId]);
-      if (prop.length > 0) {
-        const notifyUserId = prop[0].owner_id || prop[0].broker_id;
-        if (notifyUserId) {
-          await db.query(
-            'INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)',
-            [notifyUserId, '🎉 Property Fully Verified!', `Your property "${prop[0].title}" has been fully verified (site check + legal documents). It is now active and visible to buyers.`, 'success']
-          );
-        }
-      }
-    }
-  } catch (e) {
-    console.error('checkFullVerification error:', e.message);
-  }
-}
-
-// Error handling middleware for Multer and other errors in this router
-router.use((err, req, res, next) => {
-  if (err instanceof multer.MulterError) {
-    // A Multer error occurred when uploading.
-    return res.status(413).json({ message: `File upload error: ${err.message}. Please upload a smaller file.` });
-  } else if (err) {
-    // An unknown error occurred when uploading.
-    console.error('Site Check Router Error:', err);
-    return res.status(500).json({ message: `Server error: ${err.message}` });
-  }
-  next();
+// ═══════════════════════════════════════════════════════════════
+// PUT /legal-documents/:id/review — Admin reviews a legal document
+// ═══════════════════════════════════════════════════════════════
+router.put('/legal-documents/:id/review', async (req, res) => {
+  try {
+    const { status, admin_comment, reviewed_by } = req.body;
+    await LegalDocuments.findByIdAndUpdate(req.params.id, {
+      status,
+      admin_comment,
+      reviewed_by: mongoose.Types.ObjectId.isValid(reviewed_by) ? new mongoose.Types.ObjectId(reviewed_by) : reviewed_by,
+      reviewed_at: new Date()
+    });
+    res.json({ message: 'Document reviewed', success: true });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
 module.exports = router;

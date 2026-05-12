@@ -18,7 +18,7 @@ const PropertyUploaderModal = ({ user, onClose, onSuccess }) => {
   const [predictionLoading, setPredictionLoading] = useState(false);
 
   const [propertyForm, setPropertyForm] = useState({
-    title: '', type: 'apartment', listing_type: 'sale', price: '', location: '',
+    title: 'Apartment', type: 'apartment', listing_type: 'sale', price: '', location: '',
     bedrooms: '', bathrooms: '', area: '', description: '',
     distance_to_center_km: '3', near_school: false, near_hospital: false,
     near_market: false, parking: false, security_rating: '3', condition: 'Good',
@@ -153,10 +153,10 @@ const PropertyUploaderModal = ({ user, onClose, onSuccess }) => {
       let response;
       if (newPropertyId) {
         // Update existing property
-        response = await axios.put(`http://localhost:5000/api/properties/${newPropertyId}`, payload);
+        response = await axios.put(`http://${window.location.hostname}:5000/api/properties/${newPropertyId}`, payload);
       } else {
         // Create new property
-        response = await axios.post('http://localhost:5000/api/properties', payload);
+        response = await axios.post(`http://${window.location.hostname}:5000/api/properties`, payload);
         setNewPropertyId(response.data.id);
       }
 
@@ -180,9 +180,9 @@ const PropertyUploaderModal = ({ user, onClose, onSuccess }) => {
   const fetchPreviewData = async () => {
     try {
       const [propertyRes, imagesRes, docsRes] = await Promise.all([
-        axios.get(`http://localhost:5000/api/properties/${newPropertyId}`),
-        axios.get(`http://localhost:5000/api/property-images/property/${newPropertyId}`),
-        axios.get(`http://localhost:5000/api/property-documents/property/${newPropertyId}`).catch(() => ({ data: [] }))
+        axios.get(`http://${window.location.hostname}:5000/api/properties/${newPropertyId}`),
+        axios.get(`http://${window.location.hostname}:5000/api/property-images/property/${newPropertyId}`),
+        axios.get(`http://${window.location.hostname}:5000/api/property-documents/property/${newPropertyId}`).catch(() => ({ data: [] }))
       ]);
       setPreviewProperty(propertyRes.data);
       setPreviewImages(imagesRes.data);
@@ -200,9 +200,11 @@ const PropertyUploaderModal = ({ user, onClose, onSuccess }) => {
     }
 
     try {
-      // Set status to pending for admin approval
-      await axios.put(`http://localhost:5000/api/properties/${newPropertyId}`, {
-        ...previewProperty,
+      // Set status to pending for admin approval — only send fields the PUT route expects
+      const { title, description, price, location, type, broker_id, bedrooms, bathrooms, area, listing_type, latitude, longitude, model_3d_path } = previewProperty || {};
+      await axios.put(`http://${window.location.hostname}:5000/api/properties/${newPropertyId}`, {
+        title, description, price, location, type, broker_id,
+        bedrooms, bathrooms, area, listing_type, latitude, longitude, model_3d_path,
         status: 'pending'
       });
       
@@ -254,11 +256,11 @@ const PropertyUploaderModal = ({ user, onClose, onSuccess }) => {
               <div className="form-grid">
                 <div className="form-group">
                   <label>Property Title *</label>
-                  <input type="text" value={propertyForm.title} onChange={(e) => setPropertyForm({ ...propertyForm, title: e.target.value })} required placeholder="e.g., Modern Villa in Kezira" />
+                  <input type="text" value={propertyForm.title} readOnly required placeholder="Auto-filled from type" style={{ background: '#f1f5f9', cursor: 'not-allowed' }} />
                 </div>
                 <div className="form-group">
                   <label>Property Type *</label>
-                  <select value={propertyForm.type} onChange={(e) => setPropertyForm({ ...propertyForm, type: e.target.value })} required>
+                  <select value={propertyForm.type} onChange={(e) => setPropertyForm({ ...propertyForm, type: e.target.value, title: e.target.value.charAt(0).toUpperCase() + e.target.value.slice(1) })} required>
                     <option value="apartment">Apartment</option>
                     <option value="villa">Villa</option>
                     <option value="house">House</option>
@@ -275,7 +277,7 @@ const PropertyUploaderModal = ({ user, onClose, onSuccess }) => {
                 <div className="form-group" style={{ gridColumn: '1 / -1' }}>
                   <label>Location *</label>
                   <div style={{ display: 'flex', gap: '10px' }}>
-                    <input type="text" value={propertyForm.location} onChange={(e) => setPropertyForm({ ...propertyForm, location: e.target.value })} required placeholder="e.g., Kezira, Dire Dawa" style={{ flex: 1 }} />
+                    <input type="text" value={propertyForm.location} readOnly required placeholder="Please select location using the Map button ➔" style={{ flex: 1, background: '#f1f5f9', cursor: 'not-allowed' }} />
                     <button
                       type="button"
                       onClick={() => setShowMapPicker(true)}

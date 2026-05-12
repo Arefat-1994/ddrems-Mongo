@@ -44,7 +44,7 @@ const MessageNotificationWidget = ({ userId, onNavigateToMessages }) => {
   const fetchUnreadMessages = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`http://localhost:5000/api/messages/unread/${userId}`);
+      const response = await axios.get(`http://${window.location.hostname}:5000/api/messages/unread/${userId}`);
       const newCount = response.data.count || 0;
       
       // Play sound if we got a new message
@@ -54,7 +54,7 @@ const MessageNotificationWidget = ({ userId, onNavigateToMessages }) => {
       setUnreadMessages(newCount);
       
       // Also fetch recent notifications
-      const notifResponse = await axios.get(`http://localhost:5000/api/messages/notifications/${userId}`);
+      const notifResponse = await axios.get(`http://${window.location.hostname}:5000/api/messages/notifications/${userId}`);
       setNotifications(notifResponse.data.notifications || []);
     } catch (error) {
       console.error('Error fetching unread messages:', error);

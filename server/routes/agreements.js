@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/db');
+const mongoose = require('mongoose');
+const { Agreements, Properties, Users, PropertyDocuments, CustomerProfiles, Notifications, Messages } = require('../models');
 const socket = require('../socket');
 
-// Helper: Generate agreement HTML document
 function generateAgreementHTML(agreement, property, owner, customer, ownerDocs, customerDocs) {
   const today = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   
@@ -173,393 +173,115 @@ function generateAgreementHTML(agreement, property, owner, customer, ownerDocs, 
 </html>`;
 }
 
-// Get single agreement with full details
 router.get('/:id', async (req, res) => {
   try {
-    const [agreements] = await db.query(`
-      SELECT a.*, p.title as property_title, p.location as property_location, 
-             p.price as property_price, p.type as property_type, p.area as property_area, p.status as property_status,
-             owner.name as owner_name, owner.email as owner_email, owner.phone as owner_phone,
-             cust.name as customer_name, cust.email as customer_email, cust.phone as customer_phone
-      FROM agreements a
-      JOIN properties p ON a.property_id = p.id
-      LEFT JOIN users owner ON a.owner_id = owner.id
-      LEFT JOIN users cust ON a.customer_id = cust.id
-      WHERE a.id = ?
-    `, [req.params.id]);
-
-    if (agreements.length === 0) {
-      return res.status(404).json({ message: 'Agreement not found', success: false });
-    }
-
-    res.json({ agreement: agreements[0], success: true });
-  } catch (error) {
-    console.error('Get agreement error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ message: 'Invalid ID', success: false });
+    const agreement = await Agreements.findById(req.params.id).lean();
+    if (!agreement) return res.status(404).json({ message: 'Agreement not found', success: false });
+    let property = {}, owner = {}, customer = {};
+    if (agreement.property_id) { const p = await Properties.findById(agreement.property_id).lean(); if (p) property = p; }
+    if (agreement.owner_id) { const o = await Users.findById(agreement.owner_id).lean(); if (o) owner = o; }
+    if (agreement.customer_id) { const c = await Users.findById(agreement.customer_id).lean(); if (c) customer = c; }
+    res.json({ agreement: { ...agreement, id: agreement._id, property_title: property.title, property_location: property.location, property_price: property.price, property_type: property.type, property_area: property.area, property_status: property.status, owner_name: owner.name, owner_email: owner.email, owner_phone: owner.phone, customer_name: customer.name, customer_email: customer.email, customer_phone: customer.phone }, success: true });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
-// Get owner agreements
-router.get('/owner/:userId', async (req, res) => {
+const getAgreementsByField = (field) => async (req, res) => {
   try {
-    const [agreements] = await db.query(`
-      SELECT a.*, p.title as property_title, p.location as property_location, p.price as property_price,
-             cust.name as customer_name, cust.email as customer_email
-      FROM agreements a
-      JOIN properties p ON a.property_id = p.id
-      LEFT JOIN users cust ON a.customer_id = cust.id
-      WHERE a.owner_id = ?
-      ORDER BY a.created_at DESC
-    `, [req.params.userId]);
+    if (!mongoose.Types.ObjectId.isValid(req.params.userId)) return res.json([]);
+    const agreements = await Agreements.aggregate([
+      { $match: { [field]: new mongoose.Types.ObjectId(req.params.userId) } },
+      { $lookup: { from: 'properties', localField: 'property_id', foreignField: '_id', as: 'property' } },
+      { $lookup: { from: 'users', localField: 'customer_id', foreignField: '_id', as: 'customer' } },
+      { $lookup: { from: 'users', localField: 'owner_id', foreignField: '_id', as: 'owner' } },
+      { $unwind: { path: '$property', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$customer', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$owner', preserveNullAndEmptyArrays: true } },
+      { $addFields: { id: '$_id', property_title: '$property.title', property_location: '$property.location', property_price: '$property.price', customer_name: '$customer.name', customer_email: '$customer.email', owner_name: '$owner.name', owner_email: '$owner.email' } },
+      { $sort: { created_at: -1 } }
+    ]);
     res.json(agreements);
-  } catch (error) {
-    console.error('Get owner agreements error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
+};
 
-// Get broker agreements
-router.get('/broker/:userId', async (req, res) => {
-  try {
-    const [agreements] = await db.query(`
-      SELECT a.*, p.title as property_title, p.location as property_location, p.price as property_price,
-             cust.name as customer_name, cust.email as customer_email
-      FROM agreements a
-      JOIN properties p ON a.property_id = p.id
-      LEFT JOIN users cust ON a.customer_id = cust.id
-      WHERE a.broker_id = ?
-      ORDER BY a.created_at DESC
-    `, [req.params.userId]);
-    res.json(agreements);
-  } catch (error) {
-    console.error('Get broker agreements error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
+router.get('/owner/:userId', getAgreementsByField('owner_id'));
+router.get('/broker/:userId', getAgreementsByField('broker_id'));
+router.get('/customer/:userId', getAgreementsByField('customer_id'));
 
-// Get customer agreements
-router.get('/customer/:userId', async (req, res) => {
-  try {
-    const [agreements] = await db.query(`
-      SELECT a.*, p.title as property_title, p.location as property_location, p.price as property_price,
-             owner.name as owner_name, owner.email as owner_email
-      FROM agreements a
-      JOIN properties p ON a.property_id = p.id
-      LEFT JOIN users owner ON a.owner_id = owner.id
-      WHERE a.customer_id = ?
-      ORDER BY a.created_at DESC
-    `, [req.params.userId]);
-    res.json(agreements);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-
-// Create agreement
 router.post('/', async (req, res) => {
   try {
     const { property_id, owner_id, customer_id, broker_id, agreement_text, status } = req.body;
-    const [result] = await db.query(
-      'INSERT INTO agreements (property_id, owner_id, customer_id, broker_id, agreement_text, status) VALUES (?, ?, ?, ?, ?, ?)',
-      [property_id, owner_id, customer_id, broker_id || null, agreement_text, status || 'pending']
-    );
-
-    // Emit socket event
-    const eventData = { agreementId: result.insertId, propertyId: property_id, status: status || 'pending' };
-    if (owner_id) socket.emitToUser(owner_id, 'agreement_created', eventData);
-    if (customer_id) socket.emitToUser(customer_id, 'agreement_created', eventData);
-    if (broker_id) socket.emitToUser(broker_id, 'agreement_created', eventData);
-
-    res.status(201).json({ id: result.insertId, message: 'Agreement created successfully' });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+    const ag = await Agreements.create({ property_id, owner_id, customer_id, broker_id: broker_id || null, agreement_text, status: status || 'pending' });
+    res.status(201).json({ id: ag._id, message: 'Agreement created successfully' });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
-// Generate agreement document
 router.post('/:id/generate-document', async (req, res) => {
   try {
-    const agreementId = req.params.id;
-
-    // Get agreement with full details
-    const [agreements] = await db.query(`
-      SELECT a.*, p.title, p.location, p.price, p.type, p.area, p.status as property_status,
-             p.id as prop_id
-      FROM agreements a
-      JOIN properties p ON a.property_id = p.id
-      WHERE a.id = ?
-    `, [agreementId]);
-
-    if (agreements.length === 0) {
-      return res.status(404).json({ message: 'Agreement not found', success: false });
-    }
-
-    const agreement = agreements[0];
-    const customerId = agreement.customer_id;
-
-    // Get owner and customer info
-    const [owners] = await db.query('SELECT name, email, phone FROM users WHERE id = ?', [agreement.owner_id]);
-    const [customers] = await db.query('SELECT name, email, phone FROM users WHERE id = ?', [customerId]);
-
-    const owner = owners.length > 0 ? owners[0] : { name: 'N/A', email: 'N/A', phone: 'N/A' };
-    const customer = customers.length > 0 ? customers[0] : { name: 'N/A', email: 'N/A', phone: 'N/A' };
-
-    // Get property documents (owner side)
-    const [ownerDocs] = await db.query(
-      'SELECT document_name, document_type FROM property_documents WHERE property_id = ?',
-      [agreement.prop_id]
-    );
-
-    // Customer documents (from customer profile)
-    let customerDocs = [];
-    try {
-      const [custProfile] = await db.query(
-        'SELECT id_document FROM customer_profiles WHERE user_id = ?',
-        [customerId]
-      );
-      if (custProfile.length > 0 && custProfile[0].id_document) {
-        customerDocs.push({ document_name: 'ID Document', document_type: 'identification' });
-      }
-    } catch (e) { /* table may not exist */ }
-
-    const property = {
-      title: agreement.title, location: agreement.location, price: agreement.price,
-      type: agreement.type, area: agreement.area, status: agreement.property_status
-    };
-
-    // Generate HTML
-    const html = generateAgreementHTML(agreement, property, owner, customer, ownerDocs, customerDocs);
-
-    // Save to database
-    await db.query(
-      'UPDATE agreements SET agreement_html = ?, updated_at = NOW() WHERE id = ?',
-      [html, agreementId]
-    );
-
-    res.json({ 
-      html, 
-      agreement_id: agreementId, 
-      message: 'Agreement document generated successfully',
-      success: true
-    });
-  } catch (error) {
-    console.error('Generate document error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message, success: false });
-  }
+    const agreement = await Agreements.findById(req.params.id).lean();
+    if (!agreement) return res.status(404).json({ message: 'Agreement not found', success: false });
+    const property = await Properties.findById(agreement.property_id).lean() || {};
+    const owner = await Users.findById(agreement.owner_id).lean() || { name: 'N/A', email: 'N/A', phone: 'N/A' };
+    const customer = await Users.findById(agreement.customer_id).lean() || { name: 'N/A', email: 'N/A', phone: 'N/A' };
+    const ownerDocs = await PropertyDocuments.find({ property_id: agreement.property_id }).lean();
+    const html = generateAgreementHTML({ ...agreement, id: agreement._id }, property, owner, customer, ownerDocs, []);
+    await Agreements.findByIdAndUpdate(req.params.id, { agreement_html: html });
+    res.json({ html, agreement_id: req.params.id, message: 'Generated', success: true });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message, success: false }); }
 });
 
-// Get agreement document HTML
 router.get('/:id/document', async (req, res) => {
   try {
-    const [agreements] = await db.query('SELECT agreement_html FROM agreements WHERE id = ?', [req.params.id]);
-    if (agreements.length === 0 || !agreements[0].agreement_html) {
-      return res.status(404).json({ message: 'Agreement document not found. Generate it first.', success: false });
-    }
-    res.json({ html: agreements[0].agreement_html, success: true });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message, success: false });
-  }
+    const ag = await Agreements.findById(req.params.id).lean();
+    if (!ag || !ag.agreement_html) return res.status(404).json({ message: 'Document not found', success: false });
+    res.json({ html: ag.agreement_html, success: true });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message, success: false }); }
 });
 
-// Update agreement fillable fields
 router.put('/:id/update-fields', async (req, res) => {
   try {
-    const { duration, payment_terms, special_conditions, additional_terms, agreement_text } = req.body;
-    
-    const updates = [];
-    const values = [];
-    
-    if (duration !== undefined) { updates.push('duration = ?'); values.push(duration); }
-    if (payment_terms !== undefined) { updates.push('payment_terms = ?'); values.push(payment_terms); }
-    if (special_conditions !== undefined) { updates.push('special_conditions = ?'); values.push(special_conditions); }
-    if (additional_terms !== undefined) { updates.push('additional_terms = ?'); values.push(additional_terms); }
-    if (agreement_text !== undefined) { updates.push('agreement_text = ?'); values.push(agreement_text); }
-    
-    if (updates.length === 0) {
-      return res.status(400).json({ message: 'No fields to update', success: false });
-    }
-    
-    updates.push('updated_at = NOW()');
-    values.push(req.params.id);
-    
-    await db.query(`UPDATE agreements SET ${updates.join(', ')} WHERE id = ?`, values);
-    
-    // Emit event that agreement was updated
-    const [agreements] = await db.query('SELECT owner_id, customer_id FROM agreements WHERE id = ?', [req.params.id]);
-    if (agreements.length > 0) {
-      const { owner_id, customer_id } = agreements[0];
-      if (owner_id) socket.emitToUser(owner_id, 'agreement_updated', { agreementId: req.params.id });
-      if (customer_id) socket.emitToUser(customer_id, 'agreement_updated', { agreementId: req.params.id });
-    }
-
-    res.json({ message: 'Agreement fields updated successfully', success: true });
-  } catch (error) {
-    console.error('Update fields error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message, success: false });
-  }
+    const update = {};
+    ['duration','payment_terms','special_conditions','additional_terms','agreement_text'].forEach(f => { if (req.body[f] !== undefined) update[f] = req.body[f]; });
+    if (Object.keys(update).length === 0) return res.status(400).json({ message: 'No fields', success: false });
+    await Agreements.findByIdAndUpdate(req.params.id, update);
+    res.json({ message: 'Fields updated', success: true });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message, success: false }); }
 });
 
-// Sign agreement (owner or customer)
 router.put('/:id/sign', async (req, res) => {
   try {
-    const { user_id, role, signature_data } = req.body;
-    
-    if (!signature_data) {
-      return res.status(400).json({ message: 'Signature data is required', success: false });
-    }
-
-    const [agreements] = await db.query('SELECT * FROM agreements WHERE id = ?', [req.params.id]);
-    if (agreements.length === 0) {
-      return res.status(404).json({ message: 'Agreement not found', success: false });
-    }
-
-    const agreement = agreements[0];
-    const isOwner = String(agreement.owner_id) === String(user_id);
-    const isCustomer = String(agreement.customer_id) === String(user_id);
-
-    if (!isOwner && !isCustomer) {
-      return res.status(403).json({ message: 'Only agreement parties can sign', success: false });
-    }
-
-    if (isOwner) {
-      await db.query(
-        'UPDATE agreements SET owner_signature = ?, owner_signed_at = NOW(), updated_at = NOW() WHERE id = ?',
-        [signature_data, req.params.id]
-      );
-    } else {
-      await db.query(
-        'UPDATE agreements SET customer_signature = ?, customer_signed_at = NOW(), updated_at = NOW() WHERE id = ?',
-        [signature_data, req.params.id]
-      );
-    }
-
-    // Check if both parties signed — activate the agreement
-    const [updated] = await db.query('SELECT owner_signature, customer_signature FROM agreements WHERE id = ?', [req.params.id]);
-    if (updated[0].owner_signature && updated[0].customer_signature) {
-      await db.query("UPDATE agreements SET status = 'active', updated_at = NOW() WHERE id = ?", [req.params.id]);
-    }
-
-    // Notify the other party
-    const notifyUserId = isOwner ? agreement.customer_id : agreement.owner_id;
-    const signerName = isOwner ? 'Owner' : 'Customer';
-    if (notifyUserId) {
-      const notificationData = {
-        userId: notifyUserId,
-        title: 'Agreement Signed',
-        message: `The ${signerName} has signed agreement #${req.params.id}.`,
-        type: 'success'
-      };
-      await db.query(
-        'INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)',
-        [notifyUserId, notificationData.title, notificationData.message, notificationData.type]
-      );
-      // Emit real-time notification
-      socket.emitToUser(notifyUserId, 'new_notification', notificationData);
-      socket.emitToUser(notifyUserId, 'agreement_updated', { agreementId: req.params.id });
-    }
-
-    res.json({ message: `Agreement signed by ${signerName} successfully`, success: true });
-  } catch (error) {
-    console.error('Sign agreement error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message, success: false });
-  }
+    const { user_id, signature_data } = req.body;
+    if (!signature_data) return res.status(400).json({ message: 'Signature required', success: false });
+    const ag = await Agreements.findById(req.params.id);
+    if (!ag) return res.status(404).json({ message: 'Not found', success: false });
+    const isOwner = String(ag.owner_id) === String(user_id);
+    if (isOwner) { ag.owner_signature = signature_data; ag.owner_signed_at = new Date(); }
+    else { ag.customer_signature = signature_data; ag.customer_signed_at = new Date(); }
+    if (ag.owner_signature && ag.customer_signature) ag.status = 'active';
+    await ag.save();
+    res.json({ message: 'Signed successfully', success: true });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message, success: false }); }
 });
 
-// Send agreement to other party
 router.post('/:id/send', async (req, res) => {
   try {
+    const ag = await Agreements.findById(req.params.id);
+    if (!ag) return res.status(404).json({ message: 'Not found', success: false });
     const { sender_id } = req.body;
-
-    const [agreements] = await db.query(`
-      SELECT a.*, p.title as property_title
-      FROM agreements a
-      JOIN properties p ON a.property_id = p.id
-      WHERE a.id = ?
-    `, [req.params.id]);
-
-    if (agreements.length === 0) {
-      return res.status(404).json({ message: 'Agreement not found', success: false });
-    }
-
-    const agreement = agreements[0];
-    const isOwner = String(agreement.owner_id) === String(sender_id);
-    const recipientId = isOwner ? agreement.customer_id : agreement.owner_id;
-
-    if (!recipientId) {
-      return res.status(400).json({ message: 'No recipient found', success: false });
-    }
-
-    // Create notification 
-    const notificationData = {
-      userId: recipientId,
-      title: 'Agreement Document Sent',
-      message: `An agreement document for "${agreement.property_title}" has been sent to you for review and signing.`,
-      type: 'info'
-    };
-
-    await db.query(
-      'INSERT INTO notifications (user_id, title, message, type, related_id) VALUES (?, ?, ?, ?, ?)',
-      [recipientId, notificationData.title, notificationData.message, notificationData.type, req.params.id]
-    );
-
-    // Emit real-time notification
-    socket.emitToUser(recipientId, 'new_notification', notificationData);
-    socket.emitToUser(recipientId, 'agreement_updated', { agreementId: req.params.id });
-
-    // Also send as a message
-    const [sender] = await db.query('SELECT name FROM users WHERE id = ?', [sender_id]);
-    await db.query(
-      'INSERT INTO messages (sender_id, receiver_id, subject, message, message_type, is_read, is_group, created_at) VALUES (?, ?, ?, ?, ?, false, false, NOW())',
-      [sender_id, recipientId, `Agreement Document - ${agreement.property_title}`, 
-       `${sender[0]?.name || 'A party'} has sent you the agreement document for "${agreement.property_title}". Please review, fill in required fields, and sign the agreement.`,
-       'property']
-    );
-
-    // Update agreement status to pending if it's still draft
-    if (agreement.status === 'draft') {
-      await db.query("UPDATE agreements SET status = 'pending', updated_at = NOW() WHERE id = ?", [req.params.id]);
-    }
-
-    res.json({ message: 'Agreement sent successfully', success: true });
-  } catch (error) {
-    console.error('Send agreement error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message, success: false });
-  }
+    const isOwner = String(ag.owner_id) === String(sender_id);
+    const recipientId = isOwner ? ag.customer_id : ag.owner_id;
+    if (recipientId) { try { await Notifications.create({ user_id: recipientId, title: 'Agreement Document Sent', message: 'An agreement document has been sent for review.', type: 'info' }); } catch(e) {} }
+    if (ag.status === 'draft') { ag.status = 'pending'; await ag.save(); }
+    res.json({ message: 'Agreement sent', success: true });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message, success: false }); }
 });
 
-// Update agreement status
 router.put('/:id/status', async (req, res) => {
   try {
-    const { status, signed_by_customer_id } = req.body;
-
-    await db.query('UPDATE agreements SET status = ?, updated_at = NOW() WHERE id = ?', [status, req.params.id]);
-
-    if (signed_by_customer_id) {
-      const [agreements] = await db.query('SELECT * FROM agreements WHERE id = ?', [req.params.id]);
-      if (agreements.length > 0) {
-        const agreement = agreements[0];
-        const recipient = agreement.owner_id || agreement.broker_id;
-        if (recipient) {
-          const notificationData = {
-            userId: recipient,
-            title: 'Agreement Signed',
-            message: `Customer signed agreement #${agreement.id} for property ${agreement.property_id}.`,
-            type: 'success'
-          };
-          await db.query(
-            'INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)',
-            [recipient, notificationData.title, notificationData.message, notificationData.type]
-          );
-          socket.emitToUser(recipient, 'new_notification', notificationData);
-          socket.emitToUser(recipient, 'agreement_updated', { agreementId: req.params.id });
-        }
-      }
-    }
-
-    res.json({ message: 'Agreement status updated', success: true });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+    const { status } = req.body;
+    await Agreements.findByIdAndUpdate(req.params.id, { status });
+    res.json({ message: 'Status updated', success: true });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
 module.exports = router;

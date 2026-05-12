@@ -417,6 +417,7 @@
 .file-upload-wrapper:hover { border-color: var(--primary-gold); background: #fffbeb; }
 .btn-submit-app { width: 100%; background: linear-gradient(135deg, var(--dark-blue), #1e293b); color: #fff; border: none; padding: 0.9rem; border-radius: 8px; font-size: 1rem; font-weight: 700; margin-top: 0.8rem; cursor: pointer; transition: all 0.3s; }
 .btn-submit-app:hover { background: linear-gradient(135deg, var(--primary-gold), var(--primary-gold-hover)); transform: translateY(-2px); box-shadow: 0 8px 20px rgba(0,0,0,0.1); }
+.btn-submit-app:disabled { background: #cbd5e1 !important; cursor: not-allowed; transform: none !important; box-shadow: none !important; opacity: 0.7; }
 
 /* Review Step Styles */
 .review-step-container {

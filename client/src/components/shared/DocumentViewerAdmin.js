@@ -449,62 +449,18 @@ const DocumentViewerAdmin = ({ propertyId, property, userId, userRole, onVerific
               background: '#f8fafc'
             }}>
               <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
-                {(property?.status === 'pending' || isRedeciding) ? (
-                  <>
-                    <button 
-                      className="btn-success" 
-                      onClick={() => handleVerificationAction('approved')}
-                      style={{ padding: '10px 20px' }}
-                    >
-                      ✅ Approve
-                    </button>
-                    <button 
-                      className="btn-warning" 
-                      onClick={() => handleVerificationAction('suspended')}
-                      style={{ padding: '10px 20px' }}
-                    >
-                      ⏸️ Suspend
-                    </button>
-                    <button 
-                      className="btn-danger" 
-                      onClick={() => handleVerificationAction('rejected')}
-                      style={{ padding: '10px 20px' }}
-                    >
-                      ❌ Reject
-                    </button>
-                    {isRedeciding && (
-                      <button 
-                        className="btn-secondary" 
-                        onClick={() => setIsRedeciding(false)}
-                        style={{ padding: '10px 20px', marginLeft: '10px' }}
-                      >
-                        Cancel Re-decide
-                      </button>
-                    )}
-                  </>
-                ) : (
-                  <>
-                    <span style={{
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      background: property?.status === 'active' ? '#dcfce7' : '#fee2e2',
-                      color: property?.status === 'active' ? '#166534' : '#991b1b',
-                      padding: '8px 16px',
-                      borderRadius: '8px',
-                      fontWeight: '600',
-                      border: `1px solid ${property?.status === 'active' ? '#bbf7d0' : '#fecaca'}`
-                    }}>
-                      Status: {property?.status === 'active' ? '✅ Approved' : (property?.status === 'suspended' ? '⏸️ Suspended' : '❌ Rejected')}
-                    </span>
-                    <button 
-                      className="btn-primary" 
-                      onClick={() => setIsRedeciding(true)}
-                      style={{ padding: '8px 20px' }}
-                    >
-                      🔄 Re-decide
-                    </button>
-                  </>
-                )}
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  background: property?.status === 'active' ? '#dcfce7' : property?.status === 'pending' ? '#fef3c7' : '#fee2e2',
+                  color: property?.status === 'active' ? '#166534' : property?.status === 'pending' ? '#92400e' : '#991b1b',
+                  padding: '8px 16px',
+                  borderRadius: '8px',
+                  fontWeight: '600',
+                  border: `1px solid ${property?.status === 'active' ? '#bbf7d0' : property?.status === 'pending' ? '#fde68a' : '#fecaca'}`
+                }}>
+                  Status: {property?.status.toUpperCase()}
+                </span>
               </div>
               <div style={{ display: 'flex', gap: '10px' }}>
                 <button 

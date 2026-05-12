@@ -17,7 +17,7 @@ const Users = ({ user, onLogout, initialRole, onSettingsClick }) => {
     }
   }, [initialRole]);
   const [selectedUser, setSelectedUser] = useState(null);
-  const [selectedUserKeyRequests, setSelectedUserKeyRequests] = useState([]);
+
   const [showViewModal, setShowViewModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -62,17 +62,7 @@ const Users = ({ user, onLogout, initialRole, onSettingsClick }) => {
       }
     }
 
-    if (u.role === 'user') {
-      try {
-        const keyRes = await axios.get(`http://${window.location.hostname}:5000/api/key-requests/customer/${u.id}`);
-        setSelectedUserKeyRequests(keyRes.data);
-      } catch (err) {
-        console.error('Error fetching user key requests:', err);
-        setSelectedUserKeyRequests([]);
-      }
-    } else {
-      setSelectedUserKeyRequests([]);
-    }
+
   };
 
   const handleEdit = (u) => {
@@ -198,8 +188,8 @@ const Users = ({ user, onLogout, initialRole, onSettingsClick }) => {
   };
 
   const filteredUsers = users.filter(u => {
-    const matchesSearch = u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      u.email.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = (u.name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (u.email || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesRole = roleFilter === 'all' || u.role === roleFilter;
     const isBanned = u.status === 'suspended' || u.status === 'banned';
     
@@ -303,8 +293,7 @@ const Users = ({ user, onLogout, initialRole, onSettingsClick }) => {
             <tr style={{ background: '#f8fafc', borderBottom: '1px solid #e5e7eb' }}>
               <th style={{ padding: '16px', textAlign: 'left', fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>User</th>
               <th style={{ padding: '16px', textAlign: 'left', fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Role</th>
-              <th style={{ padding: '16px', textAlign: 'left', fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Status</th>
-              <th style={{ padding: '16px', textAlign: 'left', fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Profile</th>
+              <th style={{ padding: '16px', textAlign: 'left', fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Status & Profile</th>
               <th style={{ padding: '16px', textAlign: 'left', fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Joined</th>
               <th style={{ padding: '16px', textAlign: 'right', fontSize: '12px', fontWeight: '700', color: '#64748b', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Actions</th>
             </tr>
@@ -322,11 +311,11 @@ const Users = ({ user, onLogout, initialRole, onSettingsClick }) => {
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       fontWeight: '700', color: 'white', fontSize: '15px', flexShrink: 0
                     }}>
-                      {u.name.charAt(0).toUpperCase()}
+                      {(u.name || '?').charAt(0).toUpperCase()}
                     </div>
                     <div>
-                      <div style={{ fontWeight: '600', color: '#1e293b' }}>{u.name}</div>
-                      <div style={{ fontSize: '12px', color: '#64748b' }}>{u.email}</div>
+                      <div style={{ fontWeight: '600', color: '#1e293b' }}>{u.name || 'N/A'}</div>
+                      <div style={{ fontSize: '12px', color: '#64748b' }}>{u.email || 'N/A'}</div>
                     </div>
                   </div>
                 </td>
@@ -336,7 +325,7 @@ const Users = ({ user, onLogout, initialRole, onSettingsClick }) => {
                     background: `${getRoleBadgeColor(u.role)}15`, color: getRoleBadgeColor(u.role),
                     textTransform: 'uppercase'
                   }}>
-                    {u.role === 'user' ? 'CUSTOMER' : u.role.replace('_', ' ')}
+                    {u.role === 'user' ? 'CUSTOMER' : (u.role || '').replace('_', ' ')}
                   </span>
                 </td>
                 <td style={{ padding: '16px' }}>
@@ -509,22 +498,7 @@ const Users = ({ user, onLogout, initialRole, onSettingsClick }) => {
                 </div>
               </div>
 
-              {/* Section 3: Key Access (Customer only) */}
-              {selectedUser && selectedUser.role === 'user' && (
-                <div style={{ marginTop: '30px' }}>
-                  <h3 style={{ borderBottom: '2px solid #e2e8f0', paddingBottom: '10px', color: '#1e293b', marginBottom: '20px', fontSize: '18px' }}>🔑 Key Access Requests</h3>
-                  {selectedUserKeyRequests.length > 0 ? selectedUserKeyRequests.map(req => (
-                    <div key={req.id} style={{ background: '#f8fafc', border: '1px solid #dbeafe', borderRadius: '10px', padding: '10px', marginBottom: '8px' }}>
-                      <div><strong>{req.property_title || 'Property'}</strong></div>
-                      <div>Status: {req.status}</div>
-                      <div>Requested on: {new Date(req.created_at).toLocaleString()}</div>
-                      {req.key_code && <div style={{ fontWeight: 'bold', marginTop: '5px' }}>Key Code: {req.key_code}</div>}
-                    </div>
-                  )) : (
-                    <div style={{ padding: '10px', border: '1px solid #e2e8f0', borderRadius: '10px' }}>No key requests found.</div>
-                  )}
-                </div>
-              )}
+
 
               {/* Section 4: Document Gallery */}
               {userProfile && (

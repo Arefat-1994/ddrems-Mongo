@@ -1,21 +1,27 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/db');
+const { Transactions, AgreementTransactions } = require('../models');
 
-// Get all transactions
 router.get('/', async (req, res) => {
   try {
-    const [transactions] = await db.query(`
-      SELECT t.*, p.title as property_title, u.name as user_name 
-      FROM transactions t 
-      LEFT JOIN properties p ON t.property_id = p.id 
-      LEFT JOIN users u ON t.user_id = u.id 
-      ORDER BY t.created_at DESC
-    `);
+    const transactions = await AgreementTransactions.aggregate([
+      { $lookup: { from: 'properties', let: { pid: '$property_id' }, pipeline: [{ $match: { $expr: { $eq: ['$_id', '$$pid'] } } }, { $project: { images: 0 } }], as: 'property' } },
+      { $lookup: { from: 'users', localField: 'buyer_id', foreignField: '_id', as: 'user' } },
+      { $unwind: { path: '$property', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+      { $addFields: { 
+        id: '$_id', 
+        property_title: '$property.title', 
+        user_name: '$user.name',
+        amount: '$transaction_amount',
+        status: '$transaction_status',
+        payment_method: '$payout_payment_method'
+      } },
+      { $project: { property: 0, user: 0 } },
+      { $sort: { created_at: -1 } }
+    ]);
     res.json(transactions);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
 module.exports = router;

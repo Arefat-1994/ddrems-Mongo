@@ -10,15 +10,64 @@ const ImageUploader = ({ propertyId, uploadedBy, onUploadComplete }) => {
     right: { file: null, url: null }
   });
 
+  const compressImage = (file, callback) => {
+    // Skip small images (< 1MB)
+    if (file.size < 1024 * 1024) {
+      callback(file);
+      return;
+    }
+    
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new window.Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 1920;
+        const MAX_HEIGHT = 1080;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+
+        canvas.toBlob((blob) => {
+          const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".jpg", {
+            type: 'image/jpeg',
+            lastModified: Date.now()
+          });
+          callback(compressedFile);
+        }, 'image/jpeg', 0.85);
+      };
+    };
+  };
+
   const handleFileSelect = (viewType, e) => {
     const file = e.target.files[0];
     if (!file) return;
 
-    const url = URL.createObjectURL(file);
-    setImages(prev => ({
-      ...prev,
-      [viewType]: { file, url }
-    }));
+    compressImage(file, (compressedFile) => {
+      const url = URL.createObjectURL(compressedFile);
+      setImages(prev => ({
+        ...prev,
+        [viewType]: { file: compressedFile, url }
+      }));
+    });
   };
 
   const handleUpload = async () => {
@@ -41,26 +90,22 @@ const ImageUploader = ({ propertyId, uploadedBy, onUploadComplete }) => {
         if (!item.file) continue;
         
         try {
-          const reader = new FileReader();
-          const imageDataUrl = await new Promise((resolve, reject) => {
-            reader.onloadend = () => resolve(reader.result);
-            reader.onerror = () => reject(new Error('Failed to read file'));
-            reader.readAsDataURL(item.file);
-          });
+          const formData = new FormData();
+          formData.append('image', item.file);
+          formData.append('property_id', propertyId);
+          formData.append('image_type', viewType === 'front' ? 'main' : viewType);
+          if (uploadedBy) formData.append('uploaded_by', uploadedBy);
           
           const API_BASE = process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000/api`;
-          const response = await fetch(`${API_BASE}/property-images`, {
+          const response = await fetch(`${API_BASE}/property-images/upload`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              property_id: propertyId,
-              image_url: imageDataUrl,
-              image_type: viewType === 'front' ? 'main' : viewType, // front is main
-              uploaded_by: uploadedBy
-            })
+            body: formData
           });
 
-          if (!response.ok) throw new Error(`Upload failed for ${viewType}`);
+          if (!response.ok) {
+            const errData = await response.json().catch(() => ({}));
+            throw new Error(errData.message || `Upload failed for ${viewType}`);
+          }
           successCount++;
         } catch (error) {
           console.error(`Failed to upload ${viewType} image:`, error);

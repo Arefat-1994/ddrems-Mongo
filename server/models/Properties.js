@@ -1,0 +1,38 @@
+const mongoose = require('mongoose');
+
+const PropertiesSchema = new mongoose.Schema({
+  title: { type: String },
+  description: { type: String },
+  price: { type: Number },
+  location: { type: String },
+  address: { type: String },
+  city: { type: String },
+  state: { type: String },
+  zip_code: { type: String },
+  latitude: { type: Number },
+  longitude: { type: Number },
+  type: { type: String },
+  listing_type: { type: String },
+  bedrooms: { type: Number },
+  bathrooms: { type: Number },
+  area: { type: Number },
+  images: { type: String },
+  main_image: { type: String },
+  features: { type: Object },
+  status: { type: String },
+  broker_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Users' },
+  owner_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Users' },
+  property_admin_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Users' },
+  listing_date: { type: Date },
+  expiry_date: { type: Date },
+  verified: { type: Boolean },
+  verification_date: { type: Date },
+  views: { type: Number },
+  favorites: { type: Number },
+  created_at: { type: Date },
+  updated_at: { type: Date },
+  model_3d_path: { type: String },
+  video_url: { type: String },
+}, { timestamps: true });
+
+module.exports = mongoose.model('Properties', PropertiesSchema);

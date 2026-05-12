@@ -1,88 +1,88 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/db');
-const crypto = require('crypto');
+const mongoose = require('mongoose');
+const { DocumentAccess, Properties, Users, Notifications } = require('../models');
 
-// Request document access
 router.post('/request', async (req, res) => {
   try {
     const { property_id, user_id } = req.body;
     
-    // Check if request already exists
-    const [existing] = await db.query(
-      'SELECT * FROM document_access WHERE property_id = ? AND user_id = ? AND status = \'pending\'',
-      [property_id, user_id]
-    );
-    
-    if (existing.length > 0) {
-      return res.status(400).json({ message: 'Access request already pending' });
+    if (!mongoose.Types.ObjectId.isValid(property_id)) return res.status(400).json({ message: 'Invalid Property ID' });
+    if (!mongoose.Types.ObjectId.isValid(user_id)) return res.status(400).json({ message: 'Invalid User ID' });
+
+    const property = await Properties.findById(property_id);
+    if (!property) return res.status(404).json({ message: 'Property not found' });
+
+    const newRequest = await DocumentAccess.create({
+      property_id,
+      user_id,
+      status: 'pending',
+      requested_at: new Date()
+    });
+
+    if (property.owner_id) {
+      await Notifications.create({
+        user_id: property.owner_id,
+        title: 'Document Access Request',
+        message: `A user has requested access to documents for your property: ${property.title}`,
+        type: 'info',
+        related_id: newRequest._id
+      });
     }
-    
-    const [result] = await db.query(
-      'INSERT INTO document_access (property_id, user_id, status) VALUES (?, ?, \'pending\')',
-      [property_id, user_id]
-    );
-    
-    res.json({ id: result.insertId, message: 'Access request submitted successfully' });
-  } catch (error) {
-    console.error('Document access request error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+
+    res.json({ message: 'Success', success: true, id: newRequest._id });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
-// Get access requests for a property
 router.get('/property/:propertyId', async (req, res) => {
   try {
-    const [requests] = await db.query(`
-      SELECT da.*, u.name as user_name, u.email as user_email
-      FROM document_access da
-      JOIN users u ON da.user_id = u.id
-      WHERE da.property_id = ?
-      ORDER BY da.requested_at DESC
-    `, [req.params.propertyId]);
-    
+    if (!mongoose.Types.ObjectId.isValid(req.params.propertyId)) return res.json([]);
+    const requests = await DocumentAccess.aggregate([
+      { $match: { property_id: new mongoose.Types.ObjectId(req.params.propertyId) } },
+      { $lookup: { from: 'users', localField: 'user_id', foreignField: '_id', as: 'user' } },
+      { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+      { $addFields: { id: '$_id', user_name: '$user.name', user_email: '$user.email' } },
+      { $sort: { requested_at: -1 } }
+    ]);
     res.json(requests);
-  } catch (error) {
-    console.error('Get property access requests error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
-// Get user's access requests
 router.get('/user/:userId', async (req, res) => {
   try {
-    const [requests] = await db.query(`
-      SELECT da.*, p.title as property_title, p.location as property_location
-      FROM document_access da
-      JOIN properties p ON da.property_id = p.id
-      WHERE da.user_id = ?
-      ORDER BY da.requested_at DESC
-    `, [req.params.userId]);
-    
+    if (!mongoose.Types.ObjectId.isValid(req.params.userId)) return res.json([]);
+    const requests = await DocumentAccess.aggregate([
+      { $match: { user_id: new mongoose.Types.ObjectId(req.params.userId) } },
+      { $lookup: { from: 'properties', localField: 'property_id', foreignField: '_id', as: 'property' } },
+      { $unwind: { path: '$property', preserveNullAndEmptyArrays: true } },
+      { $addFields: { id: '$_id', property_title: '$property.title' } },
+      { $sort: { requested_at: -1 } }
+    ]);
     res.json(requests);
-  } catch (error) {
-    console.error('Get user access requests error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
-// Approve/Reject access request
 router.put('/:id/respond', async (req, res) => {
   try {
-    const { status, response_message } = req.body; // 'approved' or 'rejected'
-    
-    await db.query(
-      'UPDATE document_access SET status = ?, response_message = ?, responded_at = NOW() WHERE id = ?',
-      [status, response_message || null, req.params.id]
-    );
-    
-    res.json({ 
-      message: `Access request ${status} successfully`
+    const { status, response_message } = req.body;
+    const request = await DocumentAccess.findByIdAndUpdate(req.params.id, {
+      status,
+      response_message,
+      responded_at: new Date(),
+      updated_at: new Date()
     });
-  } catch (error) {
-    console.error('Respond to access request error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+
+    if (request && request.user_id) {
+      await Notifications.create({
+        user_id: request.user_id,
+        title: 'Document Access Response',
+        message: status === 'approved' ? 'Your document access request was approved.' : 'Your document access request was rejected.',
+        type: status === 'approved' ? 'success' : 'error'
+      });
+    }
+
+    res.json({ message: 'Updated', success: true });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
 module.exports = router;

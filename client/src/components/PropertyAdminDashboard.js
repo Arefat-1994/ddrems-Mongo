@@ -23,7 +23,7 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
   const [currentView, setCurrentView] = useState(initialView || 'dashboard'); // dashboard, approval, all-properties, reports, documents, users, messages, send-message, transactions
   const [showAdminMessages, setShowAdminMessages] = useState(false);
   const [showAgreementWorkflow, setShowAgreementWorkflow] = useState(false);
-  const [keyHistoryLimit, setKeyHistoryLimit] = useState(5);
+
 
   const [stats, setStats] = useState({
     pendingVerification: 0,
@@ -32,7 +32,6 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
     suspendedProperties: 0,
     totalProperties: 0,
     pendingProfiles: 0,
-    pendingKeyRequests: 0,
     pendingAgreementRequests: 0,
     suspiciousProperties: 0,
     totalBookings: 0
@@ -49,7 +48,7 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
   const [showViewModal, setShowViewModal] = useState(false);
   const [showResponseModal, setShowResponseModal] = useState(false);
   const [selectedMediationRequest, setSelectedMediationRequest] = useState(null);
-  const [previewKey, setPreviewKey] = useState(null);
+
   const [responseMsg, setResponseMsg] = useState('');
   const [filterType, setFilterType] = useState('all');
 
@@ -58,6 +57,7 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
   const [docFilter, setDocFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [notification, setNotification] = useState(null);
+  const [isDataLoading, setIsDataLoading] = useState(true);
 
   const showNotification = (message, type = 'success') => {
     setNotification({ message, type });
@@ -77,11 +77,10 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
         }
       };
 
-      const [statsData, pendingProfilesData, pendingAgreementsData, pendingKeysData, brokerHoldsData] = await Promise.all([
+      const [statsData, pendingProfilesData, pendingAgreementsData, brokerHoldsData] = await Promise.all([
         safeFetch(`/properties/stats?admin_id=${user.id}`, { verified: 0, inactive: 0, suspended: 0, total: 0 }),
         safeFetch('/profiles/pending', { total: 0 }),
         safeFetch(`/agreement-requests/admin/pending?admin_id=${user.id}`, []),
-        safeFetch(`/key-requests/admin/pending?admin_id=${user.id}`, []),
         safeFetch(`/broker-bookings?property_admin_id=${user.id}`, [])
       ]);
 
@@ -99,42 +98,43 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
         verifiedProperties: statsData.verified || 0,
         totalProperties: statsData.total || 0,
         pendingProfiles: pendingProfilesData.total || 0,
-        pendingAgreementRequests: (pendingAgreementsData.length || 0) + (pendingKeysData.length || 0),
+        pendingAgreementRequests: (pendingAgreementsData.length || 0),
         suspiciousProperties: suspiciousCount,
         totalBookings: Array.isArray(brokerHoldsData) ? brokerHoldsData.length : 0
       });
 
       // Always set pending requests for dashboard display
       const combinedPending = [
-        ...pendingAgreementsData,
-        ...pendingKeysData
+        ...pendingAgreementsData
       ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
       setPendingRequests(combinedPending);
 
-      if (currentView === 'agreement-requests' || currentView === 'key-requests' || currentView === 'agreements') {
-        const [historyAgreements, historyKeys] = await Promise.all([
-          safeFetch('/agreement-requests/admin/history', []),
-          safeFetch('/key-requests/admin/history', [])
+      if (currentView === 'agreement-requests' || currentView === 'agreements') {
+        const [historyAgreements] = await Promise.all([
+          safeFetch('/agreement-requests/admin/history', [])
         ]);
 
         const combinedHistory = [
-          ...historyAgreements,
-          ...historyKeys
+          ...historyAgreements
         ].sort((a, b) => new Date(b.responded_at || b.updated_at) - new Date(a.responded_at || a.updated_at));
 
         setRequestHistory(combinedHistory);
       }
     } catch (error) {
-      console.error('Critical error in fetchPropertyAdminData:', error);
+    } finally {
+      setIsDataLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentView]);
   const fetchAllProperties = useCallback(async () => {
+    setIsDataLoading(true);
     try {
       const response = await axios.get(`${API_BASE}/properties/all-with-status`);
       setAllProperties(response.data);
     } catch (error) {
       console.error('Error fetching all properties:', error);
+    } finally {
+      setIsDataLoading(false);
     }
   }, []);
 
@@ -147,17 +147,15 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
 
   // Fetch pending requests whenever view changes to agreement-related views
   useEffect(() => {
-    if (currentView === 'agreement-requests' || currentView === 'key-requests' || currentView === 'agreements') {
+    if (currentView === 'agreement-requests' || currentView === 'agreements') {
       const fetchPendingRequests = async () => {
         try {
-          const [pendingAgreements, pendingKeys] = await Promise.all([
-            axios.get(`${API_BASE}/agreement-requests/admin/pending?admin_id=${user.id}`).then(r => r.data).catch(() => []),
-            axios.get(`${API_BASE}/key-requests/admin/pending?admin_id=${user.id}`).then(r => r.data).catch(() => [])
+          const [pendingAgreements] = await Promise.all([
+            axios.get(`${API_BASE}/agreement-requests/admin/pending?admin_id=${user.id}`).then(r => r.data).catch(() => [])
           ]);
 
           const combinedPending = [
-            ...pendingAgreements,
-            ...pendingKeys
+            ...pendingAgreements
           ].sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
           setPendingRequests(combinedPending);
@@ -601,11 +599,18 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
           ) : (
             <div style={{ display: 'grid', gap: '20px' }}>
               {filteredPropertiesWithDocs.length === 0 ? (
-                <div className="empty-state" style={{ textAlign: 'center', padding: '60px', color: '#64748b' }}>
-                  <div style={{ fontSize: '3rem', marginBottom: '20px' }}>📄</div>
-                  <h3>No Properties Found</h3>
-                  <p>Try adjusting your search or filter criteria</p>
-                </div>
+                isDataLoading ? (
+                  <div className="empty-state" style={{ textAlign: 'center', padding: '60px', color: '#64748b' }}>
+                    <div style={{ fontSize: '3rem', marginBottom: '20px' }}>⏳</div>
+                    <h3>Loading Properties...</h3>
+                  </div>
+                ) : (
+                  <div className="empty-state" style={{ textAlign: 'center', padding: '60px', color: '#64748b' }}>
+                    <div style={{ fontSize: '3rem', marginBottom: '20px' }}>📄</div>
+                    <h3>No Properties Found</h3>
+                    <p>Try adjusting your search or filter criteria</p>
+                  </div>
+                )
               ) : (
                 filteredPropertiesWithDocs.map(property => (
                   <div
@@ -701,205 +706,7 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
     );
   }
 
-  // === KEY REQUESTS VIEW ===
-  if (currentView === 'key-requests') {
-    const handleOpenKeyResponder = async (request) => {
-      try {
-        const res = await axios.get(`${API_BASE}/key-requests/${request.id}/preview-key`);
-        setPreviewKey(res.data.key_code);
-        setSelectedMediationRequest(request);
-        setResponseMsg('Your property access key is provided below. You can now use this to view all sensitive property documents.');
-        setShowResponseModal(true);
-      } catch (error) {
-        showNotification('Failed to fetch key preview', 'error');
-      }
-    };
 
-    const handleConfirmSendKey = async () => {
-      try {
-        await axios.put(`${API_BASE}/key-requests/${selectedMediationRequest.id}/respond-key`, {
-          status: 'accepted',
-          admin_id: user.id,
-          response_message: responseMsg,
-          key_code: previewKey
-        });
-        showNotification('🔑 Key sent to customer successfully!', 'success');
-        setShowResponseModal(false);
-        fetchPropertyAdminData();
-      } catch (error) {
-        showNotification('Failed to send key', 'error');
-      }
-    };
-
-    const getStatusStyle = (status) => {
-        switch(status) {
-            case 'accepted': return { color: '#16a34a', background: '#dcfce7' };
-            case 'rejected': return { color: '#dc2626', background: '#fee2e2' };
-            case 'pending': return { color: '#ca8a04', background: '#fef9c3' };
-            default: return { color: '#475569', background: '#f1f5f9' };
-        }
-    };
-
-    const keyRequests = pendingRequests.filter(r => r.request_type === 'key');
-    const keyHistory = requestHistory.filter(r => r.request_type === 'key');
-
-    return (
-      <div className="property-admin-dashboard">
-        <PageHeader
-          title="Access Key Requests"
-          subtitle="Manage customer access key requests for property documents"
-          user={user}
-          onLogout={onLogout}
-          onSettingsClick={() => setCurrentPage('settings')}
-          actions={
-            <button className="btn-secondary" onClick={() => setCurrentView('dashboard')}>
-              ← Back to Dashboard
-            </button>
-          }
-        />
-        <div className="requests-container" style={{ padding: '30px' }}>
-          <div className="dashboard-grid">
-            {/* Incoming Key Requests */}
-            <div className="dashboard-card">
-              <div className="card-header">
-                <h3>📥 Incoming Key Requests ({keyRequests.length})</h3>
-              </div>
-              <div className="requests-list" style={{ padding: '20px' }}>
-                {keyRequests.length === 0 ? (
-                  <p className="no-data">No pending key requests.</p>
-                ) : (
-                  keyRequests.map(req => (
-                    <div key={req.id} className="request-card-mini" style={{ border: '1px solid #e2e8f0', padding: '15px', borderRadius: '8px', marginBottom: '15px', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                        <span style={{ fontSize: '12px', fontWeight: 'bold', textTransform: 'uppercase', color: '#0ea5e9' }}>
-                          🔑 Key Request
-                        </span>
-                        <span style={{ fontSize: '12px', color: '#94a3b8' }}>{new Date(req.created_at).toLocaleDateString()}</span>
-                      </div>
-                      <h4>{req.property_title}</h4>
-                      <p style={{ fontSize: '14px', color: '#475569', margin: '5px 0' }}>👤 {req.customer_name} ({req.customer_email})</p>
-                      
-                      <div className="actions" style={{ marginTop: '12px', display: 'flex', gap: '10px' }}>
-                        <button className="btn-primary" onClick={() => handleOpenKeyResponder(req)} style={{ flex: 1 }}>
-                          Send Access Key
-                        </button>
-                        <button className="btn-secondary" onClick={() => {
-                            setSelectedProperty({ id: req.property_id, title: req.property_title });
-                            setCurrentView('documents');
-                        }}>Review Docs</button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-
-            {/* Key Request History */}
-            <div className="dashboard-card">
-              <div className="card-header">
-                <h3>📜 Key Request History ({keyHistory.length})</h3>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <label style={{ fontSize: '13px', color: '#64748b' }}>Show:</label>
-                  <select 
-                    value={keyHistoryLimit} 
-                    onChange={(e) => setKeyHistoryLimit(Number(e.target.value))}
-                    style={{ padding: '4px 8px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '13px' }}
-                  >
-                    <option value={2}>2</option>
-                    <option value={5}>5</option>
-                    <option value={8}>8</option>
-                    <option value={10}>10</option>
-                  </select>
-                </div>
-              </div>
-              <div className="requests-list" style={{ padding: '20px' }}>
-                {keyHistory.length === 0 ? (
-                  <p className="no-data">No historical records.</p>
-                ) : (
-                  keyHistory.slice(0, keyHistoryLimit).map(req => (
-                    <div key={req.id} className="request-card-mini" style={{ border: '1px solid #f1f5f9', padding: '12px', borderRadius: '8px', marginBottom: '10px', opacity: 0.85 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                        <span style={{ fontSize: '11px', color: '#64748b' }}>KEY REQUEST</span>
-                        <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '10px', ...getStatusStyle(req.status) }}>
-                          {req.status.toUpperCase()}
-                        </span>
-                      </div>
-                      <h5 style={{ margin: '5px 0' }}>{req.property_title}</h5>
-                      <p style={{ fontSize: '12px', color: '#64748b' }}>To: {req.customer_name}</p>
-                      {req.key_code && (
-                        <p style={{ fontSize: '11px', marginTop: '5px', fontWeight: 'bold' }}>🔑 Key: {req.key_code}</p>
-                      )}
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Key Response Modal */}
-        {showResponseModal && selectedMediationRequest && selectedMediationRequest.request_type === 'key' && (
-          <div className="modal-overlay" onClick={() => setShowResponseModal(false)}>
-            <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px' }}>
-              <div className="modal-header" style={{ borderBottom: '1px solid #f1f5f9', paddingBottom: '15px' }}>
-                <h2 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-                  <span style={{ fontSize: '24px' }}>🔑</span> Respond to Key Request
-                </h2>
-                <button className="close-btn" onClick={() => setShowResponseModal(false)}>✕</button>
-              </div>
-              <div className="modal-body" style={{ padding: '20px 0' }}>
-                <div style={{ background: '#f8fafc', padding: '15px', borderRadius: '8px', marginBottom: '20px' }}>
-                  <p style={{ margin: '0 0 5px 0', fontSize: '13px', color: '#64748b' }}>REQUESTER</p>
-                  <p style={{ margin: 0, fontWeight: 'bold' }}>{selectedMediationRequest.customer_name}</p>
-                  <p style={{ margin: '15px 0 5px 0', fontSize: '13px', color: '#64748b' }}>PROPERTY</p>
-                  <p style={{ margin: 0, fontWeight: 'bold' }}>{selectedMediationRequest.property_title}</p>
-                </div>
-
-                <div className="form-group" style={{ marginBottom: '20px' }}>
-                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>System Generated Access Key</label>
-                  <div style={{ 
-                    display: 'flex', 
-                    alignItems: 'center', 
-                    justifyContent: 'center', 
-                    background: '#e0f2fe', 
-                    color: '#0369a1', 
-                    padding: '15px', 
-                    borderRadius: '8px', 
-                    fontSize: '24px', 
-                    fontWeight: 'bold', 
-                    letterSpacing: '2px',
-                    border: '2px dashed #0ea5e9'
-                  }}>
-                    {previewKey}
-                  </div>
-                  <p style={{ fontSize: '12px', color: '#64748b', marginTop: '8px' }}>
-                    This key will grant {selectedMediationRequest.customer_name} access to all private documents for this property.
-                  </p>
-                </div>
-
-                <div className="form-group">
-                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: 'bold' }}>Message to Customer</label>
-                  <textarea 
-                    value={responseMsg}
-                    onChange={(e) => setResponseMsg(e.target.value)}
-                    rows="4"
-                    style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #e2e8f0', fontSize: '14px' }}
-                    placeholder="Add a friendly and professional message..."
-                  />
-                </div>
-              </div>
-              <div className="modal-actions" style={{ borderTop: '1px solid #f1f5f9', paddingTop: '15px', marginTop: '0' }}>
-                <button className="btn-secondary" onClick={() => setShowResponseModal(false)}>Cancel</button>
-                <button className="btn-primary" onClick={handleConfirmSendKey} style={{ padding: '10px 25px' }}>
-                  Confirm & Send Key
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
 
   // === AGREEMENT MEDIATION VIEW ===
   if (currentView === 'agreement-requests') {
@@ -957,7 +764,9 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
                 <h3>📥 Incoming Agreement Requests ({agreementRequests.length})</h3>
               </div>
               <div className="requests-list" style={{ padding: '20px' }}>
-                {agreementRequests.length === 0 ? (
+                {agreementRequests.length === 0 && isDataLoading ? (
+                  <p className="no-data">⏳ Loading requests...</p>
+                ) : agreementRequests.length === 0 ? (
                   <p className="no-data">No pending agreement requests.</p>
                 ) : (
                   agreementRequests.map(req => (
@@ -992,7 +801,9 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
                 <h3>📜 Agreement Request History ({agreementHistory.length})</h3>
               </div>
               <div className="requests-list" style={{ padding: '20px' }}>
-                {agreementHistory.length === 0 ? (
+                {agreementHistory.length === 0 && isDataLoading ? (
+                  <p className="no-data">⏳ Loading history...</p>
+                ) : agreementHistory.length === 0 ? (
                   <p className="no-data">No historical records.</p>
                 ) : (
                   agreementHistory.map(req => (
@@ -1164,8 +975,19 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
         </div>
 
         <div className="all-properties-list">
-          {filteredProperties.map(property => {
-            const vBadge = getVerificationBadge(property.verification_status);
+          {filteredProperties.length === 0 && isDataLoading ? (
+            <div className="empty-state" style={{ textAlign: 'center', padding: '60px', color: '#64748b' }}>
+              <div style={{ fontSize: '3rem', marginBottom: '16px' }}>⏳</div>
+              <h3>Loading Properties...</h3>
+            </div>
+          ) : filteredProperties.length === 0 ? (
+            <div className="empty-state" style={{ textAlign: 'center', padding: '60px', color: '#64748b' }}>
+              <div style={{ fontSize: '3rem', marginBottom: '16px' }}>🏠</div>
+              <h3>No Properties Found</h3>
+            </div>
+          ) : (
+            filteredProperties.map(property => {
+              const vBadge = getVerificationBadge(property.verification_status);
             return (
               <div key={property.id} className="property-row-card">
                 <div className="property-row-image">
@@ -1258,12 +1080,9 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
 
               </div>
             );
-          })}
-          {filteredProperties.length === 0 && (
-            <div className="no-data" style={{ textAlign: 'center', padding: '40px', color: '#64748b' }}>
-              No properties found for the selected filter.
-            </div>
-          )}
+          })
+        )}
+        {/* We can remove the old filteredProperties.length === 0 check below since it is handled above */}
         </div>
 
         {/* View Property Detail Modal */}
@@ -1409,11 +1228,9 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
               userId={user?.id}
               onNavigateToMessages={() => setCurrentPage('messages')}
             />
-            {stats.pendingVerification > 0 && (
-              <button className="btn-warning" onClick={() => setCurrentView('approval')}>
-                ⏳ Pending Properties ({stats.pendingVerification})
-              </button>
-            )}
+            <button className="btn-warning" onClick={() => setCurrentView('approval')}>
+              ⏳ Pending Properties ({stats.pendingVerification})
+            </button>
             <button className="btn-primary" onClick={handleViewAll}>
               📋 View All Properties
             </button>
@@ -1440,9 +1257,7 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
         <button className="btn-secondary" onClick={() => setCurrentView('broker-holds')} style={{ padding: '8px 16px', fontSize: '13px' }}>
           ⏱️ Booked Lists
         </button>
-        <button className="btn-secondary" onClick={() => setCurrentView('key-requests')} style={{ padding: '8px 16px', fontSize: '13px' }}>
-          🔐 Access Keys
-        </button>
+
         <button className="btn-secondary" onClick={() => setCurrentView('reports')} style={{ padding: '8px 16px', fontSize: '13px' }}>
           📊 Visual Reports
         </button>

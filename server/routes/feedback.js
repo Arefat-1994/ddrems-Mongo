@@ -1,35 +1,28 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/db');
+const mongoose = require('mongoose');
+const { Feedback } = require('../models');
 
-// Get feedback for a property
 router.get('/property/:propertyId', async (req, res) => {
-    try {
-        const [feedback] = await db.query(`
-      SELECT f.*, u.name as user_name
-      FROM feedback f
-      JOIN users u ON f.user_id = u.id
-      WHERE f.property_id = ?
-      ORDER BY f.created_at DESC
-    `, [req.params.propertyId]);
-        res.json(feedback);
-    } catch (error) {
-        res.status(500).json({ message: 'Server error', error: error.message });
-    }
+  try {
+    if (!mongoose.Types.ObjectId.isValid(req.params.propertyId)) return res.json([]);
+    const feedback = await Feedback.aggregate([
+      { $match: { property_id: new mongoose.Types.ObjectId(req.params.propertyId) } },
+      { $lookup: { from: 'users', localField: 'user_id', foreignField: '_id', as: 'user' } },
+      { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+      { $addFields: { id: '$_id', user_name: '$user.name' } },
+      { $sort: { created_at: -1 } }
+    ]);
+    res.json(feedback);
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
-// Submit feedback
 router.post('/', async (req, res) => {
-    try {
-        const { user_id, property_id, rating, comment } = req.body;
-        const [result] = await db.query(
-            'INSERT INTO feedback (user_id, property_id, rating, comment) VALUES (?, ?, ?, ?)',
-            [user_id, property_id, rating, comment]
-        );
-        res.status(201).json({ id: result.insertId, message: 'Feedback submitted successfully' });
-    } catch (error) {
-        res.status(500).json({ message: 'Server error', error: error.message });
-    }
+  try {
+    const { user_id, property_id, rating, comment } = req.body;
+    const fb = await Feedback.create({ user_id, property_id, rating, comment });
+    res.status(201).json({ id: fb._id, message: 'Feedback submitted successfully' });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
 module.exports = router;

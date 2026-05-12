@@ -23,6 +23,7 @@ import SystemAdminTransactions from './SystemAdminTransactions';
 import SiteCheckAdmin from './SiteCheckAdmin';
 import BrokerApplicationsAdmin from './BrokerApplicationsAdmin';
 import BookedLists from './BookedLists';
+import BankAccountsAdmin from './BankAccountsAdmin';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
@@ -269,6 +270,10 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage, initialView }) =
     );
   }
 
+  if (currentView === 'bank-accounts') {
+    return <BankAccountsAdmin user={user} onLogout={onLogout} setCurrentPage={setCurrentPage} setCurrentView={setCurrentView} />;
+  }
+
   return (
     <div className="system-admin-dashboard">
       <PageHeader
@@ -294,6 +299,9 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage, initialView }) =
             </button>
             <button className="btn-secondary" onClick={() => setCurrentView('transactions')}>
               💳 Transactions
+            </button>
+            <button className="btn-warning" onClick={() => setCurrentView('bank-accounts')} style={{ background: '#f59e0b', color: 'white' }}>
+              🏦 Bank Settings
             </button>
 
             <button className="btn-primary" onClick={() => setShowNotificationModal(true)}>
@@ -635,7 +643,7 @@ const NotificationComposer = ({ onClose, adminId }) => {
       return;
     }
     try {
-      const res = await axios.get(`http://${window.location.hostname}:5000/api/users?search=${val}`);
+      const res = await axios.get(`http://${window.location.hostname}:5000/api/users/search?q=${val}`);
       setUsers(res.data || []);
     } catch (err) {
       console.error('Search failed:', err);

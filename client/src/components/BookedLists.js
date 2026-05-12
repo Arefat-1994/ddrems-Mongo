@@ -32,7 +32,12 @@ const BookedLists = ({ user, showNotification }) => {
 
   const handleBrokerHoldAction = async (id, action) => {
     try {
-      await axios.put(`${API_BASE}/broker-bookings/${id}/${action}`);
+      if (action === 'delete') {
+        if (!window.confirm('Are you sure you want to permanently delete this booking?')) return;
+        await axios.delete(`${API_BASE}/broker-bookings/${id}`);
+      } else {
+        await axios.put(`${API_BASE}/broker-bookings/${id}/${action}`);
+      }
       if (showNotification) showNotification(`Booking ${action}ed successfully`, 'success');
       else alert(`Booking ${action}ed successfully`);
       fetchBrokerHolds();
@@ -113,7 +118,7 @@ const BookedLists = ({ user, showNotification }) => {
                   </div>
                 </div>
                 
-                {hold.status === 'reserved' && (
+                {hold.status === 'reserved' ? (
                   <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
                     <button 
                       onClick={() => handleBrokerHoldAction(hold.id, 'confirm')} 
@@ -125,8 +130,25 @@ const BookedLists = ({ user, showNotification }) => {
                     >⏱️ Extend</button>
                     <button 
                       onClick={() => handleBrokerHoldAction(hold.id, 'cancel')} 
+                      style={{ flex: 1, padding: '10px', background: '#f97316', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
+                    >❌ Remove</button>
+                    <button 
+                      onClick={() => handleBrokerHoldAction(hold.id, 'delete')} 
                       style={{ flex: 1, padding: '10px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
-                    >❌ Cancel</button>
+                    >🗑️ Delete</button>
+                  </div>
+                ) : (
+                  <div style={{ marginTop: '20px', display: 'flex', gap: '10px' }}>
+                    {hold.status !== 'cancelled' && (
+                      <button 
+                        onClick={() => handleBrokerHoldAction(hold.id, 'cancel')} 
+                        style={{ flex: 1, padding: '10px', background: '#f97316', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
+                      >❌ Remove</button>
+                    )}
+                    <button 
+                      onClick={() => handleBrokerHoldAction(hold.id, 'delete')} 
+                      style={{ flex: 1, padding: '10px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer', fontWeight: '600', fontSize: '13px' }}
+                    >🗑️ Delete</button>
                   </div>
                 )}
               </div>

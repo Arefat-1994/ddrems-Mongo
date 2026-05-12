@@ -70,7 +70,7 @@ const SiteCheckAdmin = ({ user }) => {
       await axios.put(`${API_BASE}/site-check/${checkId}/review`, {
         status,
         admin_comment: comments[checkId] || '',
-        reviewed_by: user.id
+        reviewed_by: user.id || user._id
       });
       showToast(`Site check ${status.replace('_', ' ')} successfully!`);
       setComments(prev => ({ ...prev, [checkId]: '' }));
@@ -86,7 +86,7 @@ const SiteCheckAdmin = ({ user }) => {
       await axios.put(`${API_BASE}/site-check/legal-documents/${docId}/review`, {
         status,
         admin_comment: docComments[docId] || '',
-        reviewed_by: user.id
+        reviewed_by: user.id || user._id
       });
       showToast(`Document ${status} successfully!`);
       setDocComments(prev => ({ ...prev, [docId]: '' }));
@@ -259,7 +259,7 @@ const SiteCheckAdmin = ({ user }) => {
                   <div className="sca-check-photo">
                     {check.photo_url ? (
                       <>
-                        <img src={`http://${window.location.hostname}:5000${check.photo_url}`} alt="Site check" />
+                        <img src={check.photo_url.startsWith('http') ? check.photo_url : `http://${window.location.hostname}:5000${check.photo_url}`} alt="Site check" />
                         <div className="timestamp-overlay">
                           📅 {new Date(check.photo_timestamp || check.created_at).toLocaleString()}
                         </div>
@@ -337,7 +337,9 @@ const SiteCheckAdmin = ({ user }) => {
             <span style={{ color: '#64748b', fontSize: '14px' }}>{legalDocs.length} document(s) found</span>
           </div>
 
-          {legalDocs.length === 0 ? (
+          {loading ? (
+            <div className="sca-empty"><div className="empty-icon">⏳</div><h3>Loading...</h3></div>
+          ) : legalDocs.length === 0 ? (
             <div className="sca-empty">
               <div className="empty-icon">📄</div>
               <h3>No Legal Documents</h3>
@@ -371,7 +373,7 @@ const SiteCheckAdmin = ({ user }) => {
                       <td>
                         <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
                           <a
-                            href={`http://${window.location.hostname}:5000${doc.document_url}`}
+                            href={doc.document_url?.startsWith('http') ? doc.document_url : `http://${window.location.hostname}:5000${doc.document_url}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="sca-doc-preview-btn"

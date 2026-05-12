@@ -31,13 +31,17 @@ const API_BASE = `http://${window.location.hostname}:5000/api`;
 const Reports = ({ user, onLogout, onBack }) => {
   const [stats, setStats] = useState(null);
   const [revenueStats, setRevenueStats] = useState(null);
+  const [rentalRevenue, setRentalRevenue] = useState(null);
   const [loading, setLoading] = useState(true);
   const [revenueChartType, setRevenueChartType] = useState('bar');
   const isPropertyAdmin = user?.role === 'property_admin';
 
   useEffect(() => {
     fetchStats();
-    if (isPropertyAdmin) fetchRevenueStats();
+    if (isPropertyAdmin) {
+      fetchRevenueStats();
+      fetchRentalRevenue();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -58,6 +62,17 @@ const Reports = ({ user, onLogout, onBack }) => {
       setRevenueStats(response.data);
     } catch (error) {
       console.error('Error fetching revenue stats:', error);
+    }
+  };
+
+  const fetchRentalRevenue = async () => {
+    try {
+      const response = await axios.get(`${API_BASE}/system-transactions/rental-revenue`);
+      if (response.data.success) {
+        setRentalRevenue(response.data.data);
+      }
+    } catch (error) {
+      console.error('Error fetching rental revenue:', error);
     }
   };
 
@@ -581,6 +596,74 @@ const Reports = ({ user, onLogout, onBack }) => {
                 </div>
               </div>
             </div>
+          </div>
+        )}
+
+        {/* ═══ RENTAL REVENUE SECTION (Property Admin Only) ═══ */}
+        {isPropertyAdmin && rentalRevenue && rentalRevenue.summary && (
+          <div className="revenue-section" style={{ marginTop: '30px' }}>
+            <div className="revenue-header">
+              <h2 style={{ fontSize: '22px', fontWeight: '700', color: '#1e293b', margin: 0 }}>🏠 Recurring Rental Revenue</h2>
+              <span style={{ fontSize: '13px', background: '#dbeafe', color: '#1e40af', padding: '4px 12px', borderRadius: '20px', fontWeight: 600 }}>
+                {rentalRevenue.summary.uniqueProperties || 0} Active Properties
+              </span>
+            </div>
+
+            <div className="revenue-summary-cards">
+              <div className="revenue-card total">
+                <div className="revenue-card-icon">💰</div>
+                <div className="revenue-card-content">
+                  <p className="revenue-value">{((Number(rentalRevenue.summary.totalRentCollected) || 0) / 1000).toFixed(1)}K</p>
+                  <h4>Rent Collected (ETB)</h4>
+                </div>
+              </div>
+              <div className="revenue-card sale">
+                <div className="revenue-card-icon">⏳</div>
+                <div className="revenue-card-content">
+                  <p className="revenue-value">{((Number(rentalRevenue.summary.totalRentPending) || 0) / 1000).toFixed(1)}K</p>
+                  <h4>Rent Pending</h4>
+                </div>
+              </div>
+              <div className="revenue-card rent">
+                <div className="revenue-card-icon">🔴</div>
+                <div className="revenue-card-content">
+                  <p className="revenue-value">{((Number(rentalRevenue.summary.totalRentOverdue) || 0) / 1000).toFixed(1)}K</p>
+                  <h4>Rent Overdue</h4>
+                </div>
+              </div>
+              <div className="revenue-card deals">
+                <div className="revenue-card-icon">📊</div>
+                <div className="revenue-card-content">
+                  <p className="revenue-value">{Number(rentalRevenue.summary.totalScheduled) || 0}</p>
+                  <h4>Total Installments</h4>
+                </div>
+              </div>
+            </div>
+
+            {/* Monthly Breakdown Table */}
+            {rentalRevenue.summary.monthlyBreakdown && rentalRevenue.summary.monthlyBreakdown.length > 0 && (
+              <div className="chart-card" style={{ marginTop: '20px' }}>
+                <h3 style={{ fontSize: '18px', fontWeight: '600', color: '#1e293b', marginBottom: '16px' }}>📅 Monthly Rent Collections</h3>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '14px' }}>
+                  <thead>
+                    <tr style={{ background: '#f8fafc', borderBottom: '2px solid #e2e8f0' }}>
+                      <th style={{ padding: '10px 16px', textAlign: 'left', color: '#64748b', fontWeight: 600 }}>Month</th>
+                      <th style={{ padding: '10px 16px', textAlign: 'right', color: '#64748b', fontWeight: 600 }}>Collected (ETB)</th>
+                      <th style={{ padding: '10px 16px', textAlign: 'right', color: '#64748b', fontWeight: 600 }}>Installments</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {rentalRevenue.summary.monthlyBreakdown.map((m, i) => (
+                      <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                        <td style={{ padding: '10px 16px', fontWeight: 600 }}>{m.month}</td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right', color: '#059669', fontWeight: 700 }}>{Number(m.collected).toLocaleString()}</td>
+                        <td style={{ padding: '10px 16px', textAlign: 'right' }}>{m.count}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 

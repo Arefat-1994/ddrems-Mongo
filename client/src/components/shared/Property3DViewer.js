@@ -48,7 +48,7 @@ const Property3DViewer = ({ modelPath, propertyTitle, onClose }) => {
         const loader = new GLTFLoader();
         
         // Ensure path is absolute for localhost
-        const fullPath = modelPath.startsWith('http') ? modelPath : `http://localhost:5000/${modelPath}`;
+        const fullPath = modelPath.startsWith('http') ? modelPath : `http://${window.location.hostname}:5000/${modelPath}`;
         
         loader.load(
           fullPath,

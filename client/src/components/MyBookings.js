@@ -37,6 +37,9 @@ const CountdownTimer = ({ expiryTime }) => {
 const MyBookings = ({ user, setCurrentPage }) => {
   const [bookings, setBookings] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [viewingProperty, setViewingProperty] = useState(null);
+  const [propertyDetails, setPropertyDetails] = useState(null);
+  const [loadingProperty, setLoadingProperty] = useState(false);
 
   const fetchBookings = useCallback(async () => {
     try {
@@ -58,6 +61,43 @@ const MyBookings = ({ user, setCurrentPage }) => {
   useEffect(() => {
     fetchBookings();
   }, [fetchBookings]);
+
+  const handleCancel = async (bookingId) => {
+    if (!window.confirm("Are you sure you want to cancel or remove this booking?")) return;
+    try {
+      await axios.put(`http://${window.location.hostname}:5000/api/broker-bookings/${bookingId}/cancel`);
+      fetchBookings();
+    } catch (error) {
+      console.error('Error cancelling booking:', error);
+      alert('Failed to cancel booking');
+    }
+  };
+
+  const handleDelete = async (bookingId) => {
+    if (!window.confirm("Are you sure you want to permanently delete this booking record?")) return;
+    try {
+      await axios.delete(`http://${window.location.hostname}:5000/api/broker-bookings/${bookingId}`);
+      fetchBookings();
+    } catch (error) {
+      console.error('Error deleting booking:', error);
+      alert('Failed to delete booking');
+    }
+  };
+
+  const handleViewProperty = async (propertyId) => {
+    setViewingProperty(propertyId);
+    setLoadingProperty(true);
+    try {
+      const res = await axios.get(`http://${window.location.hostname}:5000/api/properties/${propertyId}`);
+      setPropertyDetails(res.data);
+    } catch (error) {
+      console.error('Error fetching property details:', error);
+      alert('Failed to load property details');
+      setViewingProperty(null);
+    } finally {
+      setLoadingProperty(false);
+    }
+  };
 
   const getStatusColor = (status) => {
     switch (status) {
@@ -150,28 +190,141 @@ const MyBookings = ({ user, setCurrentPage }) => {
                   </div>
                 )}
 
+                {/* Action buttons for reserved bookings */}
                 {booking.status === 'reserved' && (
-                  <div style={{ marginTop: 'auto' }}>
+                  <div style={{ marginTop: 'auto', display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                    <button 
+                      onClick={() => handleViewProperty(booking.property_id)}
+                      style={{
+                        flex: '1 1 100%', padding: '10px', background: '#3b82f6',
+                        color: 'white', border: 'none', borderRadius: '10px', fontWeight: '700', cursor: 'pointer',
+                        transition: 'all 0.2s', fontSize: '13px'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = '#2563eb'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = '#3b82f6'}
+                    >
+                      👁️ View Full Info
+                    </button>
                     <button 
                       onClick={() => {
-                        setCurrentPage('broker-engagement', { propertyId: booking.property_id });
-                        alert(`Transitioning to formal agreement for ${booking.property_title}.`);
+                        setCurrentPage('agreement-workflow', { propertyId: booking.property_id });
                       }}
                       style={{
-                        width: '100%', padding: '16px', background: 'linear-gradient(135deg, #1e293b, #334155)',
-                        color: 'white', border: 'none', borderRadius: '14px', fontWeight: '700', cursor: 'pointer',
-                        boxShadow: '0 10px 15px -3px rgba(30, 41, 59, 0.2)', transition: 'all 0.2s', fontSize: '15px'
+                        flex: '1 1 calc(50% - 4px)', padding: '10px', background: '#10b981',
+                        color: 'white', border: 'none', borderRadius: '10px', fontWeight: '700', cursor: 'pointer',
+                        transition: 'all 0.2s', fontSize: '13px'
                       }}
-                      onMouseEnter={(e) => e.currentTarget.style.transform = 'translateY(-2px)'}
-                      onMouseLeave={(e) => e.currentTarget.style.transform = 'translateY(0)'}
+                      onMouseEnter={(e) => e.currentTarget.style.background = '#059669'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = '#10b981'}
                     >
-                      🤝 Proceed to Agreement
+                      📄 Request Agreements
+                    </button>
+                    <button 
+                      onClick={() => handleCancel(booking.id)}
+                      style={{
+                        flex: '1 1 calc(50% - 4px)', padding: '10px', background: '#ef4444',
+                        color: 'white', border: 'none', borderRadius: '10px', fontWeight: '700', cursor: 'pointer',
+                        transition: 'all 0.2s', fontSize: '13px'
+                      }}
+                      onMouseEnter={(e) => e.currentTarget.style.background = '#dc2626'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = '#ef4444'}
+                    >
+                      🗑️ Remove
+                    </button>
+                  </div>
+                )}
+
+                {/* Action buttons for expired bookings */}
+                {booking.status === 'expired' && (
+                  <div style={{ marginTop: 'auto' }}>
+                    <div style={{ padding: '10px', background: '#fef2f2', borderRadius: '10px', border: '1px solid #fecaca', marginBottom: '10px', textAlign: 'center' }}>
+                      <span style={{ fontSize: '13px', color: '#991b1b', fontWeight: '600' }}>⏰ Hold expired — property is now available to others</span>
+                    </div>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      <button 
+                        onClick={() => {
+                          setCurrentPage('agreement-workflow', { propertyId: booking.property_id });
+                        }}
+                        style={{
+                          flex: '1 1 calc(50% - 4px)', padding: '10px', background: '#10b981',
+                          color: 'white', border: 'none', borderRadius: '10px', fontWeight: '700', cursor: 'pointer',
+                          transition: 'all 0.2s', fontSize: '13px'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#059669'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = '#10b981'}
+                      >
+                        📄 Request Agreements
+                      </button>
+                      <button 
+                        onClick={() => handleDelete(booking.id)}
+                        style={{
+                          flex: '1 1 calc(50% - 4px)', padding: '10px', background: '#ef4444',
+                          color: 'white', border: 'none', borderRadius: '10px', fontWeight: '700', cursor: 'pointer',
+                          transition: 'all 0.2s', fontSize: '13px'
+                        }}
+                        onMouseEnter={(e) => e.currentTarget.style.background = '#dc2626'}
+                        onMouseLeave={(e) => e.currentTarget.style.background = '#ef4444'}
+                      >
+                        🗑️ Delete
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Cancelled status info */}
+                {booking.status === 'cancelled' && (
+                  <div style={{ marginTop: 'auto' }}>
+                    <div style={{ padding: '10px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0', marginBottom: '10px', textAlign: 'center' }}>
+                      <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '600' }}>❌ This booking was cancelled</span>
+                    </div>
+                    <button 
+                      onClick={() => handleDelete(booking.id)}
+                      style={{
+                        width: '100%', padding: '10px', background: '#ef4444',
+                        color: 'white', border: 'none', borderRadius: '10px', fontWeight: '700', cursor: 'pointer',
+                        transition: 'all 0.2s', fontSize: '13px'
+                      }}
+                    >
+                      🗑️ Delete
                     </button>
                   </div>
                 )}
               </div>
             </div>
           ))}
+        </div>
+      )}
+      {viewingProperty && (
+        <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={() => setViewingProperty(null)}>
+          <div style={{ background: 'white', borderRadius: '16px', padding: '30px', maxWidth: '600px', width: '90%', maxHeight: '90vh', overflowY: 'auto' }} onClick={e => e.stopPropagation()}>
+            {loadingProperty ? (
+               <div style={{ textAlign: 'center', padding: '40px' }}>Loading property details...</div>
+            ) : propertyDetails ? (
+               <div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                    <h2 style={{ margin: 0 }}>{propertyDetails.title}</h2>
+                    <button onClick={() => setViewingProperty(null)} style={{ background: 'transparent', border: 'none', fontSize: '20px', cursor: 'pointer' }}>✖</button>
+                  </div>
+                  {propertyDetails.main_image && (
+                     <img src={propertyDetails.main_image} alt={propertyDetails.title} style={{ width: '100%', height: '250px', objectFit: 'cover', borderRadius: '12px', marginBottom: '20px' }} />
+                  )}
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px', marginBottom: '20px' }}>
+                    <div><strong>📍 Location:</strong> {propertyDetails.location}</div>
+                    <div><strong>💰 Price:</strong> {(propertyDetails.price / 1000000).toFixed(2)}M ETB</div>
+                    <div><strong>🛏️ Bedrooms:</strong> {propertyDetails.bedrooms || 'N/A'}</div>
+                    <div><strong>🚿 Bathrooms:</strong> {propertyDetails.bathrooms || 'N/A'}</div>
+                    <div><strong>📐 Area:</strong> {propertyDetails.area} m²</div>
+                    <div><strong>🏠 Type:</strong> {propertyDetails.type}</div>
+                  </div>
+                  <div>
+                    <strong>Description:</strong>
+                    <p style={{ color: '#475569', lineHeight: '1.6' }}>{propertyDetails.description}</p>
+                  </div>
+               </div>
+            ) : (
+               <div style={{ textAlign: 'center', color: '#ef4444' }}>Could not load property details.</div>
+            )}
+          </div>
         </div>
       )}
     </div>

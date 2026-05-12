@@ -6,6 +6,7 @@ const EditRequestsAdmin = () => {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('pending');
+  const [selectedFields, setSelectedFields] = useState({});
 
   const API_BASE = `http://${window.location.hostname}:5000/api`;
 
@@ -18,6 +19,14 @@ const EditRequestsAdmin = () => {
     try {
       const res = await axios.get(`${API_BASE}/edit-requests/all`);
       setRequests(res.data);
+      // Initialize selected fields with all requested fields by default
+      const initialSelected = {};
+      res.data.forEach(req => {
+        if (req.status === 'pending') {
+          initialSelected[req.id] = req.requested_fields || [];
+        }
+      });
+      setSelectedFields(initialSelected);
     } catch (err) {
       console.error('Error fetching edit requests:', err);
     } finally {
@@ -26,6 +35,12 @@ const EditRequestsAdmin = () => {
   };
 
   const handleApprove = async (request) => {
+    const fieldsToApprove = selectedFields[request.id] || [];
+    if (fieldsToApprove.length === 0) {
+      alert('Please select at least one field to approve.');
+      return;
+    }
+
     const adminNotes = window.prompt(`Add approval note for ${request.user_name} (optional):`);
     if (adminNotes === null) return; // cancelled
 
@@ -33,9 +48,10 @@ const EditRequestsAdmin = () => {
       const adminUser = JSON.parse(localStorage.getItem('user'));
       await axios.put(`${API_BASE}/edit-requests/${request.id}/approve`, {
         admin_id: adminUser?.id,
-        admin_notes: adminNotes || 'Approved'
+        admin_notes: adminNotes || 'Approved',
+        approved_fields: fieldsToApprove
       });
-      alert('✅ Edit request approved!');
+      alert('✅ Edit request approved for specific fields!');
       fetchRequests();
     } catch (err) {
       console.error('Error approving request:', err);
@@ -123,8 +139,39 @@ const EditRequestsAdmin = () => {
                   <h4>Requested Reason</h4>
                   <p>"{req.reason}"</p>
                 </div>
-                <div className="request-date">
-                  📅 Requested on: {new Date(req.requested_at).toLocaleDateString()}
+                
+                {req.requested_fields && req.requested_fields.length > 0 && (
+                  <div className="fields-box" style={{ marginTop: '12px', background: '#f8fafc', padding: '12px', borderRadius: '6px' }}>
+                    <h4 style={{ margin: '0 0 8px 0', fontSize: '13px', color: '#475569' }}>Requested Fields:</h4>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                      {req.requested_fields.map(field => (
+                        <label key={field} style={{ display: 'flex', alignItems: 'center', gap: '4px', fontSize: '13px', background: '#e2e8f0', padding: '4px 8px', borderRadius: '4px' }}>
+                          {req.status === 'pending' ? (
+                            <input 
+                              type="checkbox" 
+                              checked={(selectedFields[req.id] || []).includes(field)}
+                              onChange={(e) => {
+                                const current = selectedFields[req.id] || [];
+                                setSelectedFields({
+                                  ...selectedFields,
+                                  [req.id]: e.target.checked ? [...current, field] : current.filter(f => f !== field)
+                                });
+                              }}
+                            />
+                          ) : (
+                            <span style={{ color: req.approved_fields?.includes(field) ? '#16a34a' : '#ef4444' }}>
+                              {req.approved_fields?.includes(field) ? '✓ ' : '✕ '}
+                            </span>
+                          )}
+                          {field.replace('_', ' ').toUpperCase()}
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="request-date" style={{ marginTop: '12px' }}>
+                  📅 Requested on: {new Date(req.created_at || req.requested_at || new Date()).toLocaleDateString()}
                 </div>
               </div>
 

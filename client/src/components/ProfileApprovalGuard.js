@@ -14,7 +14,7 @@ const ProfileApprovalGuard = ({ user, children, setCurrentPage }) => {
         }
 
         const response = await axios.get(
-          `http://localhost:5000/api/profile-approval/check-approval/${user.id}`
+          `http://${window.location.hostname}:5000/api/profile-approval/check-approval/${user.id}`
         );
 
         setApprovalStatus(response.data);

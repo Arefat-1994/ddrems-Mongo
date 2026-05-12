@@ -398,7 +398,7 @@ const LandingPage = ({ onNavigateToLogin, onNavigateToRegister }) => {
               const imgUrl = getPropertyImage(property);
               return (
                 <div className={`featured-card featured-card-${index}`} key={property.id}>
-                  <div className="featured-image-wrap">
+                  <div className="featured-image-wrap" onClick={onNavigateToLogin} style={{ cursor: 'pointer' }}>
                     {imgUrl ? (
                       <img src={imgUrl} alt={property.title} loading="lazy" />
                     ) : (
@@ -457,7 +457,7 @@ const LandingPage = ({ onNavigateToLogin, onNavigateToRegister }) => {
             const images = propertyImages[property.id] || [];
             return (
               <div className="property-card" key={property.id}>
-                <div className="property-image-container">
+                <div className="property-image-container" onClick={onNavigateToLogin} style={{ cursor: 'pointer' }}>
                   <div className="property-tag">{property.listing_type === 'rent' ? 'FOR RENT' : 'FOR SALE'}</div>
                   <div className="property-type-badge">{property.type}</div>
                   {images.length > 1 && (
@@ -630,6 +630,36 @@ const LandingPage = ({ onNavigateToLogin, onNavigateToRegister }) => {
             setAgreedToTerms(false);
           }
         }}>
+          <button 
+            className="close-overlay-btn" 
+            onClick={() => {
+              setShowBrokerModal(false);
+              setStep(1);
+              setAgreedToTerms(false);
+            }}
+            style={{
+              position: 'fixed',
+              top: '20px',
+              right: '30px',
+              background: 'rgba(255, 255, 255, 0.2)',
+              border: 'none',
+              color: 'white',
+              fontSize: '32px',
+              cursor: 'pointer',
+              zIndex: 2001,
+              width: '50px',
+              height: '50px',
+              borderRadius: '50%',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              transition: 'background 0.3s'
+            }}
+            onMouseOver={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.4)'}
+            onMouseOut={(e) => e.currentTarget.style.background = 'rgba(255, 255, 255, 0.2)'}
+          >
+            ✕
+          </button>
           <div className="application-modal">
             <button className="close-modal-btn" onClick={() => {
               setShowBrokerModal(false);
@@ -713,7 +743,7 @@ const LandingPage = ({ onNavigateToLogin, onNavigateToRegister }) => {
                     <label>Profile Photo</label>
                     <p style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '5px', marginTop: '-2px' }}>Max file size: 5MB</p>
                     <div className={`file-upload-wrapper ${errors.profile_photo ? 'file-error' : ''}`}>
-                      <input type="file" name="profile_photo" required onChange={handleBrokerFormChange} accept=".jpg,.jpeg,.png" style={{display: 'none'}} id="photo_upload" />
+                      <input type="file" name="profile_photo" onChange={handleBrokerFormChange} accept=".jpg,.jpeg,.png" style={{display: 'none'}} id="photo_upload" />
                       <label htmlFor="photo_upload" style={{cursor: 'pointer', margin: 0, color: '#64748b'}}>
                         👤<br/>
                         {brokerForm.profile_photo ? brokerForm.profile_photo.name : 'Click to upload your profile photo'}
@@ -726,7 +756,7 @@ const LandingPage = ({ onNavigateToLogin, onNavigateToRegister }) => {
                     <label>ID Document (Kebele ID / Passport)</label>
                     <p style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '5px', marginTop: '-2px' }}>Max file size: 5MB</p>
                     <div className={`file-upload-wrapper ${errors.id_document ? 'file-error' : ''}`}>
-                      <input type="file" name="id_document" required onChange={handleBrokerFormChange} accept=".pdf,.jpg,.jpeg,.png" style={{display: 'none'}} id="id_upload" />
+                      <input type="file" name="id_document" onChange={handleBrokerFormChange} accept=".pdf,.jpg,.jpeg,.png" style={{display: 'none'}} id="id_upload" />
                       <label htmlFor="id_upload" style={{cursor: 'pointer', margin: 0, color: '#64748b'}}>
                         📤<br/>
                         {brokerForm.id_document ? brokerForm.id_document.name : 'Click to browse or drag file here'}
@@ -738,7 +768,7 @@ const LandingPage = ({ onNavigateToLogin, onNavigateToRegister }) => {
                     <label>Broker License Document</label>
                     <p style={{ fontSize: '0.75rem', color: '#64748b', marginBottom: '5px', marginTop: '-2px' }}>Max file size: 5MB</p>
                     <div className={`file-upload-wrapper ${errors.license_document ? 'file-error' : ''}`}>
-                      <input type="file" name="license_document" required onChange={handleBrokerFormChange} accept=".pdf,.jpg,.jpeg,.png" style={{display: 'none'}} id="license_upload" />
+                      <input type="file" name="license_document" onChange={handleBrokerFormChange} accept=".pdf,.jpg,.jpeg,.png" style={{display: 'none'}} id="license_upload" />
                       <label htmlFor="license_upload" style={{cursor: 'pointer', margin: 0, color: '#64748b'}}>
                         📄<br/>
                         {brokerForm.license_document ? brokerForm.license_document.name : 'Click to browse or drag file here'}

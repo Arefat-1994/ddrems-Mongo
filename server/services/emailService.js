@@ -16,6 +16,19 @@ const transporter = nodemailer.createTransport({
  */
 const sendEmail = async (to, subject, html) => {
   try {
+    // Handle both positional arguments and options object
+    if (typeof to === 'object' && to !== null && !Array.isArray(to)) {
+      const options = to;
+      to = options.to;
+      subject = options.subject;
+      html = options.html;
+    }
+
+    if (!to) {
+      console.warn('[EMAIL SERVICE] Attempted to send email with no recipient (to: undefined/null). Skipping.');
+      return { success: false, error: 'No recipients defined' };
+    }
+
     const fromName = process.env.EMAIL_FROM_NAME || "Dire Dawa Real Estate Management system";
     const mailOptions = {
       from: `"${fromName}" <${process.env.EMAIL_USER || 'arefatartzy@gmail.com'}>`,
@@ -171,6 +184,94 @@ const templates = {
         <a href="http://localhost:3000/login" style="background: linear-gradient(135deg, #1a237e 0%, #0d47a1 100%); color: white; padding: 16px 35px; text-decoration: none; border-radius: 10px; font-weight: bold; font-size: 16px; display: inline-block; box-shadow: 0 4px 12px rgba(26,35,126,0.25);">Access Your Property Manager</a>
       </div>
       <p style="font-size: 13px; color: #64748b;">If you didn't expect this invitation, please contact our support team.</p>
+    `
+  }),
+  accountLockout: (name, minutes) => ({
+    subject: '⚠️ Multiple Failed Login Attempts - DDREMS',
+    html: `
+      <div style="text-align: center; margin-bottom: 20px;">
+        <span style="font-size: 50px;">🔒</span>
+      </div>
+      <h2 style="color: #f59e0b;">Account Temporarily Locked</h2>
+      <p>Hello ${name},</p>
+      <p>We detected <strong>3 failed login attempts</strong> on your account. For your security, your account has been temporarily locked for <strong>${minutes} minute(s)</strong>.</p>
+      <p>If this was you, please wait and try again with the correct password.</p>
+      <p style="color: #dc2626; font-weight: bold;">If this was NOT you, someone may be trying to access your account. Please change your password immediately after logging in.</p>
+      <p style="font-size: 12px; color: #999;">Time: ${new Date().toLocaleString()}</p>
+    `
+  }),
+  accountSuspicious: (name) => ({
+    subject: '🚨 URGENT: Your Account Has Been Flagged - DDREMS',
+    html: `
+      <div style="text-align: center; margin-bottom: 20px;">
+        <span style="font-size: 50px;">🚨</span>
+      </div>
+      <h2 style="color: #dc2626;">Account Flagged as Suspicious</h2>
+      <p>Hello ${name},</p>
+      <p>Your account has been flagged as <strong>suspicious</strong> due to <strong>6 consecutive failed login attempts</strong>.</p>
+      <p>Our security team has been notified and is reviewing your account activity.</p>
+      <p>If this was you, please contact our support team to verify your identity and regain access.</p>
+      <p style="background: #fef2f2; padding: 12px; border-radius: 8px; border-left: 4px solid #dc2626; color: #991b1b;">
+        ⚠️ <strong>Warning:</strong> Any further failed login attempts will result in your account being permanently banned.
+      </p>
+      <p style="font-size: 12px; color: #999;">Time: ${new Date().toLocaleString()}</p>
+    `
+  }),
+  accountBanned: (name) => ({
+    subject: '🛑 Account Banned - Dire Dawa Real Estate Management System',
+    html: `
+      <div style="text-align: center; margin-bottom: 20px;">
+        <span style="font-size: 50px;">🛑</span>
+      </div>
+      <h2 style="color: #dc2626;">Account Permanently Banned</h2>
+      <p>Hello ${name},</p>
+      <p>Your account has been <strong>permanently banned</strong> due to repeated failed login attempts (9+ consecutive failures), indicating a potential unauthorized access attempt.</p>
+      <div style="background: #fef2f2; padding: 16px; border-radius: 10px; border: 1px solid #fecaca; margin: 20px 0;">
+        <p style="margin: 0; color: #991b1b; font-weight: bold;">What does this mean?</p>
+        <ul style="color: #991b1b; margin: 8px 0;">
+          <li>You will no longer be able to log in to your account</li>
+          <li>All active sessions have been terminated</li>
+          <li>Our security team has been notified</li>
+        </ul>
+      </div>
+      <p>If you believe this was a mistake and you are the legitimate account owner, please contact our system administrator to request an account review.</p>
+      <p style="font-size: 12px; color: #999;">Time: ${new Date().toLocaleString()}</p>
+    `
+  }),
+  adminSuspiciousAlert: (adminName, userName, userEmail, attemptCount) => ({
+    subject: '🚨 SECURITY ALERT: Suspicious Account Detected - DDREMS',
+    html: `
+      <div style="text-align: center; margin-bottom: 20px;">
+        <span style="font-size: 50px;">🚨</span>
+      </div>
+      <h2 style="color: #dc2626;">Suspicious Account Alert</h2>
+      <p>Hello ${adminName},</p>
+      <p>A user account has been flagged as <strong>suspicious</strong> due to multiple failed login attempts:</p>
+      <div style="background: #fffbeb; padding: 16px; border-radius: 10px; border: 1px solid #fde68a; margin: 20px 0;">
+        <p><strong>👤 User:</strong> ${userName}</p>
+        <p><strong>📧 Email:</strong> ${userEmail}</p>
+        <p><strong>🔢 Failed Attempts:</strong> ${attemptCount}</p>
+        <p><strong>⏰ Time:</strong> ${new Date().toLocaleString()}</p>
+      </div>
+      <p>Please review this account in the System Admin dashboard under <strong>Suspicious Accounts</strong>.</p>
+    `
+  }),
+  adminBannedAlert: (adminName, userName, userEmail, attemptCount) => ({
+    subject: '🛑 SECURITY ALERT: Account Auto-Banned - DDREMS',
+    html: `
+      <div style="text-align: center; margin-bottom: 20px;">
+        <span style="font-size: 50px;">🛑</span>
+      </div>
+      <h2 style="color: #dc2626;">Account Auto-Banned</h2>
+      <p>Hello ${adminName},</p>
+      <p>A user account has been <strong>automatically banned</strong> due to excessive failed login attempts:</p>
+      <div style="background: #fef2f2; padding: 16px; border-radius: 10px; border: 1px solid #fecaca; margin: 20px 0;">
+        <p><strong>👤 User:</strong> ${userName}</p>
+        <p><strong>📧 Email:</strong> ${userEmail}</p>
+        <p><strong>🔢 Failed Attempts:</strong> ${attemptCount}</p>
+        <p><strong>⏰ Banned At:</strong> ${new Date().toLocaleString()}</p>
+      </div>
+      <p>You can review and unban this account from the System Admin dashboard if needed.</p>
     `
   })
 };

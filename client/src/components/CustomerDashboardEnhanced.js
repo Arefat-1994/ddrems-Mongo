@@ -18,6 +18,7 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
   const [profileStatus, setProfileStatus] = useState(null);
   // eslint-disable-next-line no-unused-vars
   const [loading, setLoading] = useState(true);
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [recentViews, setRecentViews] = useState([]);
   const [allProperties, setAllProperties] = useState([]);
   const [messages, setMessages] = useState([]);
@@ -50,7 +51,6 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
   const [showDocumentViewer, setShowDocumentViewer] = useState(false);
   const [documentPropertyId, setDocumentPropertyId] = useState(null);
   const [agreementRequests, setAgreementRequests] = useState([]);
-  const [keyRequests, setKeyRequests] = useState([]);
   const [notifications, setNotifications] = useState([]);
   const [showAgreementManagement, setShowAgreementManagement] = useState(false);
   const [showAgreementFlowModal, setShowAgreementFlowModal] = useState(false);
@@ -67,17 +67,17 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
     setLoading(true);
     try {
       // Fetch profile status
-      const profileRes = await axios.get(`http://localhost:5000/api/profiles/customer/${user.id}`);
+      const profileRes = await axios.get(`http://${window.location.hostname}:5000/api/profiles/customer/${user.id}`);
       setCustomerProfile(profileRes.data);
       setProfileStatus(profileRes.data.profile_status);
 
       // Fetch ONLY ACTIVE properties
-      const propertiesRes = await axios.get('http://localhost:5000/api/properties/active');
+      const propertiesRes = await axios.get(`http://${window.location.hostname}:5000/api/properties/active`);
       setAllProperties(propertiesRes.data);
 
       // Fetch favorites
       try {
-        const favoritesRes = await axios.get(`http://localhost:5000/api/favorites/${user.id}`);
+        const favoritesRes = await axios.get(`http://${window.location.hostname}:5000/api/favorites/${user.id}`);
         setFavorites(favoritesRes.data);
       } catch (error) {
         setFavorites([]);
@@ -85,14 +85,14 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
 
       // Fetch recent views
       try {
-        const viewsRes = await axios.get(`http://localhost:5000/api/property-views/user/${user.id}`);
+        const viewsRes = await axios.get(`http://${window.location.hostname}:5000/api/property-views/user/${user.id}`);
         setRecentViews(viewsRes.data);
       } catch (error) {
         setRecentViews([]);
       }
 
       try {
-        const messagesRes = await axios.get(`http://localhost:5000/api/messages/user/${user.id}`);
+        const messagesRes = await axios.get(`http://${window.location.hostname}:5000/api/messages/user/${user.id}`);
         setMessages(messagesRes.data);
       } catch (error) {
         setMessages([]);
@@ -100,45 +100,38 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
 
       // Fetch announcements
       try {
-        const announcementsRes = await axios.get('http://localhost:5000/api/announcements');
+        const announcementsRes = await axios.get(`http://${window.location.hostname}:5000/api/announcements`);
         setAnnouncements(announcementsRes.data);
       } catch (error) {
         setAnnouncements([]);
       }
 
-      // Fetch Agreement & Key Requests (Dual Tables)
+      // Fetch Agreement Requests
       try {
-        const [agreementsRes, keysRes, notificationsRes] = await Promise.all([
-          axios.get(`http://localhost:5000/api/agreement-requests/customer/${user.id}`),
-          axios.get(`http://localhost:5000/api/key-requests/customer/${user.id}`),
-          axios.get(`http://localhost:5000/api/notifications/${user.id}`)
+        const [agreementsRes, notificationsRes] = await Promise.all([
+          axios.get(`http://${window.location.hostname}:5000/api/agreement-requests/customer/${user.id}`),
+          axios.get(`http://${window.location.hostname}:5000/api/notifications/${user.id}`)
         ]);
         
-        // Backend now returns request_type directly, just combine them
-        const combined = [
-          ...agreementsRes.data,
-          ...keysRes.data
-        ];
-        setAgreementRequests(combined);
-        setKeyRequests(keysRes.data);
+        setAgreementRequests(agreementsRes.data);
         setNotifications(notificationsRes.data);
       } catch (error) {
         console.error('Error fetching requests:', error);
         setAgreementRequests([]);
-        setKeyRequests([]);
         setNotifications([]);
       }
     } catch (error) {
       console.error('Error fetching customer data:', error);
     } finally {
       setLoading(false);
+      setIsInitialLoad(false);
     }
 
   };
 
   const addToFavorites = async (propertyId) => {
     try {
-      await axios.post('http://localhost:5000/api/favorites', {
+      await axios.post(`http://${window.location.hostname}:5000/api/favorites`, {
         user_id: user.id,
         property_id: propertyId
       });
@@ -152,7 +145,7 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
 
   const removeFavorite = async (propertyId) => {
     try {
-      await axios.delete(`http://localhost:5000/api/favorites/${user.id}/${propertyId}`);
+      await axios.delete(`http://${window.location.hostname}:5000/api/favorites/${user.id}/${propertyId}`);
       alert('Removed from favorites');
       fetchCustomerData();
     } catch (error) {
@@ -167,7 +160,7 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
 
     // Record property view
     try {
-      await axios.post('http://localhost:5000/api/property-views', {
+      await axios.post(`http://${window.location.hostname}:5000/api/property-views`, {
         user_id: user.id,
         property_id: property.id
       });
@@ -184,7 +177,7 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
   const submitFeedback = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:5000/api/feedback', {
+      await axios.post(`http://${window.location.hostname}:5000/api/feedback`, {
         user_id: user.id,
         property_id: selectedProperty?.id,
         rating: feedbackForm.rating,
@@ -201,7 +194,7 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
 
   const markMessageAsRead = async (messageId) => {
     try {
-      await axios.put(`http://localhost:5000/api/messages/read/${messageId}`);
+      await axios.put(`http://${window.location.hostname}:5000/api/messages/read/${messageId}`);
       fetchCustomerData();
     } catch (error) {
       console.error('Error marking message as read:', error);
@@ -221,7 +214,7 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
   const handleReply = async (e) => {
     e.preventDefault();
     try {
-      await axios.post('http://localhost:5000/api/messages', {
+      await axios.post(`http://${window.location.hostname}:5000/api/messages`, {
         sender_id: user.id,
         ...replyData
       });
@@ -238,24 +231,6 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
   const isFavorite = (propertyId) => {
     return favorites.some(fav => fav.property_id === propertyId);
   };
-
-  const requestKey = async (propertyId) => {
-    try {
-      await axios.post('http://localhost:5000/api/key-requests', {
-        property_id: propertyId,
-        customer_id: user.id,
-        request_message: 'Requesting access key to view property documents and agreement.'
-      });
-      alert('🔑 Key request sent successfully to Property Admin!');
-      fetchCustomerData();
-    } catch (error) {
-      console.error('Error requesting key:', error);
-      alert(error.response?.data?.message || 'Failed to send key request');
-    }
-  };
-
-
-
   const handleGuideSubmit = (e) => {
     e.preventDefault();
     const recommendations = allProperties.filter(p => {
@@ -271,17 +246,18 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
     setGuideStep(2);
   };
 
-  const hasKey = (propertyId) => {
-    return (keyRequests || []).find(req => req.property_id === propertyId && req.status === 'approved');
-  };
-
-  const hasPendingKey = (propertyId) => {
-    return (keyRequests || []).find(req => req.property_id === propertyId && req.status === 'pending');
-  };
-
   const hasAgreement = (propertyId) => {
     return (agreementRequests || []).some(req => req.property_id === propertyId);
   };
+
+  if (isInitialLoad) {
+    return (
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#f8fafc' }}>
+        <div style={{ fontSize: '3rem', marginBottom: '16px' }}>⏳</div>
+        <h3 style={{ color: '#475569' }}>Loading Dashboard...</h3>
+      </div>
+    );
+  }
 
   return (
     <div className="customer-dashboard">
@@ -416,20 +392,7 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
           </div>
         </div>
       )}
-
-      <div className="quick-actions-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginBottom: '20px' }}>
-        <div className="dashboard-card" style={{ padding: '16px' }}>
-          <h3>🔑 Key Access Requests</h3>
-          <p style={{ marginBottom: '10px' }}>Total key requests: {keyRequests.length}</p>
-          {keyRequests.slice(0, 3).map(req => (
-            <div key={req.id} style={{ border: '1px solid #e2e8f0', padding: '8px', borderRadius: '8px', marginBottom: '8px' }}>
-              <div><strong>{req.property_title || 'Property'}</strong></div>
-              <div>Status: {req.status}</div>
-              {req.key_code && <div style={{ marginTop: '6px', color: '#065f46' }}>Key: <strong>{req.key_code}</strong></div>}
-            </div>
-          ))}
-          {keyRequests.length === 0 && <div>No key requests yet.</div>}
-        </div>
+      <div className="dashboard-grid">
         <div className="dashboard-card" style={{ padding: '16px' }}>
           <h3>🔔 Notifications</h3>
           <p style={{ marginBottom: '10px' }}>Unread: {notifications.filter(n => !n.is_read).length}</p>
@@ -460,10 +423,23 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
                       <img
                         src={fav.main_image}
                         alt={fav.property_title}
+                        onClick={() => {
+                          const property = allProperties.find(p => p.id === fav.property_id);
+                          if (property) viewProperty(property);
+                        }}
+                        style={{ cursor: 'pointer' }}
+                        title="Click to view details"
                         onError={() => setImageErrors(prev => ({ ...prev, [`fav_${fav.id}`]: true }))}
                       />
                     ) : (
-                      <div style={{ width: '100%', height: '200px', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af' }}>🏠 No Image</div>
+                      <div 
+                        style={{ width: '100%', height: '200px', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', cursor: 'pointer' }}
+                        onClick={() => {
+                          const property = allProperties.find(p => p.id === fav.property_id);
+                          if (property) viewProperty(property);
+                        }}
+                        title="Click to view details"
+                      >🏠 No Image</div>
                     )}
                   <button className="remove-favorite" onClick={() => removeFavorite(fav.property_id)}>
                     ❌
@@ -512,10 +488,17 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
                     <img
                       src={property.main_image}
                       alt={property.title}
+                      onClick={() => viewProperty(property)}
+                      style={{ cursor: 'pointer' }}
+                      title="Click to view details"
                       onError={() => setImageErrors(prev => ({ ...prev, [`prop_${property.id}`]: true }))}
                     />
                   ) : (
-                    <div style={{ width: '100%', height: '200px', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af' }}>🏠 No Image</div>
+                    <div 
+                      style={{ width: '100%', height: '200px', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', cursor: 'pointer' }}
+                      onClick={() => viewProperty(property)}
+                      title="Click to view details"
+                    >🏠 No Image</div>
                   )}
                   <button
                     className={`favorite-btn ${isFavorite(property.id) ? 'active' : ''}`}
@@ -563,10 +546,23 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
                     <img
                       src={view.main_image}
                       alt={view.property_title}
+                      onClick={() => {
+                        const property = allProperties.find(p => p.id === view.property_id);
+                        if (property) viewProperty(property);
+                      }}
+                      style={{ cursor: 'pointer' }}
+                      title="Click to view details"
                       onError={() => setImageErrors(prev => ({ ...prev, [`view_${view.id}`]: true }))}
                     />
                   ) : (
-                    <div style={{ width: '100%', height: '120px', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: '24px', borderRadius: '8px' }}>🏠</div>
+                    <div 
+                      style={{ width: '100%', height: '120px', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: '24px', borderRadius: '8px', cursor: 'pointer' }}
+                      onClick={() => {
+                        const property = allProperties.find(p => p.id === view.property_id);
+                        if (property) viewProperty(property);
+                      }}
+                      title="Click to view details"
+                    >🏠</div>
                   )}
                   <button
                     className="view-icon-btn"
@@ -629,7 +625,7 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
               .map(property => (
                 <div key={property.id} className="property-card mini">
                   <div className="property-image">
-                    <img src={property.main_image || '/placeholder.jpg'} alt={property.title} />
+                    <img src={property.main_image || '/placeholder.jpg'} alt={property.title} onClick={() => viewProperty(property)} style={{ cursor: 'pointer' }} title="Click to view details" />
                     <span className="view-count">👁️ {property.views || 0}</span>
                   </div>
                   <div className="property-content">
@@ -746,30 +742,7 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
                       {isFavorite(selectedProperty.id) ? '❤️ Remove from Favorites' : '🤍 Add to Favorites'}
                     </button>
 
-                    {!hasKey(selectedProperty.id) && !hasPendingKey(selectedProperty.id) && (
-                      <button
-                        className="btn-primary"
-                        onClick={() => requestKey(selectedProperty.id)}
-                      >
-                        🔑 Request Access Key
-                      </button>
-                    )}
-
-                    {hasPendingKey(selectedProperty.id) && (
-                      <button className="btn-secondary" disabled style={{ opacity: 0.7 }}>
-                        ⏳ Key Request Pending
-                      </button>
-                    )}
-
-                    {hasKey(selectedProperty.id) && (
-                      <div className="key-display" style={{ display: 'inline-block' }}>
-                        <span className="key-notification" style={{ background: '#dcfce7', color: '#166534', padding: '8px 12px', borderRadius: '6px', fontSize: '14px', fontWeight: 'bold' }}>
-                          ✅ Key Received: {hasKey(selectedProperty.id).key_code}
-                        </span>
-                      </div>
-                    )}
-
-                    {hasKey(selectedProperty.id) && !hasAgreement(selectedProperty.id) && (
+                    {!hasAgreement(selectedProperty.id) && (
                       <button
                         className="btn-success"
                         onClick={() => {

@@ -52,7 +52,7 @@ const BrokerMyProperties = ({ user, onLogout, setCurrentPage, onSettingsClick })
 
   const fetchOwners = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/users/role/owner');
+      const response = await axios.get(`http://${window.location.hostname}:5000/api/users/role/owner`);
       setOwners(response.data);
     } catch (error) {
       console.error('Error fetching owners:', error);
@@ -61,7 +61,7 @@ const BrokerMyProperties = ({ user, onLogout, setCurrentPage, onSettingsClick })
 
   const fetchBrokerProperties = async () => {
     try {
-      const response = await axios.get(`http://localhost:5000/api/properties/broker/${user?.id}`);
+      const response = await axios.get(`http://${window.location.hostname}:5000/api/properties/broker/${user?.id}`);
       setProperties(response.data);
     } catch (error) {
       console.error('Error fetching broker properties:', error);
@@ -72,7 +72,7 @@ const BrokerMyProperties = ({ user, onLogout, setCurrentPage, onSettingsClick })
   const deleteProperty = async (propertyId) => {
     if (!window.confirm('Are you sure you want to delete this property?')) return;
     try {
-      await axios.delete(`http://localhost:5000/api/properties/${propertyId}`);
+      await axios.delete(`http://${window.location.hostname}:5000/api/properties/${propertyId}`);
       alert('✅ Property deleted successfully');
       fetchBrokerProperties();
     } catch (error) {
@@ -88,7 +88,7 @@ const BrokerMyProperties = ({ user, onLogout, setCurrentPage, onSettingsClick })
 
   const openImageViewer = async (property) => {
     try {
-      const response = await axios.get(`http://localhost:5000/api/property-images/${property.id}`);
+      const response = await axios.get(`http://${window.location.hostname}:5000/api/property-images/${property.id}`);
       const images = response.data.map(img => img.image_url);
       if (images.length === 0 && property.main_image) {
         images.push(property.main_image);
@@ -107,7 +107,7 @@ const BrokerMyProperties = ({ user, onLogout, setCurrentPage, onSettingsClick })
   const handleAddProperty = async (e) => {
     e.preventDefault();
     try {
-      const response = await axios.post('http://localhost:5000/api/properties', {
+      const response = await axios.post(`http://${window.location.hostname}:5000/api/properties`, {
         ...propertyForm,
         broker_id: user.id,
         status: 'pending'
@@ -168,15 +168,27 @@ const BrokerMyProperties = ({ user, onLogout, setCurrentPage, onSettingsClick })
         <img
           src={property.main_image}
           alt={property.title}
+          onClick={() => {
+            setSelectedProperty(property);
+            setShowViewModal(true);
+          }}
           onDoubleClick={() => openImageViewer(property)}
           style={{ cursor: 'pointer' }}
-          title="Double-click to view full image"
+          title="Click to view details, double-click to view full image"
           onError={() => setImageErrors(prev => ({ ...prev, [property.id]: true }))}
         />
       );
     }
     return (
-      <div className="no-image-placeholder">
+      <div 
+        className="no-image-placeholder"
+        onClick={() => {
+          setSelectedProperty(property);
+          setShowViewModal(true);
+        }}
+        style={{ cursor: 'pointer' }}
+        title="Click to view details"
+      >
         <span className="placeholder-icon">{getPropertyTypeIcon(property.type)}</span>
       </div>
     );

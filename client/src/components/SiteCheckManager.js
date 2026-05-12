@@ -143,19 +143,57 @@ const SiteCheckManager = ({ user, setCurrentPage, initialPropertyId }) => {
     );
   };
 
+  // Image Compression Helper
+  const compressImage = (file, callback) => {
+    // Skip small images (< 1MB)
+    if (file.size < 1024 * 1024) {
+      return callback(file);
+    }
+    const reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = (event) => {
+      const img = new Image();
+      img.src = event.target.result;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        let width = img.width;
+        let height = img.height;
+        // Max dimension 1920
+        const MAX_DIMENSION = 1920;
+        if (width > height && width > MAX_DIMENSION) {
+          height *= MAX_DIMENSION / width;
+          width = MAX_DIMENSION;
+        } else if (height > MAX_DIMENSION) {
+          width *= MAX_DIMENSION / height;
+          height = MAX_DIMENSION;
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, width, height);
+        canvas.toBlob((blob) => {
+          const compressedFile = new File([blob], file.name.replace(/\.[^/.]+$/, "") + ".jpg", {
+            type: 'image/jpeg',
+            lastModified: Date.now()
+          });
+          callback(compressedFile);
+        }, 'image/jpeg', 0.85);
+      };
+    };
+  };
+
   // Photo capture
   const handlePhotoCapture = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (file.size > 50 * 1024 * 1024) {
-      showToast('Photo is too large. Maximum size is 50MB.', 'error');
-      return;
-    }
-    setPhoto(file);
-    setPhotoTimestamp(new Date());
-    const reader = new FileReader();
-    reader.onload = (ev) => setPhotoPreview(ev.target.result);
-    reader.readAsDataURL(file);
+    
+    compressImage(file, (compressedFile) => {
+      setPhoto(compressedFile);
+      setPhotoTimestamp(new Date());
+      const reader = new FileReader();
+      reader.onload = (ev) => setPhotoPreview(ev.target.result);
+      reader.readAsDataURL(compressedFile);
+    });
   };
 
   // Submit site check
@@ -169,8 +207,10 @@ const SiteCheckManager = ({ user, setCurrentPage, initialPropertyId }) => {
       const formData = new FormData();
       formData.append('property_id', selectedProperty.id);
       formData.append('inspector_id', user.id);
-      formData.append('inspector_lat', inspectorGPS.lat);
-      formData.append('inspector_lng', inspectorGPS.lng);
+      formData.append('inspector_gps_lat', inspectorGPS.lat);
+      formData.append('inspector_gps_lng', inspectorGPS.lng);
+      formData.append('within_radius', withinRadius);
+      formData.append('distance_meters', distance);
       formData.append('photo', photo);
 
       const res = await axios.post(`${API_BASE}/site-check/start`, formData, {
@@ -551,7 +591,7 @@ const SiteCheckManager = ({ user, setCurrentPage, initialPropertyId }) => {
                     <div key={check.id} className="sc-check-item">
                       <div className="sc-check-item-photo">
                         {check.photo_url ? (
-                          <img src={`http://${window.location.hostname}:5000${check.photo_url}`} alt="Site" />
+                          <img src={check.photo_url.startsWith('http') ? check.photo_url : `http://${window.location.hostname}:5000${check.photo_url}`} alt="Site" />
                         ) : (
                           <span style={{ fontSize: '24px' }}>📷</span>
                         )}

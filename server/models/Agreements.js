@@ -1,0 +1,35 @@
+const mongoose = require('mongoose');
+
+const AgreementsSchema = new mongoose.Schema({
+  property_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Properties' },
+  user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Users' },
+  owner_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Users' },
+  customer_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Users' },
+  buyer_id: { type: mongoose.Schema.Types.ObjectId },
+  broker_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Users' },
+  agreement_type: { type: String },
+  amount: { type: Number },
+  status: { type: String },
+  start_date: { type: Date },
+  end_date: { type: Date },
+  terms: { type: String },
+  agreement_text: { type: String },
+  agreement_html: { type: String },
+  document_key: { type: String },
+  document_url: { type: String },
+  agreement_document: { type: String },
+  terms_accepted: { type: Boolean },
+  accepted_at: { type: Date },
+  duration: { type: String },
+  payment_terms: { type: String },
+  special_conditions: { type: String },
+  additional_terms: { type: String },
+  owner_signature: { type: String },
+  customer_signature: { type: String },
+  owner_signed_at: { type: Date },
+  customer_signed_at: { type: Date },
+  created_at: { type: Date },
+  updated_at: { type: Date },
+}, { timestamps: true });
+
+module.exports = mongoose.model('Agreements', AgreementsSchema);

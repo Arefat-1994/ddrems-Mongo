@@ -7,6 +7,9 @@ const compression = require('compression');
 
 dotenv.config();
 
+// Connect to MongoDB
+require('./config/mongo')();
+
 const app = express();
 
 // Increase EventEmitter limit for high-concurrency environments
@@ -38,6 +41,7 @@ app.use((req, res, next) => {
 // Routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/dashboard', require('./routes/dashboard'));
+app.use('/api/bank-accounts', require('./routes/bank-accounts'));
 app.use('/api/properties', require('./routes/properties'));
 app.use('/api/brokers', require('./routes/brokers'));
 app.use('/api/users', require('./routes/users'));
@@ -51,7 +55,7 @@ app.use('/api/property-views', require('./routes/property-views'));
 app.use('/api/messages', require('./routes/messages'));
 app.use('/api/property-images', require('./routes/property-images'));
 app.use('/api/property-documents', require('./routes/property-documents'));
-app.use('/api/document-access', require('./routes/document-access'));
+
 app.use('/api/feedback', require('./routes/feedback'));
 app.use('/api/commissions', require('./routes/commissions'));
 app.use('/api/verification', require('./routes/verification'));
@@ -66,7 +70,7 @@ app.use('/api/broker-applications', require('./routes/broker-applications'));
 app.use('/api/payment-confirmations', require('./routes/payment-confirmations'));
 app.use('/api/ai', require('./routes/ai'));
 app.use('/api/broker-bookings', require('./routes/broker-bookings'));
-app.use('/api/key-requests', require('./routes/key-requests'));
+
 app.use('/api/agreement-workflow', require('./routes/agreement-workflow'));
 app.use('/api/agreement-management', require('./routes/agreement-management'));
 app.use('/api/real-estate-agreement', require('./routes/real-estate-agreement'));
@@ -80,8 +84,10 @@ app.use('/api/profile-approval', require('./routes/profile-approval'));
 app.use('/api/map-properties', require('./routes/map-properties'));
 app.use('/api/suspicious-activity', require('./routes/suspicious-activity'));
 app.use('/api/mpesa', require('./routes/mpesa'));
+app.use('/api/chapa', require('./routes/chapa'));
 app.use('/api/site-check', require('./routes/site-check'));
 app.use('/api/complaints', require('./routes/complaints'));
+app.use('/api/service-control', require('./routes/service-control'));
 
 // 404 Handler to catch unknown routes
 app.use((req, res, next) => {
@@ -102,15 +108,17 @@ const io = socketModule.init(server);
 // Auto-expire broker temporary bookings
 setInterval(async () => {
   try {
-    const db = require('./config/db');
-    const [expiredBookings] = await db.query(
-      "SELECT id, property_id FROM broker_temporary_bookings WHERE status = 'reserved' AND hold_expiry_time < NOW()"
-    );
+    const { BrokerTemporaryBookings, Properties } = require('./models');
+    const expiredBookings = await BrokerTemporaryBookings.find({
+      status: 'reserved',
+      hold_expiry_time: { $lt: new Date() }
+    });
+
     if (expiredBookings && expiredBookings.length > 0) {
       for (const booking of expiredBookings) {
-        await db.query("UPDATE broker_temporary_bookings SET status = 'expired' WHERE id = ?", [booking.id]);
-        await db.query("UPDATE properties SET status = 'active' WHERE id = ?", [booking.property_id]);
-        console.log(`Auto-expired booking ${booking.id} and reactivated property ${booking.property_id}`);
+        await BrokerTemporaryBookings.findByIdAndUpdate(booking._id, { status: 'expired' });
+        await Properties.findByIdAndUpdate(booking.property_id, { status: 'active' });
+        console.log(`Auto-expired booking ${booking._id} and reactivated property ${booking.property_id}`);
       }
     }
   } catch (error) {

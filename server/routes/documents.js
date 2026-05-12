@@ -1,292 +1,103 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/db');
-const socket = require('../socket');
+const mongoose = require('mongoose');
+const { PropertyDocuments, AgreementDocuments, Notifications, Properties } = require('../models');
+const { upload } = require('../middleware/upload');
 
-// ============================================================================
-// PROPERTY DOCUMENTS ENDPOINTS
-// ============================================================================
-
-// Get all documents for a property
 router.get('/property/:propertyId', async (req, res) => {
   try {
-    const [documents] = await db.query(
-      `SELECT pd.*, u.name as uploaded_by_name
-       FROM property_documents pd
-       LEFT JOIN users u ON pd.uploaded_by = u.id
-       WHERE pd.property_id = ?
-       ORDER BY pd.uploaded_at DESC`,
-      [req.params.propertyId]
-    );
-    res.json(documents || []);
-  } catch (error) {
-    console.error('Error fetching property documents:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+    if (!mongoose.Types.ObjectId.isValid(req.params.propertyId)) return res.json([]);
+    const docs = await PropertyDocuments.find({ property_id: req.params.propertyId }).sort({ uploaded_at: -1 }).lean();
+    res.json(docs.map(d => ({ ...d, id: d._id })));
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
-// Get single property document
 router.get('/property-doc/:docId', async (req, res) => {
   try {
-    const [documents] = await db.query(
-      `SELECT pd.*, u.name as uploaded_by_name
-       FROM property_documents pd
-       LEFT JOIN users u ON pd.uploaded_by = u.id
-       WHERE pd.id = ?`,
-      [req.params.docId]
-    );
-    
-    if (documents.length === 0) {
-      return res.status(404).json({ message: 'Document not found' });
-    }
-    
-    res.json(documents[0]);
-  } catch (error) {
-    console.error('Error fetching property document:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+    const doc = await PropertyDocuments.findById(req.params.docId).lean();
+    if (!doc) return res.status(404).json({ message: 'Not found' });
+    res.json({ ...doc, id: doc._id });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
-// Upload property document
-router.post('/property/:propertyId', async (req, res) => {
+router.post('/property/:propertyId', upload.single('document'), async (req, res) => {
   try {
-    const { document_type, document_name, document_path, uploaded_by } = req.body;
+    const { document_type, document_name, access_key, uploaded_by, is_locked } = req.body;
+    let document_path = '';
+    if (req.file) document_path = req.file.path;
 
-    const [result] = await db.query(
-      `INSERT INTO property_documents (property_id, document_type, document_name, document_path, uploaded_by)
-       VALUES (?, ?, ?, ?, ?)`,
-      [req.params.propertyId, document_type, document_name, document_path, uploaded_by]
-    );
-
-    // Emit socket event for real-time update
-    socket.broadcast('document_uploaded', {
-      propertyId: req.params.propertyId,
-      documentId: result.insertId,
-      documentType: document_type,
-      uploadedBy: uploaded_by
+    const newDoc = await PropertyDocuments.create({
+      property_id: req.params.propertyId,
+      document_type,
+      document_name: document_name || (req.file ? req.file.originalname : 'Document'),
+      document_path,
+      access_key,
+      uploaded_by,
+      is_locked: is_locked === 'true' || is_locked === true,
+      uploaded_at: new Date()
     });
 
-    res.status(201).json({
-      id: result.insertId,
-      message: 'Document uploaded successfully'
-    });
-  } catch (error) {
-    console.error('Error uploading property document:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+    res.json({ message: 'Success', success: true, id: newDoc._id });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
-// Delete property document
 router.delete('/property-doc/:docId', async (req, res) => {
   try {
-    await db.query('DELETE FROM property_documents WHERE id = ?', [req.params.docId]);
-    res.json({ message: 'Document deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting property document:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+    await PropertyDocuments.findByIdAndDelete(req.params.docId);
+    res.json({ message: 'Deleted', success: true });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
-// ============================================================================
-// AGREEMENT DOCUMENTS ENDPOINTS
-// ============================================================================
-
-// Get all documents for an agreement
 router.get('/agreement/:agreementId', async (req, res) => {
   try {
-    const [documents] = await db.query(
-      `SELECT ad.*, u.name as generated_by_name
-       FROM agreement_documents ad
-       LEFT JOIN users u ON ad.generated_by_id = u.id
-       WHERE ad.agreement_request_id = ?
-       ORDER BY ad.version DESC`,
-      [req.params.agreementId]
-    );
-    res.json(documents || []);
-  } catch (error) {
-    console.error('Error fetching agreement documents:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+    if (!mongoose.Types.ObjectId.isValid(req.params.agreementId)) return res.json([]);
+    const docs = await AgreementDocuments.find({ agreement_request_id: req.params.agreementId }).sort({ created_at: -1 }).lean();
+    res.json(docs.map(d => ({ ...d, id: d._id })));
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
-// Get single agreement document
 router.get('/agreement-doc/:docId', async (req, res) => {
   try {
-    const [documents] = await db.query(
-      `SELECT ad.*, u.name as generated_by_name
-       FROM agreement_documents ad
-       LEFT JOIN users u ON ad.generated_by_id = u.id
-       WHERE ad.id = ?`,
-      [req.params.docId]
-    );
-    
-    if (documents.length === 0) {
-      return res.status(404).json({ message: 'Document not found' });
-    }
-    
-    res.json(documents[0]);
-  } catch (error) {
-    console.error('Error fetching agreement document:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+    const doc = await AgreementDocuments.findById(req.params.docId).lean();
+    if (!doc) return res.status(404).json({ message: 'Not found' });
+    res.json({ ...doc, id: doc._id });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
-// Create agreement document
-router.post('/agreement/:agreementId', async (req, res) => {
+router.post('/agreement/:agreementId', upload.single('document'), async (req, res) => {
   try {
-    const { version, document_type, document_content, generated_by_id } = req.body;
-
-    const [result] = await db.query(
-      `INSERT INTO agreement_documents (agreement_request_id, version, document_type, document_content, generated_by_id)
-       VALUES (?, ?, ?, ?, ?)`,
-      [req.params.agreementId, version || 1, document_type, document_content, generated_by_id]
-    );
-
-    // Emit socket event
-    socket.broadcast('agreement_document_uploaded', {
-      agreementId: req.params.agreementId,
-      documentId: result.insertId,
-      documentType: document_type
+    const { document_type, version, generated_by_id } = req.body;
+    
+    // For agreement documents, sometimes it's an uploaded file or html content.
+    // Assuming file upload here based on standard documents
+    const newDoc = await AgreementDocuments.create({
+      agreement_request_id: req.params.agreementId,
+      document_type,
+      version: version || 1,
+      document_content: req.file ? req.file.path : req.body.document_content,
+      generated_by_id,
+      generated_date: new Date(),
+      created_at: new Date()
     });
 
-    res.status(201).json({
-      id: result.insertId,
-      message: 'Agreement document created successfully'
-    });
-  } catch (error) {
-    console.error('Error creating agreement document:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+    res.json({ message: 'Success', success: true, id: newDoc._id });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
-// Update agreement document
 router.put('/agreement-doc/:docId', async (req, res) => {
   try {
-    const { document_content, document_type } = req.body;
-
-    await db.query(
-      `UPDATE agreement_documents 
-       SET document_content = ?, document_type = ?, updated_at = NOW()
-       WHERE id = ?`,
-      [document_content, document_type, req.params.docId]
-    );
-
-    res.json({ message: 'Document updated successfully' });
-  } catch (error) {
-    console.error('Error updating agreement document:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+    await AgreementDocuments.findByIdAndUpdate(req.params.docId, req.body);
+    res.json({ message: 'Updated', success: true });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
-// Delete agreement document
 router.delete('/agreement-doc/:docId', async (req, res) => {
   try {
-    await db.query('DELETE FROM agreement_documents WHERE id = ?', [req.params.docId]);
-    res.json({ message: 'Document deleted successfully' });
-  } catch (error) {
-    console.error('Error deleting agreement document:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+    await AgreementDocuments.findByIdAndDelete(req.params.docId);
+    res.json({ message: 'Deleted', success: true });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
-// ============================================================================
-// DOCUMENT ACCESS ENDPOINTS
-// ============================================================================
 
-// Get document access requests
-router.get('/access-requests/:propertyId', async (req, res) => {
-  try {
-    const [requests] = await db.query(
-      `SELECT dar.*, u.name as user_name, u.email
-       FROM document_access dar
-       LEFT JOIN users u ON dar.user_id = u.id
-       WHERE dar.property_id = ?
-       ORDER BY dar.requested_at DESC`,
-      [req.params.propertyId]
-    );
-    res.json(requests || []);
-  } catch (error) {
-    console.error('Error fetching document access requests:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-
-// Request document access
-router.post('/request-access', async (req, res) => {
-  try {
-    const { property_id, user_id } = req.body;
-
-    // Check if request already exists
-    const [existing] = await db.query(
-      'SELECT id FROM document_access WHERE property_id = ? AND user_id = ? AND status = \'pending\'',
-      [property_id, user_id]
-    );
-
-    if (existing.length > 0) {
-      return res.status(400).json({ message: 'Access request already pending' });
-    }
-
-    const [result] = await db.query(
-      'INSERT INTO document_access (property_id, user_id, status) VALUES (?, ?, \'pending\')',
-      [property_id, user_id]
-    );
-
-    res.status(201).json({
-      id: result.insertId,
-      message: 'Access request submitted'
-    });
-  } catch (error) {
-    console.error('Error requesting document access:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-
-// Approve document access
-router.put('/access-request/:requestId/approve', async (req, res) => {
-  try {
-    const { response_message } = req.body;
-
-    await db.query(
-      `UPDATE document_access 
-       SET status = 'approved', response_message = ?, responded_at = NOW()
-       WHERE id = ?`,
-      [response_message || 'Access approved', req.params.requestId]
-    );
-
-    // Emit event to the specific user who requested access
-    const [requestInfo] = await db.query('SELECT user_id, property_id FROM document_access WHERE id = ?', [req.params.requestId]);
-    if (requestInfo.length > 0) {
-      socket.emitToUser(requestInfo[0].user_id, 'document_access_updated', {
-        requestId: req.params.requestId,
-        propertyId: requestInfo[0].property_id,
-        status: 'approved'
-      });
-    }
-
-    res.json({ message: 'Access approved' });
-  } catch (error) {
-    console.error('Error approving access:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-
-// Reject document access
-router.put('/access-request/:requestId/reject', async (req, res) => {
-  try {
-    const { response_message } = req.body;
-
-    await db.query(
-      `UPDATE document_access 
-       SET status = 'rejected', response_message = ?, responded_at = NOW()
-       WHERE id = ?`,
-      [response_message || 'Access rejected', req.params.requestId]
-    );
-
-    res.json({ message: 'Access rejected' });
-  } catch (error) {
-    console.error('Error rejecting access:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
 
 module.exports = router;

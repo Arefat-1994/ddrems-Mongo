@@ -7,7 +7,7 @@ const BrokersManagement = ({ onBack }) => {
   const [brokers, setBrokers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedBroker, setSelectedBroker] = useState(null);
-  const [selectedBrokerKeyRequests, setSelectedBrokerKeyRequests] = useState([]);
+
   const [showDetailModal, setShowDetailModal] = useState(false);
   const [showAddBroker, setShowAddBroker] = useState(false);
   const [filterStatus, setFilterStatus] = useState('all');
@@ -30,7 +30,7 @@ const BrokersManagement = ({ onBack }) => {
   const fetchBrokers = async () => {
     setLoading(true);
     try {
-      const response = await axios.get('http://localhost:5000/api/brokers');
+      const response = await axios.get(`http://${window.location.hostname}:5000/api/brokers`);
       setBrokers(response.data);
     } catch (error) {
       console.error('Error fetching brokers:', error);
@@ -41,15 +41,7 @@ const BrokersManagement = ({ onBack }) => {
 
   const viewBrokerDetails = async (broker) => {
     setSelectedBroker(broker);
-    setSelectedBrokerKeyRequests([]);
 
-    try {
-      const response = await axios.get(`http://localhost:5000/api/key-requests/broker/${broker.user_id}`);
-      setSelectedBrokerKeyRequests(response.data);
-    } catch (error) {
-      console.error('Error fetching broker key requests:', error);
-      setSelectedBrokerKeyRequests([]);
-    }
 
     setShowDetailModal(true);
   };
@@ -73,7 +65,7 @@ const BrokersManagement = ({ onBack }) => {
     e.preventDefault();
     try {
       // Create user account
-      const userResponse = await axios.post('http://localhost:5000/api/auth/register', {
+      const userResponse = await axios.post(`http://${window.location.hostname}:5000/api/auth/register`, {
         name: addForm.name,
         email: addForm.email,
         phone: addForm.phone,
@@ -82,7 +74,7 @@ const BrokersManagement = ({ onBack }) => {
       });
 
       // Create broker profile
-      await axios.post('http://localhost:5000/api/brokers', {
+      await axios.post(`http://${window.location.hostname}:5000/api/brokers`, {
         user_id: userResponse.data.userId,
         full_name: addForm.full_name,
         phone: addForm.phone,
@@ -366,13 +358,7 @@ const BrokersManagement = ({ onBack }) => {
                         >
                           👁️ View
                         </button>
-                        <button
-                          className="btn-key"
-                          onClick={() => viewBrokerDetails(broker)}
-                          style={{ padding: '6px 12px', fontSize: '12px', background: '#e0f2fe', color: '#0369a1', border: '1px solid #93c5fd', borderRadius: '4px', cursor: 'pointer'}}
-                        >
-                          🔑 Keys
-                        </button>
+
                         <button
                           className="btn-edit"
                           onClick={() => handleEdit(broker)}
@@ -502,24 +488,7 @@ const BrokersManagement = ({ onBack }) => {
                   )}
                 </div>
 
-                {/* Key Requests */}
-                <div className="detail-section">
-                  <h3>🔑 Key Requests</h3>
-                  {selectedBrokerKeyRequests.length > 0 ? selectedBrokerKeyRequests.map(req => (
-                    <div key={req.id} style={{ padding: '8px', border: '1px solid #e2e8f0', borderRadius: '8px', marginBottom: '8px' }}>
-                      <div><strong>{req.property_title || 'Property'}</strong></div>
-                      <div>Status: {req.status}</div>
-                      <div>Requested by: {req.customer_name || req.customer_email || 'Unknown'}</div>
-                      {req.key_code && (
-                        <div style={{ marginTop: '4px', color: '#065f46' }}>
-                          Key: <strong>{req.key_code}</strong> <button style={{ marginLeft: '8px', padding: '2px 6px', background: '#e0f2fe', border: '1px solid #93c5fd', borderRadius: '6px' }} onClick={() => navigator.clipboard.writeText(req.key_code)}>Copy</button>
-                        </div>
-                      )}
-                    </div>
-                  )) : (
-                    <div>No key requests available.</div>
-                  )}
-                </div>
+
 
                 {/* Statistics */}
                 <div className="detail-section">

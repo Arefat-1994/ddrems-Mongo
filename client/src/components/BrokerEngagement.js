@@ -4,7 +4,7 @@ import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 import "./BrokerEngagement.css";
 
-const API = "http://localhost:5000/api/broker-engagement";
+const API = `http://${window.location.hostname}:5000/api/broker-engagement`;
 
 // Helper: detect rental engagement
 const isRentalEng = (eng) => eng?.engagement_type === 'rent';
@@ -112,6 +112,7 @@ const STATUS_MAP = {
   commission_negotiation: { emoji: "💰", label: "Commission Negotiation", color: "#f97316", step: 3 },
   broker_negotiating: { emoji: "🤝", label: "Broker Negotiating", color: "#3b82f6", step: 4 },
   pending_buyer_approval: { emoji: "⏳", label: "Pending Approval", color: "#f59e0b", step: 4 },
+  pending_owner_response: { emoji: "📋", label: "Pending Owner Response", color: "#f97316", step: 5 },
   owner_counter_offered: { emoji: "🔄", label: "Owner Counter-Offered", color: "#f97316", step: 5 },
   broker_reviewing_counter: { emoji: "🔍", label: "Broker Reviewing Counter", color: "#8b5cf6", step: 5 },
   awaiting_buyer_authorization: { emoji: "🔔", label: "Awaiting Authorization", color: "#dc2626", step: 5 },
@@ -157,6 +158,7 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
   const [properties, setProperties] = useState([]);
   const [messages, setMessages] = useState([]);
   const [history, setHistory] = useState([]);
+  const [bankAccounts, setBankAccounts] = useState([]);
   const [signatures, setSignatures] = useState([]);
   const [contractHTML, setContractHTML] = useState("");
   const [viewedEngagements, setViewedEngagements] = useState({});
@@ -188,8 +190,15 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
 
   const fetchProperties = useCallback(async () => {
     try {
-      const res = await axios.get("http://localhost:5000/api/properties/active");
+      const res = await axios.get(`http://${window.location.hostname}:5000/api/properties/active`);
       setProperties(res.data || []);
+    } catch (err) { console.error(err); }
+  }, []);
+
+  const fetchBankAccounts = useCallback(async () => {
+    try {
+      const res = await axios.get(`http://${window.location.hostname}:5000/api/bank-accounts/active`);
+      setBankAccounts(res.data || []);
     } catch (err) { console.error(err); }
   }, []);
 
@@ -210,7 +219,7 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
 
   const fetchBookingInfo = useCallback(async (propertyId) => {
     try {
-      const res = await axios.get(`http://localhost:5000/api/broker-bookings?property_id=${propertyId}&status=reserved`);
+      const res = await axios.get(`http://${window.location.hostname}:5000/api/broker-bookings?property_id=${propertyId}&status=reserved`);
       if (res.data && res.data.length > 0) {
         setBookingInfo(res.data[0]);
       } else {
@@ -221,7 +230,7 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
 
   const fetchUserInfo = useCallback(async (userId) => {
     try {
-      const res = await axios.get(`http://localhost:5000/api/users/${userId}`);
+      const res = await axios.get(`http://${window.location.hostname}:5000/api/users/${userId}`);
       setUserInfoData(res.data);
       setShowUserInfoModal(true);
     } catch (err) {
@@ -307,7 +316,9 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
     }
     if (type === "commission_respond" && engagement) {
       setFormData({ 
-        system_fee_payer: engagement.system_fee_payer || 'buyer'
+        system_fee_payer: engagement.system_fee_payer || 'buyer',
+        decision: '',
+        counter_commission: ''
       });
     }
     if (type === "view_contract") {
@@ -366,7 +377,8 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
 
   useEffect(() => {
     fetchEngagements();
-  }, [fetchEngagements]);
+    fetchBankAccounts();
+  }, [fetchEngagements, fetchBankAccounts]);
 
   const hasOpenedEngagement = useRef(false);
   useEffect(() => {
@@ -587,11 +599,8 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
             video_file: formData.video_file,
             additional_docs: formData.additional_docs
           };
-          if (!data.video_url && !data.video_file) {
-            alert("Please provide at least a property video link or upload a video file.");
-            setActionLoading(false);
-            return;
-          }
+          // Optional: We removed the strict requirement for video_url or video_file.
+          // If neither is provided, they can still proceed with just additional documents (or nothing, effectively moving status forward).
           break;
 
         case "commission_respond":
@@ -637,22 +646,64 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
           data = { admin_id: user.id };
           break;
 
-        case "submit_payment":
-          url = `${API}/${id}/submit-payment`;
-          method = "put";
-          data = {
-            buyer_id: user.id,
-            payment_method: formData.payment_method,
-            payment_reference: formData.payment_reference,
-            payment_receipt: formData.payment_receipt,
-          };
-          if (!data.payment_method || !data.payment_reference) {
-            alert("Please fill in Payment Method and Reference.");
-            setActionLoading(false);
-            return;
-          }
-          break;
+        case "submit_payment": {
+            const price = Number(selectedEngagement?.agreed_price || 0);
+            const brkPct = Number(selectedEngagement?.agreed_commission_pct || 2);
+            const feePayer = selectedEngagement?.system_fee_payer || 'buyer';
+            const sysFee = price * 0.05;
+            const brokerFee = price * (brkPct / 100);
+            let buyerFee = 0;
+            if (feePayer === 'buyer') buyerFee = sysFee + brokerFee;
+            else if (feePayer === 'split') buyerFee = (sysFee + brokerFee) / 2;
+            const totalAmount = price + buyerFee;
 
+            // If Chapa is selected and amount is within limit, redirect to Chapa
+            if (formData.payment_method === 'chapa' && totalAmount <= 100000) {
+              try {
+                const chapaRes = await axios.post(`${API.replace('/broker-engagement', '').replace('/api', '/api/chapa')}/initialize`, {
+                  amount: totalAmount,
+                  email: user.email || "payment@gmail.com",
+                  first_name: user.first_name || user.name?.split(' ')[0] || 'Customer',
+                  last_name: user.last_name || user.name?.split(' ')[1] || 'Name',
+                  engagementId: id,
+                  returnUrl: `${window.location.origin}/?page=chapa`
+                });
+                if (chapaRes.data.success && chapaRes.data.checkout_url) {
+                  window.location.href = chapaRes.data.checkout_url;
+                  return;
+                } else {
+                  throw new Error(chapaRes.data.message || 'Failed to initialize Chapa');
+                }
+              } catch (err) {
+                const errMsg = err.response?.data?.message || err.message;
+                alert(`❌ ${typeof errMsg === 'object' ? JSON.stringify(errMsg) : errMsg}`);
+                setActionLoading(false);
+                return;
+              }
+            }
+
+            // Manual payment methods (bank_transfer, cash)
+            if (!formData.payment_method) {
+              alert("❌ Please select a payment method.");
+              setActionLoading(false);
+              return;
+            }
+            if (!formData.payment_reference) {
+              alert("❌ Please enter a transaction reference number.");
+              setActionLoading(false);
+              return;
+            }
+
+            url = `${API}/${id}/submit-payment`;
+            method = "put";
+            data = {
+              buyer_id: user.id,
+              payment_method: formData.payment_method,
+              payment_reference: formData.payment_reference,
+              payment_receipt: formData.payment_receipt,
+            };
+            break;
+          }
         case "verify_payment":
           url = `${API}/${id}/verify-payment`;
           method = "put";
@@ -762,7 +813,7 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
     }
 
     // Owner: respond to offer
-    if (isOwner && eng.status === "broker_negotiating") {
+    if (isOwner && eng.status === "pending_owner_response") {
       btns.push(
         <button key="respond" className="eng-btn eng-btn-primary" onClick={() => openModal("owner_respond", eng)}>
           📋 Respond to Offer
@@ -886,7 +937,7 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
     }
 
     // View Contract (available after generation)
-    if (["pending_signatures", "fully_signed", "payment_submitted", "payment_rejected", "payment_verified", "handover_confirmed", "completed"].includes(eng.status)) {
+    if (["pending_signatures", "fully_signed", "media_uploaded", "media_released", "media_viewed", "payment_submitted", "payment_rejected", "payment_verified", "handover_confirmed", "completed"].includes(eng.status)) {
       btns.push(
         <button key="viewcontract" className="eng-btn eng-btn-outline" onClick={() => openModal("view_contract", eng)}>
           📄 View Agreement
@@ -1193,9 +1244,12 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
         const buyerOffer = Number(selectedEngagement?.buyer_commission_offer || 2);
         const brokerCounter = Number(selectedEngagement?.broker_commission_counter || 0);
         const commStatus = selectedEngagement?.commission_negotiation_status;
-        const isWaitingForMe = (isBuyer && commStatus === 'broker_countered') || (isBroker && (commStatus === 'buyer_offered' || commStatus === 'pending'));
-        // const otherPartyOffer = isBuyer ? brokerCounter : buyerOffer;
-        // const myLastOffer = isBuyer ? buyerOffer : brokerCounter;
+        
+        // Determine whose turn it is for the info banner
+        const isBrokerTurn = (commStatus === 'buyer_offered' || commStatus === 'pending');
+        const isBuyerTurn = (commStatus === 'broker_countered');
+        const isMyTurn = (isBuyer && isBuyerTurn) || (isBroker && isBrokerTurn);
+        
         return (
           <div style={{ padding: 16 }}>
             <div style={{ textAlign: 'center', marginBottom: 16 }}>
@@ -1204,6 +1258,7 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
               <p style={{ color: '#64748b', fontSize: 13 }}>Agree on the broker's commission before property negotiation begins</p>
             </div>
 
+            {/* Commission Offer Summary Cards */}
             <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
               <div style={{ flex: 1, background: '#eff6ff', borderRadius: 10, padding: 12, textAlign: 'center', border: '1px solid #bfdbfe' }}>
                 <div style={{ fontSize: 10, color: '#3b82f6', fontWeight: 700, textTransform: 'uppercase' }}>Buyer's Offer</div>
@@ -1222,61 +1277,120 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
               </div>
             </div>
 
-            {!isWaitingForMe && (
-              <div style={{ padding: 10, background: '#fef3c7', borderRadius: 8, marginBottom: 12, fontSize: 12, color: '#92400e', textAlign: 'center' }}>
-                ⏳ Waiting for the other party to respond to your offer...
+            {/* Turn indicator banner */}
+            {isMyTurn ? (
+              <div style={{ padding: 10, background: '#eff6ff', borderRadius: 8, marginBottom: 12, fontSize: 12, color: '#1e40af', textAlign: 'center', border: '1px solid #bfdbfe', fontWeight: 600 }}>
+                🔔 It's your turn! {isBuyer ? `The broker countered with ${brokerCounter}%.` : `The buyer offered ${buyerOffer}%.`} Please select your decision below.
+              </div>
+            ) : (
+              <div style={{ padding: 10, background: 'linear-gradient(135deg, #fef3c7, #fef9c3)', borderRadius: 8, marginBottom: 12, fontSize: 12, color: '#92400e', textAlign: 'center', border: '1px solid #fde68a' }}>
+                ⏳ Waiting for the {isBuyer ? 'broker' : 'buyer'} to respond. You can still submit a decision below.
               </div>
             )}
 
-            {isWaitingForMe && (
-              <>
-                <div className="eng-form-group">
-                  <label>Your Decision *</label>
-                  <select 
-                    value={formData.decision || ''} 
-                    onChange={(e) => setFormData({ ...formData, decision: e.target.value })}
-                    style={{ borderColor: !formData.decision ? '#ef4444' : '#e2e8f0' }}
-                  >
-                    <option value="">-- Select Decision --</option>
-                    <option value="accept_commission">✅ Accept {isBuyer ? `Broker's ${brokerCounter}%` : `Buyer's ${buyerOffer}%`}</option>
-                    <option value="counter_commission">🔄 Send Counter Offer</option>
-                    <option value="reject_commission">❌ Reject — Cancel Engagement</option>
-                  </select>
-                  {!formData.decision && <p style={{ fontSize: 11, color: '#ef4444', marginTop: 4 }}>⚠️ Please choose an action to proceed</p>}
-                </div>
-                {formData.decision === 'counter_commission' && (
-                  <div className="eng-form-group">
-                    <label>Your Counter Commission (%) *</label>
-                    <input type="number" step="0.5" min="0.5" max="15" value={formData.counter_commission || ''}
-                      onChange={(e) => setFormData({ ...formData, counter_commission: e.target.value })}
-                      placeholder={`Counter the ${isBuyer ? 'broker\'s' : 'buyer\'s'} offer`}
-                      style={{ borderColor: !formData.counter_commission ? '#ef4444' : '#e2e8f0' }}
-                    />
+            {/* Decision Buttons — Accept / Counter / Reject — always visible */}
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 700, color: '#1e293b', marginBottom: 8 }}>Your Decision *</label>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, decision: 'accept_commission' })}
+                  style={{
+                    flex: 1, minWidth: '120px', padding: '14px 12px', borderRadius: 10, border: '2px solid',
+                    borderColor: formData.decision === 'accept_commission' ? '#10b981' : '#e2e8f0',
+                    background: formData.decision === 'accept_commission' ? 'linear-gradient(135deg, #ecfdf5, #d1fae5)' : '#fff',
+                    color: formData.decision === 'accept_commission' ? '#065f46' : '#475569',
+                    cursor: 'pointer', fontWeight: 700, fontSize: 13, textAlign: 'center',
+                    boxShadow: formData.decision === 'accept_commission' ? '0 4px 12px rgba(16,185,129,0.25)' : '0 1px 3px rgba(0,0,0,0.05)',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <div style={{ fontSize: 22, marginBottom: 4 }}>✅</div>
+                  Accept
+                  <div style={{ fontSize: 11, fontWeight: 500, marginTop: 2, color: '#6b7280' }}>
+                    {isBuyer && brokerCounter > 0 ? `${brokerCounter}%` : `${buyerOffer}%`}
                   </div>
-                )}
-                <div className="eng-form-group">
-                  <label>System Fee (5%) Paid By</label>
-                  <select value={formData.system_fee_payer || selectedEngagement?.system_fee_payer || 'buyer'}
-                    onChange={(e) => setFormData({ ...formData, system_fee_payer: e.target.value })}>
-                    <option value="buyer">Buyer pays 5%</option>
-                    <option value="owner">Owner pays 5%</option>
-                    <option value="split">Split 50/50 (2.5% each)</option>
-                  </select>
-                </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, decision: 'counter_commission' })}
+                  style={{
+                    flex: 1, minWidth: '120px', padding: '14px 12px', borderRadius: 10, border: '2px solid',
+                    borderColor: formData.decision === 'counter_commission' ? '#f59e0b' : '#e2e8f0',
+                    background: formData.decision === 'counter_commission' ? 'linear-gradient(135deg, #fffbeb, #fef3c7)' : '#fff',
+                    color: formData.decision === 'counter_commission' ? '#92400e' : '#475569',
+                    cursor: 'pointer', fontWeight: 700, fontSize: 13, textAlign: 'center',
+                    boxShadow: formData.decision === 'counter_commission' ? '0 4px 12px rgba(245,158,11,0.25)' : '0 1px 3px rgba(0,0,0,0.05)',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <div style={{ fontSize: 22, marginBottom: 4 }}>🔄</div>
+                  Counter
+                  <div style={{ fontSize: 11, fontWeight: 500, marginTop: 2, color: '#6b7280' }}>New offer</div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFormData({ ...formData, decision: 'reject_commission' })}
+                  style={{
+                    flex: 1, minWidth: '120px', padding: '14px 12px', borderRadius: 10, border: '2px solid',
+                    borderColor: formData.decision === 'reject_commission' ? '#ef4444' : '#e2e8f0',
+                    background: formData.decision === 'reject_commission' ? 'linear-gradient(135deg, #fef2f2, #fee2e2)' : '#fff',
+                    color: formData.decision === 'reject_commission' ? '#991b1b' : '#475569',
+                    cursor: 'pointer', fontWeight: 700, fontSize: 13, textAlign: 'center',
+                    boxShadow: formData.decision === 'reject_commission' ? '0 4px 12px rgba(239,68,68,0.25)' : '0 1px 3px rgba(0,0,0,0.05)',
+                    transition: 'all 0.2s ease'
+                  }}
+                >
+                  <div style={{ fontSize: 22, marginBottom: 4 }}>❌</div>
+                  Reject
+                  <div style={{ fontSize: 11, fontWeight: 500, marginTop: 2, color: '#6b7280' }}>Cancel deal</div>
+                </button>
+              </div>
+              {!formData.decision && <p style={{ fontSize: 11, color: '#ef4444', marginTop: 6 }}>⚠️ Please choose an action to proceed</p>}
+            </div>
 
-                <CommissionFinancialBreakdown 
-                  price={selectedEngagement?.current_offer || selectedEngagement?.starting_offer || 0}
-                  commPct={
-                    formData.decision === 'counter_commission' 
-                      ? formData.counter_commission 
-                      : (isBuyer ? brokerCounter : buyerOffer)
-                  }
-                  feePayer={formData.system_fee_payer || selectedEngagement?.system_fee_payer || 'buyer'}
-                  engagementType={selectedEngagement?.engagement_type}
+            {/* Counter Commission Input — only when Counter is selected */}
+            {formData.decision === 'counter_commission' && (
+              <div className="eng-form-group" style={{ background: '#fffbeb', padding: 14, borderRadius: 10, border: '1px solid #fde68a', marginBottom: 12 }}>
+                <label style={{ fontWeight: 700, color: '#92400e' }}>Your Counter Commission (%) *</label>
+                <input type="number" step="0.5" min="0.5" max="15" value={formData.counter_commission || ''}
+                  onChange={(e) => setFormData({ ...formData, counter_commission: e.target.value })}
+                  placeholder={`Counter the ${isBuyer ? 'broker\'s' : 'buyer\'s'} offer`}
+                  style={{ borderColor: !formData.counter_commission ? '#ef4444' : '#fcd34d', fontWeight: 700, fontSize: 16 }}
                 />
-
-              </>
+                <p style={{ fontSize: 11, color: '#a16207', marginTop: 4 }}>💡 Current {isBuyer ? 'broker' : 'buyer'} offer: {isBuyer ? brokerCounter : buyerOffer}%</p>
+              </div>
             )}
+
+            {/* Reject Confirmation Warning */}
+            {formData.decision === 'reject_commission' && (
+              <div style={{ padding: 12, background: '#fef2f2', borderRadius: 10, border: '1px solid #fecaca', marginBottom: 12 }}>
+                <p style={{ fontSize: 12, color: '#991b1b', fontWeight: 600, margin: 0 }}>⚠️ Warning: Rejecting will cancel this entire engagement permanently.</p>
+              </div>
+            )}
+
+            {/* System Fee Payer */}
+            <div className="eng-form-group">
+              <label>System Fee (5%) Paid By</label>
+              <select value={formData.system_fee_payer || selectedEngagement?.system_fee_payer || 'buyer'}
+                onChange={(e) => setFormData({ ...formData, system_fee_payer: e.target.value })}>
+                <option value="buyer">Buyer pays 5%</option>
+                <option value="owner">Owner pays 5%</option>
+                <option value="split">Split 50/50 (2.5% each)</option>
+              </select>
+            </div>
+
+            {/* Financial Breakdown Preview */}
+            <CommissionFinancialBreakdown 
+              price={selectedEngagement?.current_offer || selectedEngagement?.starting_offer || 0}
+              commPct={
+                formData.decision === 'counter_commission' 
+                  ? formData.counter_commission 
+                  : (isBuyer && brokerCounter > 0 ? brokerCounter : buyerOffer)
+              }
+              feePayer={formData.system_fee_payer || selectedEngagement?.system_fee_payer || 'buyer'}
+              engagementType={selectedEngagement?.engagement_type}
+            />
           </div>
         );
       }
@@ -1736,82 +1850,199 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
           </div>
         );
 
-      case "submit_payment":
+      case "submit_payment": {
+        const price = Number(selectedEngagement?.agreed_price || 0);
+        const brkPct = Number(selectedEngagement?.agreed_commission_pct || 2);
+        const feePayer = selectedEngagement?.system_fee_payer || 'buyer';
+        const sysFee = price * 0.05;
+        const brokerFee = price * (brkPct / 100);
+        let buyerFee = 0;
+        if (feePayer === 'buyer') buyerFee = sysFee + brokerFee;
+        else if (feePayer === 'split') buyerFee = (sysFee + brokerFee) / 2;
+        const totalAmount = price + buyerFee;
+        const chapaAvailable = totalAmount <= 100000;
+
         return (
-          <>
-            <div style={{ background: "#d1fae5", padding: 14, borderRadius: 10, marginBottom: 16, border: "1px solid #6ee7b7" }}>
-              <p style={{ margin: 0, fontSize: 14, fontWeight: 700, color: "#065f46" }}>
-                💰 Amount Due: {Number(selectedEngagement?.agreed_price || 0).toLocaleString()} ETB
+          <div style={{ padding: "10px" }}>
+            <p style={{ color: "#64748b", fontSize: 14, marginBottom: 16 }}>
+              💰 The contract is signed. Submit your payment details below.
+            </p>
+
+            {/* Amount Summary */}
+            <div style={{ background: "#d1fae5", padding: 14, borderRadius: 10, marginBottom: 16, border: "1px solid #6ee7b7", textAlign: "center" }}>
+              <p style={{ margin: "0 0 6px", fontSize: 16, fontWeight: 700, color: "#065f46" }}>
+                💰 Total Amount Due: {totalAmount.toLocaleString()} ETB
+              </p>
+              <p style={{ margin: 0, fontSize: 12, color: "#047857" }}>
+                Agreed price: {price.toLocaleString()} ETB{buyerFee > 0 ? ` + fees: ${buyerFee.toLocaleString()} ETB` : ''}
               </p>
             </div>
+
+            {/* Payment Method Selection */}
             <div className="eng-form-group">
               <label>Payment Method *</label>
               <select value={formData.payment_method || ""} onChange={(e) => setFormData({ ...formData, payment_method: e.target.value })}>
                 <option value="">-- Select Payment Method --</option>
+                {chapaAvailable && <option value="chapa">📱 Chapa (Online Payment)</option>}
                 <option value="bank_transfer">🏦 Bank Transfer</option>
-                <option value="chapa">📱 Chapa</option>
-                <option value="telebirr">📱 TeleBirr</option>
-                <option value="cbe_birr">📱 CBE Birr</option>
-                <option value="cash">💵 Cash</option>
-                <option value="check">📝 Certified Check</option>
+                <option value="cash">💵 Cash Deposit</option>
               </select>
             </div>
-            <div className="eng-form-group">
-              <label>Transaction Reference Number *</label>
-              <input type="text" value={formData.payment_reference || ""} onChange={(e) => setFormData({ ...formData, payment_reference: e.target.value })}
-                placeholder="e.g., TXN-2026-00412 or receipt number" />
-            </div>
-            <div className="eng-form-group">
-              <label>Transaction Proof (Image/PDF File)</label>
-              <input 
-                type="file" 
-                accept="image/*,application/pdf"
-                onChange={(e) => {
-                  const file = e.target.files[0];
-                  if (file) {
-                    const reader = new FileReader();
-                    reader.onloadend = () => {
-                      setFormData({ ...formData, payment_receipt: reader.result });
-                    };
-                    reader.readAsDataURL(file);
-                  }
-                }} 
-                style={{
-                  width: "100%", padding: "10px", border: "1px dashed #cbd5e1", borderRadius: 8, background: "#f8fafc"
-                }}
-              />
-              {formData.payment_receipt && <p style={{fontSize: 12, color: "#059669", marginTop: 4}}>✓ File selected</p>}
-            </div>
-          </>
+
+            {/* Chapa Info */}
+            {formData.payment_method === "chapa" && (
+              <div style={{ background: "#ecfdf5", border: "1px solid #6ee7b7", borderRadius: 10, padding: "16px", textAlign: "center", marginBottom: "12px" }}>
+                <p style={{ fontSize: 14, color: "#065f46", margin: 0 }}>
+                  📱 You will be redirected to <strong>Chapa's secure payment portal</strong> to complete payment.
+                </p>
+                {bankAccounts.filter(acc => acc.type === 'chapa_manual').map(acc => (
+                  <div key={acc._id} style={{ marginTop: '10px', padding: '10px', background: '#d1fae5', borderRadius: '8px', fontSize: '13px', color: '#065f46', border: '1px solid #10b981' }}>
+                    <strong>Manual / Mobile Alternative:</strong> {acc.bank_name} - {acc.account_number} ({acc.account_name})
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Bank Transfer Info */}
+            {formData.payment_method === "bank_transfer" && (
+              <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 10, padding: "14px", marginBottom: "12px" }}>
+                <p style={{ fontSize: 13, color: "#1e40af", margin: '0 0 10px 0', fontWeight: 'bold' }}>
+                  🏦 Please transfer the total amount to one of the following DDREMS bank accounts:
+                </p>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {bankAccounts.filter(acc => acc.type === 'bank' || acc.type === 'mobile').length > 0 ? (
+                    bankAccounts.filter(acc => acc.type === 'bank' || acc.type === 'mobile').map(acc => (
+                      <div key={acc._id} style={{ padding: '10px', background: '#fff', borderRadius: '8px', fontSize: '13px', color: '#1e3a8a', border: '1px solid #93c5fd', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span><strong>{acc.bank_name}</strong></span>
+                        <span style={{ fontSize: '14px', fontWeight: 'bold', letterSpacing: '1px' }}>{acc.account_number}</span>
+                        <span style={{ color: '#64748b' }}>{acc.account_name}</span>
+                      </div>
+                    ))
+                  ) : (
+                    <div style={{ padding: '10px', background: '#fff', borderRadius: '8px', fontSize: '13px', color: '#64748b', fontStyle: 'italic' }}>
+                      No active bank accounts found. Please contact support.
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Cash Info */}
+            {formData.payment_method === "cash" && (
+              <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 10, padding: "14px", marginBottom: "12px" }}>
+                <p style={{ fontSize: 13, color: "#1e40af", margin: 0 }}>
+                  💵 Please make a cash deposit at any DDREMS-approved branch and provide the receipt number below.
+                </p>
+              </div>
+            )}
+
+            {/* Manual Payment Fields */}
+            {(formData.payment_method === "bank_transfer" || formData.payment_method === "cash") && (
+              <>
+
+                <div className="eng-form-group">
+                  <label>Transaction Reference / Receipt Number *</label>
+                  <input type="text" value={formData.payment_reference || ""} onChange={(e) => setFormData({ ...formData, payment_reference: e.target.value })}
+                    placeholder={formData.payment_method === "bank_transfer" ? "e.g., TXN-2026-001234" : "e.g., CASH-REC-001234"} />
+                </div>
+
+                <div className="eng-form-group">
+                  <label>Receipt / Proof of Payment *</label>
+                  <input
+                    type="file"
+                    accept="image/*,application/pdf"
+                    onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (file) {
+                        if (file.size > 5 * 1024 * 1024) {
+                          alert("❌ File too large. Maximum size is 5MB.");
+                          e.target.value = "";
+                          return;
+                        }
+                        const reader = new FileReader();
+                        reader.onloadend = () => setFormData({ ...formData, payment_receipt: reader.result });
+                        reader.readAsDataURL(file);
+                      }
+                    }}
+                    style={{ width: "100%", padding: "10px", border: "1px dashed #cbd5e1", borderRadius: 8, background: "#f8fafc" }}
+                  />
+                  {formData.payment_receipt && <p style={{ fontSize: 12, color: "#059669", marginTop: 4 }}>✅ Receipt uploaded successfully</p>}
+                </div>
+              </>
+            )}
+
+            {/* No Chapa warning for large amounts */}
+            {!chapaAvailable && (
+              <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 10, padding: "12px", marginTop: "8px" }}>
+                <p style={{ fontSize: 12, color: "#9a3412", margin: 0 }}>
+                  ⚠️ Online payment (Chapa) is not available for amounts exceeding 100,000 ETB. Please use Bank Transfer or Cash Deposit.
+                </p>
+              </div>
+            )}
+          </div>
         );
+      }
 
       case "verify_payment":
         return (
-          <div style={{ textAlign: "center", padding: 20 }}>
-            <p style={{ fontSize: 48, margin: "0 0 12px" }}>✅</p>
-            <h4 style={{ margin: "0 0 12px", color: "#1e293b" }}>Verify Buyer Payment</h4>
-            <div style={{ background: "#f8fafc", padding: 14, borderRadius: 10, marginBottom: 12, textAlign: "left", border: "1px solid #e2e8f0" }}>
-              <p style={{ margin: "0 0 6px", fontSize: 13, color: "#64748b" }}>Amount: <strong style={{ color: "#1e293b" }}>{Number(selectedEngagement?.agreed_price || 0).toLocaleString()} ETB</strong></p>
-              <p style={{ margin: "0 0 6px", fontSize: 13, color: "#64748b" }}>Method: <strong style={{ color: "#1e293b" }}>{selectedEngagement?.payment_method || "N/A"}</strong></p>
-              <p style={{ margin: 0, fontSize: 13, color: "#64748b" }}>Reference: <strong style={{ color: "#1e293b" }}>{selectedEngagement?.payment_reference || "N/A"}</strong></p>
+          <div style={{ padding: "10px" }}>
+            <div style={{ textAlign: "center", marginBottom: 20 }}>
+              <p style={{ fontSize: 48, margin: "0 0 8px" }}>✅</p>
+              <h4 style={{ margin: "0 0 8px", color: "#1e293b" }}>Verify Buyer Payment</h4>
+              <p style={{ color: "#64748b", fontSize: 14 }}>
+                Review the payment details and uploaded receipt below before confirming.
+              </p>
             </div>
-            {selectedEngagement?.payment_receipt && (
-              <div style={{ marginBottom: 16, textAlign: "left" }}>
-                <p style={{ margin: "0 0 8px", fontSize: 13, fontWeight: "bold", color: "#1e293b" }}>Uploaded Transaction Proof:</p>
-                {selectedEngagement.payment_receipt.startsWith("data:application/pdf") ? (
-                  <embed src={selectedEngagement.payment_receipt} type="application/pdf" width="100%" height="300px" style={{border: "1px solid #e2e8f0", borderRadius: 8}} />
-                ) : selectedEngagement.payment_receipt.startsWith("data:") || selectedEngagement.payment_receipt.startsWith("http") ? (
-                  <img src={selectedEngagement.payment_receipt} alt="Payment Receipt" style={{maxWidth: "100%", maxHeight: "300px", border: "1px solid #e2e8f0", borderRadius: 8}} />
-                ) : (
-                  <a href={selectedEngagement.payment_receipt} target="_blank" rel="noopener noreferrer" className="eng-btn eng-btn-outline" style={{display: 'inline-block', padding: '6px 12px', fontSize: 12}}>
-                    📄 View Uploaded Document
-                  </a>
-                )}
+
+            {/* Payment Details Grid */}
+            <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: "16px", marginBottom: "16px" }}>
+              <h4 style={{ margin: "0 0 12px", fontSize: 14, color: "#1e293b", borderBottom: "1px solid #e2e8f0", paddingBottom: 8 }}>📋 Payment Details</h4>
+              <div style={{ display: "grid", gap: "8px" }}>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                  <span style={{ color: "#64748b" }}>💰 Amount:</span>
+                  <strong style={{ color: "#059669" }}>{Number(selectedEngagement?.agreed_price || 0).toLocaleString()} ETB</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                  <span style={{ color: "#64748b" }}>🏦 Method:</span>
+                  <strong style={{ color: "#1e293b" }}>{(selectedEngagement?.payment_method || "N/A").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</strong>
+                </div>
+                <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                  <span style={{ color: "#64748b" }}>🔖 Reference:</span>
+                  <strong style={{ color: "#1e293b" }}>{selectedEngagement?.payment_reference || "N/A"}</strong>
+                </div>
+              </div>
+            </div>
+
+            {/* Receipt Preview */}
+            {selectedEngagement?.payment_receipt ? (
+              <div style={{ marginBottom: 16 }}>
+                <h4 style={{ margin: "0 0 10px", fontSize: 14, color: "#1e293b" }}>🧾 Uploaded Payment Receipt</h4>
+                <div style={{ border: "2px solid #e2e8f0", borderRadius: 10, overflow: "hidden", background: "#fff" }}>
+                  {getDocumentUrl(selectedEngagement.payment_receipt).startsWith("data:application/pdf") || getDocumentUrl(selectedEngagement.payment_receipt).toLowerCase().endsWith(".pdf") ? (
+                    <iframe src={getDocumentUrl(selectedEngagement.payment_receipt)} style={{ width: "100%", height: "400px", border: "none" }} title="Payment Receipt PDF" />
+                  ) : getDocumentUrl(selectedEngagement.payment_receipt).startsWith("data:image") || getDocumentUrl(selectedEngagement.payment_receipt).match(/\.(jpeg|jpg|gif|png)$/i) ? (
+                    <img src={getDocumentUrl(selectedEngagement.payment_receipt)} alt="Payment Receipt" style={{ width: "100%", maxHeight: "400px", objectFit: "contain", display: "block" }} />
+                  ) : (
+                    <div style={{ padding: "20px", textAlign: "center" }}>
+                      <a href={getDocumentUrl(selectedEngagement.payment_receipt)} target="_blank" rel="noopener noreferrer"
+                         style={{ display: "inline-block", padding: "10px 20px", background: "#3b82f6", color: "#fff", borderRadius: 8, textDecoration: "none", fontWeight: 600 }}>
+                        📎 Open Receipt Document
+                      </a>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "14px", marginBottom: "16px", textAlign: "center" }}>
+                <p style={{ margin: 0, fontSize: 13, color: "#dc2626" }}>⚠️ No receipt document was uploaded by the buyer.</p>
               </div>
             )}
-            <p style={{ color: "#94a3b8", fontSize: 13 }}>
-              By confirming, you verify that the funds have been safely received into DDREMS accounts.
-            </p>
+
+            <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 10, padding: "12px" }}>
+              <p style={{ margin: 0, fontSize: 12, color: "#9a3412" }}>
+                ⚠️ By clicking Confirm, you verify that the funds have been safely received into DDREMS accounts. This will advance the engagement to the handover stage.
+              </p>
+            </div>
           </div>
         );
 
@@ -2271,6 +2502,8 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
     }
   };
 
+  // Determine if the Confirm button should show:
+  // Hide for view-only modals AND hide for commission_respond when it's NOT the user's turn
   const showSubmitButton = !["messages", "details", "view_contract", "view_property_media"].includes(modalType);
 
   // ── Main Render ──
@@ -2339,7 +2572,7 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
                 margin: '0 auto 16px', boxShadow: '0 4px 16px rgba(0,0,0,0.1)', overflow: 'hidden'
               }}>
                 {userInfoData.profile_image ? (
-                  <img src={`http://localhost:5000${userInfoData.profile_image}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img src={`http://${window.location.hostname}:5000${userInfoData.profile_image}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : (userInfoData.name?.charAt(0)?.toUpperCase() || 'U')}
               </div>
               <h3 style={{ margin: '0 0 4px', fontSize: '18px', color: '#1e293b' }}>{userInfoData.name}</h3>
@@ -2401,8 +2634,21 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
                   className="eng-btn eng-btn-primary" 
                   onClick={submitAction} 
                   disabled={actionLoading || (modalType === "sign" && !viewedEngagements[selectedEngagement?.id])}
+                  style={modalType === 'commission_respond' && formData.decision ? {
+                    background: formData.decision === 'accept_commission' ? 'linear-gradient(135deg, #10b981, #059669)' :
+                                formData.decision === 'reject_commission' ? 'linear-gradient(135deg, #ef4444, #dc2626)' :
+                                formData.decision === 'counter_commission' ? 'linear-gradient(135deg, #f59e0b, #d97706)' : undefined,
+                    fontWeight: 700, fontSize: 14
+                  } : {}}
                 >
-                  {actionLoading ? "Processing..." : "Confirm"}
+                  {actionLoading ? "Processing..." : 
+                    modalType === 'commission_respond' ? (
+                      formData.decision === 'accept_commission' ? '✅ Confirm Accept' :
+                      formData.decision === 'reject_commission' ? '❌ Confirm Reject' :
+                      formData.decision === 'counter_commission' ? '🔄 Send Counter Offer' :
+                      '💰 Confirm Decision'
+                    ) : "Confirm"
+                  }
                 </button>
               </div>
             )}

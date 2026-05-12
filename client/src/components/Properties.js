@@ -17,11 +17,12 @@ const Properties = ({ user, onLogout, viewMode = "all", setCurrentPage, setViewM
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [showViewModal, setShowViewModal] = useState(false);
   const [propertyDetail, setPropertyDetail] = useState(null);
-  const [keyRequests, setKeyRequests] = useState([]);
   const [agreementRequests, setAgreementRequests] = useState([]);
   const [favorites, setFavorites] = useState([]);
   const [showDocumentViewer, setShowDocumentViewer] = useState(false);
+  // eslint-disable-next-line no-unused-vars
   const [documentProperty, setDocumentProperty] = useState(null);
+
   const [imageErrors, setImageErrors] = useState({});
 
   // Property Creation State
@@ -114,33 +115,17 @@ const Properties = ({ user, onLogout, viewMode = "all", setCurrentPage, setViewM
     try {
       if (user?.role === "user") {
         const API_BASE = `http://${window.location.hostname}:5000/api`;
-        const [keyRes, agreementRes] = await Promise.all([
-          axios.get(
-            `${API_BASE}/key-requests/customer/${user.id}`,
-          ),
-          axios.get(
+        const agreementRes = await axios.get(
             `${API_BASE}/agreement-requests/customer/${user.id}`,
-          ),
-        ]);
-        setKeyRequests(keyRes.data);
+        );
         setAgreementRequests(agreementRes.data);
       } else if (user?.role === "owner") {
         const API_BASE = `http://${window.location.hostname}:5000/api`;
-        const [keyRes, agreementRes] = await Promise.all([
-          axios.get(
-            `${API_BASE}/key-requests/customer/${user.id}`,
-          ),
-          axios.get(`${API_BASE}/agreements/owner/${user.id}`),
-        ]);
-        setKeyRequests(keyRes.data);
+        const agreementRes = await axios.get(`${API_BASE}/agreements/owner/${user.id}`);
         setAgreementRequests(agreementRes.data);
       } else if (user?.role === "broker") {
         const API_BASE = `http://${window.location.hostname}:5000/api`;
-        const [keyRes, agreementRes] = await Promise.all([
-          axios.get(`${API_BASE}/key-requests/broker/${user.id}`),
-          axios.get(`${API_BASE}/agreements/broker/${user.id}`),
-        ]);
-        setKeyRequests(keyRes.data);
+        const agreementRes = await axios.get(`${API_BASE}/agreements/broker/${user.id}`);
         setAgreementRequests(agreementRes.data);
       }
     } catch (error) {
@@ -242,17 +227,7 @@ const Properties = ({ user, onLogout, viewMode = "all", setCurrentPage, setViewM
     }
   };
 
-  const hasKey = (propertyId) => {
-    return keyRequests.find(
-      (req) => req.property_id === propertyId && req.status === "accepted",
-    );
-  };
 
-  const hasPendingKey = (propertyId) => {
-    return keyRequests.some(
-      (req) => req.property_id === propertyId && req.status === "pending",
-    );
-  };
 
   const hasAgreement = (propertyId) => {
     return agreementRequests.some(
@@ -260,23 +235,6 @@ const Properties = ({ user, onLogout, viewMode = "all", setCurrentPage, setViewM
         req.property_id === propertyId &&
         ["pending", "active"].includes(req.status),
     );
-  };
-
-  const requestKey = async (propertyId) => {
-    try {
-      const API_BASE = `http://${window.location.hostname}:5000/api`;
-      await axios.post(`${API_BASE}/key-requests`, {
-        property_id: propertyId,
-        customer_id: user.id,
-        request_message:
-          "Requesting access key to view property documents and agreement.",
-      });
-      alert("🔑 Key request sent successfully!");
-      fetchUserRequests();
-    } catch (error) {
-      console.error("Error requesting key:", error);
-      alert(error.response?.data?.message || "Failed to send key request");
-    }
   };
 
   const validateBookingField = (name, value) => {
@@ -349,10 +307,7 @@ const Properties = ({ user, onLogout, viewMode = "all", setCurrentPage, setViewM
     }
   };
 
-  const openDocumentViewer = (property) => {
-    setDocumentProperty(property);
-    setShowDocumentViewer(true);
-  };
+
 
   const handleVideoUpload = async (e) => {
     const file = e.target.files[0];
@@ -443,12 +398,20 @@ const Properties = ({ user, onLogout, viewMode = "all", setCurrentPage, setViewM
         <img
           src={property.main_image}
           alt={property.title}
+          onClick={() => viewProperty(property)}
+          style={{ cursor: 'pointer' }}
+          title="Click to view details"
           onError={() => setImageErrors(prev => ({ ...prev, [property.id]: true }))}
         />
       );
     }
     return (
-      <div className="no-image-placeholder">
+      <div 
+        className="no-image-placeholder"
+        onClick={() => viewProperty(property)}
+        style={{ cursor: 'pointer' }}
+        title="Click to view details"
+      >
         <span className="placeholder-icon">
           {getPropertyTypeIcon(property.type)}
         </span>
@@ -654,28 +617,7 @@ const Properties = ({ user, onLogout, viewMode = "all", setCurrentPage, setViewM
                     flexWrap: "wrap",
                   }}
                 >
-                  {!hasKey(property.id) && !hasPendingKey(property.id) && (
-                    <button
-                      className="btn-secondary"
-                      onClick={() => requestKey(property.id)}
-                    >
-                      🔑 Request Key
-                    </button>
-                  )}
-                  {hasPendingKey(property.id) && (
-                    <button className="btn-secondary" disabled>
-                      ⏳ Key Request Pending
-                    </button>
-                  )}
-                  {hasKey(property.id) && (
-                    <button
-                      className="btn-success"
-                      onClick={() => openDocumentViewer(property)}
-                    >
-                      ✅ Key Approved: View Docs
-                    </button>
-                  )}
-                  {hasKey(property.id) && !hasAgreement(property.id) && (
+                  {!hasAgreement(property.id) ? (
                     <button
                       className="btn-primary"
                       onClick={() => {
@@ -685,8 +627,7 @@ const Properties = ({ user, onLogout, viewMode = "all", setCurrentPage, setViewM
                     >
                       🤝 Request Agreement
                     </button>
-                  )}
-                  {hasAgreement(property.id) && (
+                  ) : (
                     <button className="btn-secondary" disabled>
                       📄 Agreement Requested
                     </button>
@@ -973,7 +914,7 @@ const Properties = ({ user, onLogout, viewMode = "all", setCurrentPage, setViewM
                         paddingTop: "12px",
                       }}
                     >
-                      <h4>🔐 Access & Agreement</h4>
+                      <h4>🤝 Agreement</h4>
                       <div
                         style={{
                           display: "flex",
@@ -981,41 +922,17 @@ const Properties = ({ user, onLogout, viewMode = "all", setCurrentPage, setViewM
                           flexWrap: "wrap",
                         }}
                       >
-                        {!hasKey(selectedProperty.id) &&
-                          !hasPendingKey(selectedProperty.id) && (
-                            <button
-                              className="btn-secondary"
-                              onClick={() => requestKey(selectedProperty.id)}
-                            >
-                              🔑 Request Key
-                            </button>
-                          )}
-                        {hasPendingKey(selectedProperty.id) && (
-                          <button className="btn-secondary" disabled>
-                            ⏳ Key Request Pending
-                          </button>
-                        )}
-                        {hasKey(selectedProperty.id) && (
+                        {!hasAgreement(selectedProperty.id) ? (
                           <button
-                            className="btn-success"
-                            onClick={() => openDocumentViewer(selectedProperty)}
+                            className="btn-primary"
+                            onClick={() => {
+                              setAgreementFlowPropertyId(selectedProperty.id);
+                              setShowAgreementFlowModal(true);
+                            }}
                           >
-                            ✅ Key Approved: View Documents
+                            🤝 Request Agreement
                           </button>
-                        )}
-                        {hasKey(selectedProperty.id) &&
-                          !hasAgreement(selectedProperty.id) && (
-                            <button
-                              className="btn-primary"
-                              onClick={() => {
-                                setAgreementFlowPropertyId(selectedProperty.id);
-                                setShowAgreementFlowModal(true);
-                              }}
-                            >
-                              🤝 Request Agreement
-                            </button>
-                          )}
-                        {hasAgreement(selectedProperty.id) && (
+                        ) : (
                           <button className="btn-secondary" disabled>
                             📄 Agreement Requested
                           </button>
@@ -1073,13 +990,7 @@ const Properties = ({ user, onLogout, viewMode = "all", setCurrentPage, setViewM
                 <DocumentViewer
                   propertyId={documentProperty?.id}
                   userId={user.id}
-                  approvedKey={
-                    keyRequests.find(
-                      (r) =>
-                        r.property_id === documentProperty?.id &&
-                        r.status === "accepted",
-                    )?.key_code
-                  }
+                  approvedKey={true}
                 />
               )}
             </div>

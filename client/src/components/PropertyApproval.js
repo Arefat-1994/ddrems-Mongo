@@ -27,49 +27,13 @@ const PropertyApproval = ({ user, onClose, onRefresh, setCurrentPage, setViewMap
 
   const fetchPendingProperties = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/properties/pending-verification');
+      const response = await axios.get(`http://${window.location.hostname}:5000/api/properties/pending-verification`);
       const properties = response.data;
       setPendingProperties(properties);
-      
-      // Run audits sequentially to avoid overwhelming the server with parallel Python processes
-      runAuditsSequentially(properties);
     } catch (error) {
       console.error('Error fetching pending properties:', error);
     } finally {
       setLoading(false);
-    }
-  };
-
-  const runAuditsSequentially = async (properties) => {
-    for (const prop of properties) {
-      await fetchAuditForProperty(prop);
-      // Optional: add a small delay between audits if needed
-      // await new Promise(r => setTimeout(r, 500));
-    }
-  };
-
-  const fetchAuditForProperty = async (property) => {
-    try {
-      const locationName = property.location ? property.location.split(',')[0].trim() : 'Dire Dawa';
-      const response = await axios.post(`http://localhost:5000/api/ai/predict-property`, {
-        latitude: property.latitude,
-        longitude: property.longitude,
-        location_name: locationName,
-        bedrooms: property.bedrooms || 2,
-        bathrooms: property.bathrooms || 1,
-        property_type: property.type || 'apartment',
-        condition: property.condition || 'good',
-        size_m2: property.area || 120,
-        listing_type: property.listing_type || 'sale',
-        near_school: property.near_school ? 1 : 0,
-        near_hospital: property.near_hospital ? 1 : 0,
-        near_market: property.near_market ? 1 : 0,
-        parking: property.parking ? 1 : 0,
-        security_rating: property.security_rating || 3
-      });
-      setPropertyPredictions(prev => ({ ...prev, [property.id]: response.data }));
-    } catch (err) {
-      console.error(`Error auditing property ${property.id}:`, err);
     }
   };
 
@@ -89,7 +53,7 @@ const PropertyApproval = ({ user, onClose, onRefresh, setCurrentPage, setViewMap
   const fetchSiteCheckStatus = async (propertyId) => {
     setLoadingSiteCheck(true);
     try {
-      const response = await axios.get(`http://localhost:5000/api/site-check/verification-status/${propertyId}`);
+      const response = await axios.get(`http://${window.location.hostname}:5000/api/site-check/verification-status/${propertyId}`);
       setSiteCheckStatus(response.data);
     } catch (err) {
       console.error('Error fetching site check status:', err);
@@ -104,7 +68,7 @@ const PropertyApproval = ({ user, onClose, onRefresh, setCurrentPage, setViewMap
     setAiPrediction(null);
     try {
       const locationName = property.location ? property.location.split(',')[0].trim() : 'Dire Dawa';
-      const response = await axios.post(`http://localhost:5000/api/ai/predict-property`, {
+      const response = await axios.post(`http://${window.location.hostname}:5000/api/ai/predict-property`, {
         latitude: property.latitude,
         longitude: property.longitude,
         location_name: locationName,
@@ -153,7 +117,7 @@ const PropertyApproval = ({ user, onClose, onRefresh, setCurrentPage, setViewMap
         fullNotes += `\n[Site Check: NOT COMPLETED OR NOT APPROVED]`;
       }
 
-      await axios.put(`http://localhost:5000/api/properties/${selectedProperty.id}/verify`, {
+      await axios.put(`http://${window.location.hostname}:5000/api/properties/${selectedProperty.id}/verify`, {
         status: decision,
         verified_by: user.id,
         notes: fullNotes.trim(),
@@ -268,56 +232,7 @@ const PropertyApproval = ({ user, onClose, onRefresh, setCurrentPage, setViewMap
                 </button>
               </div>
 
-              {/* AI Comparison Row */}
-              <div style={{ 
-                padding: '12px 15px', 
-                background: '#f1f5f9', 
-                borderTop: '1px solid #e2e8f0',
-                display: 'grid',
-                gridTemplateColumns: 'repeat(3, 1fr)',
-                gap: '8px'
-              }}>
-                <div>
-                  <div style={{ fontSize: '9px', color: '#64748b', fontWeight: 'bold' }}>LISTED PRICE</div>
-                  <div style={{ fontSize: '11px', fontWeight: '700', color: '#1e293b' }}>
-                    {(property.price / 1000).toLocaleString()}K
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '9px', color: '#64748b', fontWeight: 'bold' }}>ML PRICE</div>
-                  <div style={{ fontSize: '11px', fontWeight: '700', color: '#475569' }}>
-                    {propertyPredictions[property.id] ? 
-                      `${(Number(propertyPredictions[property.id].ml_base_price_per_sqm) * (Number(property.area) || 1) / 1000).toFixed(0)}K` : '⏳'}
-                  </div>
-                </div>
-                <div>
-                  <div style={{ fontSize: '9px', color: '#7c3aed', fontWeight: 'bold' }}>HYBRID AI</div>
-                  <div style={{ fontSize: '11px', fontWeight: '800', color: '#7c3aed' }}>
-                    {propertyPredictions[property.id] ? 
-                      `${(propertyPredictions[property.id].predicted_price / 1000).toFixed(0)}K` : '⏳'}
-                  </div>
-                </div>
-                
-                {propertyPredictions[property.id] && (() => {
-                  const dev = ((property.price - propertyPredictions[property.id].predicted_price) / propertyPredictions[property.id].predicted_price) * 100;
-                  const isSuspicious = Math.abs(dev) > 30;
-                  return (
-                    <div style={{ 
-                      gridColumn: '1 / -1', 
-                      marginTop: '4px', 
-                      padding: '4px 8px', 
-                      borderRadius: '4px',
-                      background: isSuspicious ? '#fee2e2' : '#dcfce7',
-                      color: isSuspicious ? '#b91c1c' : '#15803d',
-                      fontSize: '10px',
-                      fontWeight: '700',
-                      textAlign: 'center'
-                    }}>
-                      {isSuspicious ? '🚩 SUSPICIOUS DEVIATION' : '✅ PRICE WITHIN RANGE'} ({dev > 0 ? '+' : ''}{dev.toFixed(1)}%)
-                    </div>
-                  );
-                })()}
-              </div>
+
             </div>
           ))}
         </div>
@@ -703,18 +618,29 @@ const PropertyApproval = ({ user, onClose, onRefresh, setCurrentPage, setViewMap
                   )}
                 </div>
                 <button
-                  className="btn-danger"
+                  className={`btn-danger ${siteCheckStatus?.site_check_status !== 'approved' ? 'disabled-btn' : ''}`}
                   onClick={() => handleDecision('rejected')}
-                  disabled={actionLoading}
-                  style={{ padding: '10px 24px', fontSize: '14px', fontWeight: '600' }}
+                  disabled={actionLoading || siteCheckStatus?.site_check_status !== 'approved'}
+                  style={{ 
+                    padding: '10px 24px', 
+                    fontSize: '14px', 
+                    fontWeight: '600',
+                    opacity: siteCheckStatus?.site_check_status !== 'approved' ? 0.6 : 1,
+                    cursor: siteCheckStatus?.site_check_status !== 'approved' ? 'not-allowed' : 'pointer'
+                  }}
                 >
                   {actionLoading ? '⏳ Processing...' : '❌ Reject'}
                 </button>
                 <button
-                  className="btn-warning"
+                  className={`btn-warning ${siteCheckStatus?.site_check_status !== 'approved' ? 'disabled-btn' : ''}`}
                   onClick={() => handleDecision('suspended')}
-                  disabled={actionLoading}
-                  style={{ padding: '10px 20px', fontSize: '13px' }}
+                  disabled={actionLoading || siteCheckStatus?.site_check_status !== 'approved'}
+                  style={{ 
+                    padding: '10px 20px', 
+                    fontSize: '13px',
+                    opacity: siteCheckStatus?.site_check_status !== 'approved' ? 0.6 : 1,
+                    cursor: siteCheckStatus?.site_check_status !== 'approved' ? 'not-allowed' : 'pointer'
+                  }}
                 >
                   {actionLoading ? '⏳...' : '⏸️ Suspend'}
                 </button>

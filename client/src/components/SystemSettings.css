@@ -150,6 +150,8 @@
 
 .setting-group input[type="text"],
 .setting-group input[type="number"],
+.setting-group input[type="time"],
+.setting-group input[type="datetime-local"],
 .setting-group select,
 .setting-group textarea {
   width: 100%;

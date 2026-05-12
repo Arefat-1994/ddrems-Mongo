@@ -1,0 +1,42 @@
+const mongoose = require('mongoose');
+
+const UserPreferencesSchema = new mongoose.Schema({
+  user_id: { type: mongoose.Schema.Types.ObjectId, ref: 'Users' },
+  property_type: { type: String },
+  min_price: { type: Number },
+  max_price: { type: Number },
+  preferred_location: { type: String },
+  bedrooms: { type: Number },
+  bathrooms: { type: Number },
+  theme: { type: String },
+  primaryColor: { type: String },
+  accentColor: { type: String },
+  backgroundColor: { type: String },
+  foregroundColor: { type: String },
+  textColor: { type: String },
+  sidebarColor: { type: String },
+  sidebarTextColor: { type: String },
+  notificationsEnabled: { type: Boolean },
+  soundEnabled: { type: Boolean },
+  emailNotifications: { type: Boolean },
+  twoFactorAuth: { type: Boolean },
+  alertsEnabled: { type: Boolean },
+  securityAlerts: { type: Boolean },
+  loginAlerts: { type: Boolean },
+  alertLevel: { type: String },
+  securityLevel: { type: String },
+  language: { type: String },
+  timezone: { type: String },
+  user_role: { type: String },
+  role_specific_settings: { type: Object },
+  created_at: { type: Date },
+  updated_at: { type: Date },
+  wrong_password_alerts: { type: Boolean },
+  unauthorized_access_alerts: { type: Boolean },
+  suspicious_activity_alerts: { type: Boolean },
+  sound_notifications: { type: Boolean },
+  pending_request_notifications: { type: Boolean },
+  idle_timeout: { type: Number, default: 5 }, // minutes: 5, 10, 20, 30, 60
+}, { timestamps: true });
+
+module.exports = mongoose.model('UserPreferences', UserPreferencesSchema);

@@ -1,286 +1,116 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/db');
+const mongoose = require('mongoose');
+const { Complaints, Users, Notifications } = require('../models');
 
-// ============================================================================
-// POST /api/complaints
-// Submit a new complaint
-// ============================================================================
 router.post('/', async (req, res) => {
   try {
     const { user_id, subject, description, category, priority } = req.body;
-
-    if (!user_id || !subject || !description) {
-      return res.status(400).json({ message: 'User ID, subject, and description are required', success: false });
-    }
-
-    // Validate category
+    if (!user_id || !subject || !description) return res.status(400).json({ message: 'Required fields missing', success: false });
     const validCategories = ['technical', 'billing', 'property', 'broker', 'service', 'other'];
-    const validCategory = validCategories.includes(category) ? category : 'other';
-
-    // Validate priority
     const validPriorities = ['low', 'medium', 'high', 'urgent'];
+    const validCategory = validCategories.includes(category) ? category : 'other';
     const validPriority = validPriorities.includes(priority) ? priority : 'medium';
 
-    // Verify user exists
-    const [user] = await db.query('SELECT id, name, email, role FROM users WHERE id = ?', [user_id]);
-    if (user.length === 0) {
-      return res.status(404).json({ message: 'User not found', success: false });
-    }
+    if (!mongoose.Types.ObjectId.isValid(user_id)) return res.status(400).json({ message: 'Invalid user ID', success: false });
+    const user = await Users.findById(user_id);
+    if (!user) return res.status(404).json({ message: 'User not found', success: false });
 
-    const [result] = await db.query(
-      `INSERT INTO complaints (user_id, subject, description, category, priority, status, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, 'open', NOW(), NOW())`,
-      [user_id, subject.trim(), description.trim(), validCategory, validPriority]
-    );
+    const complaint = await Complaints.create({ user_id, subject: subject.trim(), description: description.trim(), category: validCategory, priority: validPriority, status: 'open' });
 
-    // Create notification for system admins
-    const [admins] = await db.query("SELECT id FROM users WHERE role IN ('system_admin', 'admin')");
+    const admins = await Users.find({ role: { $in: ['system_admin', 'admin'] } });
     for (const admin of admins) {
-      await db.query(
-        `INSERT INTO notifications (user_id, title, message, type, is_read, created_at)
-         VALUES (?, ?, ?, 'warning', false, NOW())`,
-        [admin.id, `New Complaint: ${subject.trim()}`, `${user[0].name} (${user[0].role}) submitted a ${validPriority} priority complaint.`]
-      );
+      try { await Notifications.create({ user_id: admin._id, title: `New Complaint: ${subject.trim()}`, message: `${user.name} (${user.role}) submitted a ${validPriority} priority complaint.`, type: 'warning', is_read: false }); } catch(e) {}
     }
 
-    res.status(201).json({
-      success: true,
-      id: result.insertId,
-      message: 'Complaint submitted successfully. Our admin team will review it shortly.'
-    });
-  } catch (error) {
-    console.error('Error creating complaint:', error);
-    res.status(500).json({ message: 'Server error', error: error.message, success: false });
-  }
+    res.status(201).json({ success: true, id: complaint._id, message: 'Complaint submitted successfully.' });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message, success: false }); }
 });
 
-// ============================================================================
-// GET /api/complaints/user/:userId
-// Get complaints for a specific user
-// ============================================================================
 router.get('/user/:userId', async (req, res) => {
   try {
-    const { userId } = req.params;
-
-    const [complaints] = await db.query(`
-      SELECT c.*, 
-             u.name AS user_name, 
-             u.email AS user_email, 
-             u.role AS user_role,
-             resolver.name AS resolved_by_name
-      FROM complaints c
-      LEFT JOIN users u ON c.user_id = u.id
-      LEFT JOIN users resolver ON c.resolved_by = resolver.id
-      WHERE c.user_id = ?
-      ORDER BY c.created_at DESC
-    `, [userId]);
-
+    if (!mongoose.Types.ObjectId.isValid(req.params.userId)) return res.json({ success: true, complaints: [] });
+    const complaints = await Complaints.aggregate([
+      { $match: { user_id: new mongoose.Types.ObjectId(req.params.userId) } },
+      { $lookup: { from: 'users', localField: 'user_id', foreignField: '_id', as: 'user' } },
+      { $lookup: { from: 'users', localField: 'resolved_by', foreignField: '_id', as: 'resolver' } },
+      { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$resolver', preserveNullAndEmptyArrays: true } },
+      { $addFields: { id: '$_id', user_name: '$user.name', user_email: '$user.email', user_role: '$user.role', resolved_by_name: '$resolver.name' } },
+      { $sort: { created_at: -1 } }
+    ]);
     res.json({ success: true, complaints });
-  } catch (error) {
-    console.error('Error fetching user complaints:', error);
-    res.status(500).json({ message: 'Server error', error: error.message, success: false });
-  }
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message, success: false }); }
 });
 
-// ============================================================================
-// GET /api/complaints/admin/all
-// Get all complaints (admin only)
-// ============================================================================
 router.get('/admin/all', async (req, res) => {
   try {
     const { status, priority, category } = req.query;
+    let match = {};
+    if (status && status !== 'all') match.status = status;
+    if (priority && priority !== 'all') match.priority = priority;
+    if (category && category !== 'all') match.category = category;
 
-    let query = `
-      SELECT c.*, 
-             u.name AS user_name, 
-             u.email AS user_email, 
-             u.role AS user_role,
-             u.phone AS user_phone,
-             resolver.name AS resolved_by_name
-      FROM complaints c
-      LEFT JOIN users u ON c.user_id = u.id
-      LEFT JOIN users resolver ON c.resolved_by = resolver.id
-      WHERE 1=1
-    `;
-    const params = [];
-
-    if (status && status !== 'all') {
-      query += ' AND c.status = ?';
-      params.push(status);
-    }
-    if (priority && priority !== 'all') {
-      query += ' AND c.priority = ?';
-      params.push(priority);
-    }
-    if (category && category !== 'all') {
-      query += ' AND c.category = ?';
-      params.push(category);
-    }
-
-    query += ' ORDER BY CASE c.priority WHEN \'urgent\' THEN 1 WHEN \'high\' THEN 2 WHEN \'medium\' THEN 3 WHEN \'low\' THEN 4 END, c.created_at DESC';
-
-    const [complaints] = await db.query(query, params);
-
+    const complaints = await Complaints.aggregate([
+      { $match: match },
+      { $lookup: { from: 'users', localField: 'user_id', foreignField: '_id', as: 'user' } },
+      { $lookup: { from: 'users', localField: 'resolved_by', foreignField: '_id', as: 'resolver' } },
+      { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$resolver', preserveNullAndEmptyArrays: true } },
+      { $addFields: { id: '$_id', user_name: '$user.name', user_email: '$user.email', user_role: '$user.role', user_phone: '$user.phone', resolved_by_name: '$resolver.name' } },
+      { $sort: { created_at: -1 } }
+    ]);
     res.json({ success: true, complaints });
-  } catch (error) {
-    console.error('Error fetching all complaints:', error);
-    res.status(500).json({ message: 'Server error', error: error.message, success: false });
-  }
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message, success: false }); }
 });
 
-// ============================================================================
-// GET /api/complaints/admin/stats
-// Get complaint statistics
-// ============================================================================
 router.get('/admin/stats', async (req, res) => {
   try {
-    const [total] = await db.query('SELECT COUNT(*) AS count FROM complaints');
-    const [open] = await db.query("SELECT COUNT(*) AS count FROM complaints WHERE status = 'open'");
-    const [inProgress] = await db.query("SELECT COUNT(*) AS count FROM complaints WHERE status = 'in_progress'");
-    const [resolved] = await db.query("SELECT COUNT(*) AS count FROM complaints WHERE status = 'resolved'");
-    const [closed] = await db.query("SELECT COUNT(*) AS count FROM complaints WHERE status = 'closed'");
-
-    const [byCategory] = await db.query(`
-      SELECT category, COUNT(*) AS count 
-      FROM complaints 
-      GROUP BY category 
-      ORDER BY count DESC
-    `);
-
-    const [byPriority] = await db.query(`
-      SELECT priority, COUNT(*) AS count 
-      FROM complaints 
-      GROUP BY priority
-    `);
-
-    const [byRole] = await db.query(`
-      SELECT u.role, COUNT(c.id) AS count 
-      FROM complaints c
-      LEFT JOIN users u ON c.user_id = u.id
-      GROUP BY u.role
-    `);
-
-    const [urgent] = await db.query("SELECT COUNT(*) AS count FROM complaints WHERE priority = 'urgent' AND status IN ('open', 'in_progress')");
-
-    res.json({
-      success: true,
-      total: total[0].count,
-      open: open[0].count,
-      in_progress: inProgress[0].count,
-      resolved: resolved[0].count,
-      closed: closed[0].count,
-      urgent: urgent[0].count,
-      byCategory,
-      byPriority,
-      byRole
-    });
-  } catch (error) {
-    console.error('Error fetching complaint stats:', error);
-    res.status(500).json({ message: 'Server error', error: error.message, success: false });
-  }
+    const total = await Complaints.countDocuments();
+    const open = await Complaints.countDocuments({ status: 'open' });
+    const inProgress = await Complaints.countDocuments({ status: 'in_progress' });
+    const resolved = await Complaints.countDocuments({ status: 'resolved' });
+    const closed = await Complaints.countDocuments({ status: 'closed' });
+    const urgent = await Complaints.countDocuments({ priority: 'urgent', status: { $in: ['open', 'in_progress'] } });
+    const byCategory = await Complaints.aggregate([{ $group: { _id: '$category', count: { $sum: 1 } } }, { $project: { category: '$_id', count: 1, _id: 0 } }]);
+    const byPriority = await Complaints.aggregate([{ $group: { _id: '$priority', count: { $sum: 1 } } }, { $project: { priority: '$_id', count: 1, _id: 0 } }]);
+    res.json({ success: true, total, open, in_progress: inProgress, resolved, closed, urgent, byCategory, byPriority, byRole: [] });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message, success: false }); }
 });
 
-// ============================================================================
-// PUT /api/complaints/:id/respond
-// Admin respond to a complaint
-// ============================================================================
 router.put('/:id/respond', async (req, res) => {
   try {
-    const { id } = req.params;
     const { admin_response, admin_id, status } = req.body;
-
-    if (!admin_response || !admin_id) {
-      return res.status(400).json({ message: 'Admin response and admin ID are required', success: false });
-    }
-
+    if (!admin_response || !admin_id) return res.status(400).json({ message: 'Required fields missing', success: false });
     const newStatus = status || 'in_progress';
+    const update = { admin_response: admin_response.trim(), status: newStatus, updated_at: new Date() };
+    if (newStatus === 'resolved' || newStatus === 'closed') { update.resolved_by = admin_id; update.resolved_at = new Date(); }
+    await Complaints.findByIdAndUpdate(req.params.id, update);
 
-    const updateFields = [
-      'admin_response = ?',
-      'status = ?',
-      'updated_at = NOW()'
-    ];
-    const params = [admin_response.trim(), newStatus];
-
-    if (newStatus === 'resolved' || newStatus === 'closed') {
-      updateFields.push('resolved_by = ?');
-      updateFields.push('resolved_at = NOW()');
-      params.push(admin_id);
+    const complaint = await Complaints.findById(req.params.id);
+    if (complaint) {
+      const admin = await Users.findById(admin_id);
+      try { await Notifications.create({ user_id: complaint.user_id, title: `Complaint Update: ${complaint.subject}`, message: `${admin ? admin.name : 'Admin'} has responded. Status: ${newStatus}`, type: 'info', is_read: false }); } catch(e) {}
     }
-
-    params.push(id);
-    await db.query(`UPDATE complaints SET ${updateFields.join(', ')} WHERE id = ?`, params);
-
-    // Notify the complainant
-    const [complaint] = await db.query('SELECT user_id, subject FROM complaints WHERE id = ?', [id]);
-    if (complaint.length > 0) {
-      const [admin] = await db.query('SELECT name FROM users WHERE id = ?', [admin_id]);
-      const adminName = admin.length > 0 ? admin[0].name : 'System Admin';
-
-      await db.query(
-        `INSERT INTO notifications (user_id, title, message, type, is_read, created_at)
-         VALUES (?, ?, ?, 'info', false, NOW())`,
-        [
-          complaint[0].user_id,
-          `Complaint Update: ${complaint[0].subject}`,
-          `${adminName} has responded to your complaint. Status: ${newStatus.replace('_', ' ')}`
-        ]
-      );
-    }
-
     res.json({ success: true, message: 'Response sent successfully' });
-  } catch (error) {
-    console.error('Error responding to complaint:', error);
-    res.status(500).json({ message: 'Server error', error: error.message, success: false });
-  }
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message, success: false }); }
 });
 
-// ============================================================================
-// PUT /api/complaints/:id/status
-// Update complaint status
-// ============================================================================
 router.put('/:id/status', async (req, res) => {
   try {
-    const { id } = req.params;
     const { status, admin_id } = req.body;
-
     const validStatuses = ['open', 'in_progress', 'resolved', 'closed'];
-    if (!validStatuses.includes(status)) {
-      return res.status(400).json({ message: 'Invalid status', success: false });
+    if (!validStatuses.includes(status)) return res.status(400).json({ message: 'Invalid status', success: false });
+    const update = { status, updated_at: new Date() };
+    if (status === 'resolved' || status === 'closed') { update.resolved_by = admin_id; update.resolved_at = new Date(); }
+    await Complaints.findByIdAndUpdate(req.params.id, update);
+
+    const complaint = await Complaints.findById(req.params.id);
+    if (complaint) {
+      try { await Notifications.create({ user_id: complaint.user_id, title: 'Complaint Status Updated', message: `Your complaint "${complaint.subject}" status: ${status}`, type: 'info', is_read: false }); } catch(e) {}
     }
-
-    const updateFields = ['status = ?', 'updated_at = NOW()'];
-    const params = [status];
-
-    if (status === 'resolved' || status === 'closed') {
-      updateFields.push('resolved_by = ?');
-      updateFields.push('resolved_at = NOW()');
-      params.push(admin_id);
-    }
-
-    params.push(id);
-    await db.query(`UPDATE complaints SET ${updateFields.join(', ')} WHERE id = ?`, params);
-
-    // Notify the complainant
-    const [complaint] = await db.query('SELECT user_id, subject FROM complaints WHERE id = ?', [id]);
-    if (complaint.length > 0) {
-      await db.query(
-        `INSERT INTO notifications (user_id, title, message, type, is_read, created_at)
-         VALUES (?, ?, ?, 'info', false, NOW())`,
-        [
-          complaint[0].user_id,
-          `Complaint Status Updated`,
-          `Your complaint "${complaint[0].subject}" status has been changed to: ${status.replace('_', ' ')}`
-        ]
-      );
-    }
-
     res.json({ success: true, message: 'Status updated successfully' });
-  } catch (error) {
-    console.error('Error updating complaint status:', error);
-    res.status(500).json({ message: 'Server error', error: error.message, success: false });
-  }
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message, success: false }); }
 });
 
 module.exports = router;

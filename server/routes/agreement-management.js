@@ -1,268 +1,100 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/db');
-
-// ============================================================================
-// GENERATE AGREEMENT
-// ============================================================================
+const mongoose = require('mongoose');
+const { AgreementRequests, Agreements, AgreementDocuments, AgreementNotifications, PaymentConfirmations, Notifications } = require('../models');
+const { upload } = require('../middleware/upload');
 
 router.post('/:agreementId/generate', async (req, res) => {
   try {
-    const { agreementId } = req.params;
-    const { admin_id, template_id } = req.body;
-
-    // Get agreement details
-    const [agreement] = await db.query(
-      'SELECT * FROM agreement_requests WHERE id = ?',
-      [agreementId]
-    );
-
-    if (agreement.length === 0) {
-      return res.status(404).json({ message: 'Agreement not found', success: false });
-    }
-
-    // Update status
-    await db.query(
-      "UPDATE agreement_requests SET status = 'generated', updated_at = NOW() WHERE id = ?",
-      [agreementId]
-    );
-
-    // Send notification to customer
-    await db.query(`
-      INSERT INTO agreement_notifications (
-        agreement_request_id, recipient_id, notification_type,
-        notification_title, notification_message
-      ) VALUES (?, ?, 'agreement_generated', 
-        'Agreement Generated', 
-        'Your agreement has been generated. Please review and submit payment.')
-    `, [agreementId, agreement[0].customer_id]);
-
-    res.json({
-      success: true,
-      message: 'Agreement generated successfully',
-      status: 'generated'
+    const request = await AgreementRequests.findById(req.params.agreementId);
+    if (!request) return res.status(404).json({ message: 'Request not found' });
+    
+    const agreement = await Agreements.create({
+      property_id: request.property_id,
+      owner_id: request.owner_id,
+      customer_id: request.customer_id,
+      status: 'draft'
     });
-  } catch (error) {
-    console.error('Error generating agreement:', error);
-    res.status(500).json({ message: 'Server error', error: error.message, success: false });
-  }
+    
+    await AgreementRequests.findByIdAndUpdate(req.params.agreementId, { status: 'agreement_generated', updated_at: new Date() });
+    
+    res.json({ message: 'Agreement generated successfully', success: true, agreement_id: agreement._id });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
-
-// ============================================================================
-// SUBMIT PAYMENT
-// ============================================================================
 
 router.post('/:agreementId/submit-payment', async (req, res) => {
   try {
-    const { agreementId } = req.params;
-    const { customer_id, payment_method, payment_amount, receipt_file_path } = req.body;
-
-    // Get agreement
-    const [agreement] = await db.query(
-      'SELECT * FROM agreement_requests WHERE id = ?',
-      [agreementId]
-    );
-
-    if (agreement.length === 0) {
-      return res.status(404).json({ message: 'Agreement not found', success: false });
-    }
-
-    // Record payment
-    await db.query(`
-      INSERT INTO agreement_payments (
-        agreement_request_id, payment_method, payment_amount,
-        receipt_file_path, payment_date
-      ) VALUES (?, ?, ?, ?, NOW())
-    `, [agreementId, payment_method, payment_amount, receipt_file_path]);
-
-    // Update agreement status
-    await db.query(
-      "UPDATE agreement_requests SET status = 'payment_submitted', updated_at = NOW() WHERE id = ?",
-      [agreementId]
-    );
-
-    // Notify admin
-    const notifMsg = 'Customer has submitted payment for agreement #' + agreementId;
-    await db.query(`
-      INSERT INTO agreement_notifications (
-        agreement_request_id, recipient_id, notification_type,
-        notification_title, notification_message
-      ) VALUES (?, ?, 'payment_submitted', 
-        'Payment Submitted', ?)
-    `, [agreementId, agreement[0].owner_id, notifMsg]);
-
-    res.json({
-      success: true,
-      message: 'Payment submitted successfully',
-      status: 'payment_submitted'
+    const { amount, payment_method, payment_reference } = req.body;
+    await PaymentConfirmations.create({
+      agreement_request_id: req.params.agreementId,
+      amount,
+      payment_method,
+      payment_reference,
+      status: 'pending',
+      created_at: new Date()
     });
-  } catch (error) {
-    console.error('Error submitting payment:', error);
-    res.status(500).json({ message: 'Server error', error: error.message, success: false });
-  }
+    
+    await AgreementRequests.findByIdAndUpdate(req.params.agreementId, { status: 'payment_submitted', updated_at: new Date() });
+    res.json({ message: 'Payment submitted for verification', success: true });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
-// ============================================================================
-// UPLOAD RECEIPT
-// ============================================================================
-
-router.post('/:agreementId/upload-receipt', async (req, res) => {
+router.post('/:agreementId/upload-receipt', upload.single('receipt'), async (req, res) => {
   try {
-    const { agreementId } = req.params;
-    const { user_id, receipt_file_path, receipt_file_name } = req.body;
+    let receipt_path = '';
+    if (req.file) receipt_path = req.file.path;
 
-    // Get agreement
-    const [agreement] = await db.query(
-      'SELECT * FROM agreement_requests WHERE id = ?',
-      [agreementId]
+    await PaymentConfirmations.findOneAndUpdate(
+      { agreement_request_id: req.params.agreementId },
+      { receipt_document: receipt_path, updated_at: new Date() },
+      { upsert: true }
     );
-
-    if (agreement.length === 0) {
-      return res.status(404).json({ message: 'Agreement not found', success: false });
-    }
-
-    // Update receipt in payments table — use subquery for LIMIT workaround in PG
-    await db.query(`
-      UPDATE agreement_payments SET
-        receipt_file_path = ?,
-        receipt_file_name = ?,
-        receipt_uploaded_date = NOW()
-      WHERE id = (
-        SELECT id FROM agreement_payments 
-        WHERE agreement_request_id = ? 
-        ORDER BY payment_date DESC LIMIT 1
-      )
-    `, [receipt_file_path, receipt_file_name, agreementId]);
-
-    // Notify admin
-    const notifMsg = 'Customer has uploaded receipt for agreement #' + agreementId;
-    await db.query(`
-      INSERT INTO agreement_notifications (
-        agreement_request_id, recipient_id, notification_type,
-        notification_title, notification_message
-      ) VALUES (?, ?, 'receipt_uploaded', 
-        'Receipt Uploaded', ?)
-    `, [agreementId, agreement[0].owner_id, notifMsg]);
-
-    res.json({
-      success: true,
-      message: 'Receipt uploaded successfully'
-    });
-  } catch (error) {
-    console.error('Error uploading receipt:', error);
-    res.status(500).json({ message: 'Server error', error: error.message, success: false });
-  }
+    
+    res.json({ message: 'Receipt uploaded successfully', success: true });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
-
-// ============================================================================
-// SEND AGREEMENT
-// ============================================================================
 
 router.post('/:agreementId/send-agreement', async (req, res) => {
   try {
-    const { agreementId } = req.params;
-    const { admin_id, recipient_id } = req.body;
-
-    // Get agreement
-    const [agreement] = await db.query(
-      'SELECT * FROM agreement_requests WHERE id = ?',
-      [agreementId]
-    );
-
-    if (agreement.length === 0) {
-      return res.status(404).json({ message: 'Agreement not found', success: false });
-    }
-
-    // Get recipient name
-    const [recipient] = await db.query(
-      'SELECT name FROM users WHERE id = ?',
-      [recipient_id]
-    );
-
-    // Send notification
-    await db.query(`
-      INSERT INTO agreement_notifications (
-        agreement_request_id, recipient_id, notification_type,
-        notification_title, notification_message
-      ) VALUES (?, ?, 'agreement_sent', 
-        'Agreement Sent', 
-        'An agreement has been sent to you for review and signature.')
-    `, [agreementId, recipient_id]);
-
-    res.json({
-      success: true,
-      message: `Agreement sent to ${recipient[0]?.name || 'recipient'} successfully`
+    const { recipient_id, notification_title, notification_message } = req.body;
+    await AgreementNotifications.create({
+      agreement_request_id: req.params.agreementId,
+      recipient_id,
+      notification_type: 'agreement_sent',
+      notification_title: notification_title || 'New Agreement Sent',
+      notification_message: notification_message || 'An agreement has been sent for your review.',
+      is_read: false,
+      sent_date: new Date(),
+      created_at: new Date()
     });
-  } catch (error) {
-    console.error('Error sending agreement:', error);
-    res.status(500).json({ message: 'Server error', error: error.message, success: false });
-  }
+    
+    res.json({ message: 'Agreement sent successfully', success: true });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
-
-// ============================================================================
-// SEND NOTIFICATION
-// ============================================================================
 
 router.post('/:agreementId/notify', async (req, res) => {
   try {
-    const { agreementId } = req.params;
-    const { user_id, notification_message } = req.body;
-
-    // Get agreement
-    const [agreement] = await db.query(
-      'SELECT * FROM agreement_requests WHERE id = ?',
-      [agreementId]
-    );
-
-    if (agreement.length === 0) {
-      return res.status(404).json({ message: 'Agreement not found', success: false });
-    }
-
-    // Send notification to all parties
-    const recipients = [agreement[0].customer_id, agreement[0].owner_id].filter(Boolean);
-
-    for (const recipient_id of recipients) {
-      await db.query(`
-        INSERT INTO agreement_notifications (
-          agreement_request_id, recipient_id, notification_type,
-          notification_title, notification_message
-        ) VALUES (?, ?, 'custom_notification', 
-          'Agreement Update', ?)
-      `, [agreementId, recipient_id, notification_message]);
-    }
-
-    res.json({
-      success: true,
-      message: 'Notification sent to all parties'
+    const { recipient_id, notification_title, notification_message, notification_type } = req.body;
+    await AgreementNotifications.create({
+      agreement_request_id: req.params.agreementId,
+      recipient_id,
+      notification_type: notification_type || 'general_notification',
+      notification_title,
+      notification_message,
+      is_read: false,
+      sent_date: new Date(),
+      created_at: new Date()
     });
-  } catch (error) {
-    console.error('Error sending notification:', error);
-    res.status(500).json({ message: 'Server error', error: error.message, success: false });
-  }
+    
+    res.json({ message: 'Notification sent successfully', success: true });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
-
-// ============================================================================
-// GET AGREEMENT NOTIFICATIONS
-// ============================================================================
 
 router.get('/:agreementId/notifications', async (req, res) => {
   try {
-    const { agreementId } = req.params;
-
-    const [notifications] = await db.query(`
-      SELECT * FROM agreement_notifications
-      WHERE agreement_request_id = ?
-      ORDER BY created_at DESC
-    `, [agreementId]);
-
-    res.json({
-      success: true,
-      notifications
-    });
-  } catch (error) {
-    console.error('Error fetching notifications:', error);
-    res.status(500).json({ message: 'Server error', error: error.message, success: false });
-  }
+    const notifications = await AgreementNotifications.find({ agreement_request_id: req.params.agreementId }).sort({ sent_date: -1 }).lean();
+    res.json(notifications.map(n => ({ ...n, id: n._id })));
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
 module.exports = router;

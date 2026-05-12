@@ -190,7 +190,7 @@ const Register = ({ onBackToLogin }) => {
     try {
       const fullPhoneNumber = `${selectedCountryCode}${formData.phone}`;
       
-      await axios.post('http://localhost:5000/api/auth/register', {
+      await axios.post(`http://${window.location.hostname}:5000/api/auth/register`, {
         name: formData.name,
         email: formData.email,
         phone: fullPhoneNumber,
@@ -446,7 +446,7 @@ const Register = ({ onBackToLogin }) => {
                 <button
                   type="submit"
                   className="btn-register"
-                  disabled={loading || !agreedToTerms}
+                  disabled={loading}
                 >
                   {loading ? '⏳ Creating Account...' : '✅ Confirm & Create Account'}
                 </button>

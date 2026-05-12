@@ -21,12 +21,13 @@ import CustomerProfile from './components/profiles/CustomerProfile';
 import OwnerProfile from './components/profiles/OwnerProfile';
 import BrokerProfile from './components/profiles/BrokerProfile';
 import BrokerRequests from './components/BrokerRequests';
-import KeyRequests from './components/KeyRequests';
+
 
 import Login from './components/Login';
 import LandingPage from './components/LandingPage';
 import MapPropertyViewer from './components/MapPropertyViewer';
 import MpesaDashboard from './components/MpesaDashboard';
+import ChapaDashboard from './components/ChapaDashboard';
 import SiteCheckManager from './components/SiteCheckManager';
 import SiteCheckAdmin from './components/SiteCheckAdmin';
 import { NotificationProvider } from './components/NotificationContext';
@@ -42,6 +43,8 @@ import MyBookings from './components/MyBookings';
 import UserSettings from './components/UserSettings';
 import Complaints from './components/Complaints';
 import ComplaintsAdmin from './components/ComplaintsAdmin';
+import IdleTimeoutWrapper from './components/IdleTimeoutWrapper';
+import ServiceBlockedOverlay from './components/ServiceBlockedOverlay';
 
 function App() {
   const [currentPage, setCurrentPage] = useState('dashboard');
@@ -55,6 +58,16 @@ function App() {
     const userData = localStorage.getItem('user');
     if (token && userData) {
       setUser(JSON.parse(userData));
+      
+      const urlParams = new URLSearchParams(window.location.search);
+      const tx_ref = urlParams.get('tx_ref');
+      if (tx_ref) {
+        const agreementId = urlParams.get('agreementId');
+        const sourceType = urlParams.get('sourceType') || 'agreement';
+        setCurrentPage('chapa');
+        setPageOptions({ tx_ref, agreementId, sourceType });
+        window.history.replaceState({}, document.title, window.location.pathname);
+      }
     }
   }, []);
 
@@ -185,8 +198,6 @@ function App() {
       case 'agreement-requests':
         if (user.role === 'property_admin') return <PropertyAdminDashboard user={user} onLogout={handleLogout} setCurrentPage={navigateToPage} setViewMapPropertyId={setViewMapPropertyId} initialView="agreement-requests" />;
         return <Dashboard user={user} onLogout={handleLogout} onSettingsClick={() => navigateToPage('settings')} />;
-      case 'key-requests':
-        return <KeyRequests user={user} />;
       case 'requests':
         return <BrokerRequests user={user} onLogout={handleLogout} />;
       case 'broker-engagement':
@@ -216,6 +227,8 @@ function App() {
         return <UserSettingsEnhanced user={user} onLogout={handleLogout} onRefreshUser={refreshUser} />;
       case 'mpesa':
         return <MpesaDashboard user={user} onLogout={handleLogout} onSettingsClick={() => navigateToPage('settings')} />;
+      case 'chapa':
+        return <ChapaDashboard user={user} onLogout={handleLogout} onSettingsClick={() => navigateToPage('settings')} tx_ref={pageOptions.tx_ref} agreementId={pageOptions.agreementId} sourceType={pageOptions.sourceType} setCurrentPage={navigateToPage} />;
       case 'site-check':
         return <SiteCheckManager user={user} setCurrentPage={navigateToPage} initialPropertyId={pageOptions.initialPropertyId} />;
       case 'site-check-admin':
@@ -235,26 +248,29 @@ function App() {
 
   return (
     <NotificationProvider userId={user?.id}>
-      <div className={`App ${!showSidebar ? 'no-sidebar' : ''}`}>
-        {showSidebar && (
-          <Sidebar
-            currentPage={currentPage}
-            setCurrentPage={navigateToPage}
-            user={user}
-            onLogout={handleLogout}
-            isCollapsed={isSidebarCollapsed}
-            setIsCollapsed={setIsSidebarCollapsed}
-          />
-        )}
-        <div className={`main-content ${isSidebarCollapsed && showSidebar ? 'sidebar-collapsed' : ''}`}>
-          {currentPage === 'reports' ? (
-            <Reports user={user} onLogout={handleLogout} onBack={() => navigateToPage('dashboard')} />
-          ) : (
-            renderDashboard()
+      <IdleTimeoutWrapper user={user} onLogout={handleLogout}>
+        <div className={`App ${!showSidebar ? 'no-sidebar' : ''}`}>
+          {showSidebar && (
+            <Sidebar
+              currentPage={currentPage}
+              setCurrentPage={navigateToPage}
+              user={user}
+              onLogout={handleLogout}
+              isCollapsed={isSidebarCollapsed}
+              setIsCollapsed={setIsSidebarCollapsed}
+            />
           )}
-          {currentPage === 'dashboard' && <Footer isMainDashboard={true} />}
+          <div className={`main-content ${isSidebarCollapsed && showSidebar ? 'sidebar-collapsed' : ''}`}>
+            <ServiceBlockedOverlay user={user} currentPage={currentPage} onLogout={handleLogout} />
+            {currentPage === 'reports' ? (
+              <Reports user={user} onLogout={handleLogout} onBack={() => navigateToPage('dashboard')} />
+            ) : (
+              renderDashboard()
+            )}
+            {currentPage === 'dashboard' && <Footer isMainDashboard={true} />}
+          </div>
         </div>
-      </div>
+      </IdleTimeoutWrapper>
     </NotificationProvider>
   );
 }

@@ -1,138 +1,84 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/db');
-const emailService = require('../services/emailService');
+const mongoose = require('mongoose');
+const { 
+  CustomerProfiles, 
+  OwnerProfiles, 
+  BrokerProfiles, 
+  Users, 
+  Notifications, 
+  ProfileEditRequests, 
+  ProfileStatusHistory 
+} = require('../models');
+const { sendEmail, templates } = require('../services/emailService');
+
+// Helper to handle mapping _id to id
+const mapId = (doc) => {
+  if (!doc) return null;
+  const obj = doc.toObject ? doc.toObject() : doc;
+  return { ...obj, id: obj._id };
+};
 
 // ============================================================================
 // CUSTOMER PROFILE ROUTES
 // ============================================================================
 
-// Get ALL customer profiles (for admin)
 router.get('/customer', async (req, res) => {
   try {
-    const [profiles] = await db.query(
-      `SELECT cp.*, u.name as user_name, u.email as user_email 
-       FROM customer_profiles cp 
-       LEFT JOIN users u ON cp.user_id = u.id 
-       ORDER BY cp.created_at DESC`
-    );
+    const profiles = await CustomerProfiles.aggregate([
+      { $sort: { createdAt: -1 } },
+      { $lookup: { from: 'users', localField: 'user_id', foreignField: '_id', as: 'user' } },
+      { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+      { $addFields: { id: '$_id', user_name: '$user.name', user_email: '$user.email' } }
+    ]);
     res.json(profiles);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// Get customer profile by user ID
 router.get('/customer/:userId', async (req, res) => {
   try {
-    const [profiles] = await db.query(
-      `SELECT cp.*, u.name, u.email, u.phone 
-       FROM customer_profiles cp 
-       LEFT JOIN users u ON cp.user_id = u.id
-       WHERE cp.user_id = ?`,
-      [req.params.userId]
-    );
-
-    if (profiles.length === 0) {
-      // If no profile exists, fetch user info anyway
-      const [users] = await db.query('SELECT id, name, email, phone FROM users WHERE id = ?', [req.params.userId]);
-      if (users.length === 0) {
-        return res.status(404).json({ message: 'User not found' });
-      }
-      return res.json(users[0]);
+    if (!mongoose.Types.ObjectId.isValid(req.params.userId)) return res.status(404).json({ message: 'User not found' });
+    let profile = await CustomerProfiles.findOne({ user_id: req.params.userId }).lean();
+    if (!profile) {
+      const user = await Users.findById(req.params.userId).lean();
+      if (!user) return res.status(404).json({ message: 'User not found' });
+      return res.json({ id: user._id, name: user.name, email: user.email, phone: user.phone });
     }
-
-    res.json(profiles[0]);
+    profile.id = profile._id;
+    res.json(profile);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// Create customer profile
 router.post('/customer', async (req, res) => {
   try {
     const { user_id, full_name, phone_number, address, profile_photo, id_document } = req.body;
+    if (!mongoose.Types.ObjectId.isValid(user_id)) return res.status(400).json({ message: 'Invalid user id' });
 
-    // Check if profile already exists
-    const [existing] = await db.query('SELECT * FROM customer_profiles WHERE user_id = ?', [user_id]);
+    const existing = await CustomerProfiles.findOne({ user_id });
+    if (existing) return res.status(400).json({ message: 'Profile already exists' });
 
-    if (existing.length > 0) {
-      return res.status(400).json({ message: 'Profile already exists' });
-    }
-
-    const [result] = await db.query(
-      `INSERT INTO customer_profiles (user_id, full_name, phone_number, address, profile_photo, id_document, profile_status)
-       VALUES (?, ?, ?, ?, ?, ?, 'pending')`,
-      [user_id, full_name, phone_number, address, profile_photo, id_document]
-    );
-
-    // Update user table
-    await db.query('UPDATE users SET profile_completed = TRUE WHERE id = ?', [user_id]);
-
-    res.status(201).json({
-      message: 'Profile created successfully. Waiting for admin approval.',
-      profileId: result.insertId
+    const newProfile = await CustomerProfiles.create({
+      user_id, full_name, phone_number, address, profile_photo, id_document, profile_status: 'pending'
     });
+
+    await Users.findByIdAndUpdate(user_id, { profile_completed: true });
+
+    res.status(201).json({ message: 'Profile created successfully.', profileId: newProfile._id });
   } catch (error) {
-    console.error('Create profile error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// Update customer profile
 router.put('/customer/:id', async (req, res) => {
   try {
-    const { full_name, phone_number, address, profile_photo, id_document } = req.body;
-
-    await db.query(
-      `UPDATE customer_profiles 
-       SET full_name = ?, phone_number = ?, address = ?, profile_photo = ?, id_document = ?
-       WHERE id = ?`,
-      [full_name, phone_number, address, profile_photo, id_document, req.params.id]
-    );
-
-    // If they provided both photo and ID, mark profile as completed in users table
-    if (profile_photo && id_document) {
-      const [profile] = await db.query('SELECT user_id FROM customer_profiles WHERE id = ?', [req.params.id]);
-      if (profile.length > 0) {
-        await db.query('UPDATE users SET profile_completed = TRUE WHERE id = ?', [profile[0].user_id]);
-      }
-    }
-
-    res.json({ message: 'Profile updated successfully' });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-
-// Request edit permission for customer profile
-router.post('/customer/request-edit', async (req, res) => {
-  try {
-    const { user_id, profile_id } = req.body;
-
-    // Check if there's already a pending request
-    const [existingRequests] = await db.query(
-      'SELECT * FROM profile_edit_requests WHERE user_id = ? AND status = \'pending\'',
-      [user_id]
-    );
-
-    if (existingRequests.length > 0) {
-      return res.status(400).json({ message: 'You already have a pending edit request' });
-    }
-
-    // Create edit request
-    await db.query(
-      'INSERT INTO profile_edit_requests (user_id, profile_id, request_type, status) VALUES (?, ?, \'customer\', \'pending\')',
-      [user_id, profile_id]
-    );
-
-    // Create notification for admin
-    await db.query(
-      'INSERT INTO notifications (user_id, title, message, type) SELECT id, \'Profile Edit Request\', CONCAT(\'Customer \', (SELECT name FROM users WHERE id = ?), \' has requested permission to edit their profile\'), \'info\' FROM users WHERE role IN (\'admin\', \'system_admin\')',
-      [user_id]
-    );
-
-    res.json({ message: 'Edit request submitted successfully' });
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ message: 'Invalid profile id' });
+    const profile = await CustomerProfiles.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!profile) return res.status(404).json({ message: 'Profile not found' });
+    res.json(profile);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -142,91 +88,62 @@ router.post('/customer/request-edit', async (req, res) => {
 // OWNER PROFILE ROUTES
 // ============================================================================
 
-// Get ALL owner profiles (for admin)
 router.get('/owner', async (req, res) => {
   try {
-    const [profiles] = await db.query(
-      `SELECT op.*, u.name as user_name, u.email as user_email 
-       FROM owner_profiles op 
-       LEFT JOIN users u ON op.user_id = u.id 
-       ORDER BY op.created_at DESC`
-    );
+    const profiles = await OwnerProfiles.aggregate([
+      { $sort: { createdAt: -1 } },
+      { $lookup: { from: 'users', localField: 'user_id', foreignField: '_id', as: 'user' } },
+      { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+      { $addFields: { id: '$_id', user_name: '$user.name', user_email: '$user.email' } }
+    ]);
     res.json(profiles);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// Get owner profile by user ID
 router.get('/owner/:userId', async (req, res) => {
   try {
-    const [profiles] = await db.query(
-      `SELECT op.*, u.name, u.email, u.phone 
-       FROM owner_profiles op 
-       LEFT JOIN users u ON op.user_id = u.id
-       WHERE op.user_id = ?`,
-      [req.params.userId]
-    );
-
-    if (profiles.length === 0) {
-      // If no profile exists, fetch user info anyway
-      const [users] = await db.query('SELECT id, name, email, phone FROM users WHERE id = ?', [req.params.userId]);
-      if (users.length === 0) {
-        return res.status(404).json({ message: 'User not found' });
-      }
-      return res.json(users[0]);
+    if (!mongoose.Types.ObjectId.isValid(req.params.userId)) return res.status(404).json({ message: 'User not found' });
+    let profile = await OwnerProfiles.findOne({ user_id: req.params.userId }).lean();
+    if (!profile) {
+      const user = await Users.findById(req.params.userId).lean();
+      if (!user) return res.status(404).json({ message: 'User not found' });
+      return res.json({ id: user._id, name: user.name, email: user.email, phone: user.phone });
     }
-
-    res.json(profiles[0]);
+    profile.id = profile._id;
+    res.json(profile);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// Create owner profile
 router.post('/owner', async (req, res) => {
   try {
     const { user_id, full_name, phone_number, address, profile_photo, id_document, business_license } = req.body;
+    if (!mongoose.Types.ObjectId.isValid(user_id)) return res.status(400).json({ message: 'Invalid user id' });
 
-    // Check if profile already exists
-    const [existing] = await db.query('SELECT * FROM owner_profiles WHERE user_id = ?', [user_id]);
+    const existing = await OwnerProfiles.findOne({ user_id });
+    if (existing) return res.status(400).json({ message: 'Profile already exists' });
 
-    if (existing.length > 0) {
-      return res.status(400).json({ message: 'Profile already exists' });
-    }
-
-    const [result] = await db.query(
-      `INSERT INTO owner_profiles (user_id, full_name, phone_number, address, profile_photo, id_document, business_license, profile_status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, 'pending')`,
-      [user_id, full_name, phone_number, address, profile_photo, id_document, business_license]
-    );
-
-    // Update user table
-    await db.query('UPDATE users SET profile_completed = TRUE WHERE id = ?', [user_id]);
-
-    res.status(201).json({
-      message: 'Profile created successfully. Waiting for admin approval.',
-      profileId: result.insertId
+    const newProfile = await OwnerProfiles.create({
+      user_id, full_name, phone_number, address, profile_photo, id_document, business_license, profile_status: 'pending'
     });
+
+    await Users.findByIdAndUpdate(user_id, { profile_completed: true });
+
+    res.status(201).json({ message: 'Profile created successfully.', profileId: newProfile._id });
   } catch (error) {
-    console.error('Create profile error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// Update owner profile
 router.put('/owner/:id', async (req, res) => {
   try {
-    const { full_name, phone_number, address, profile_photo, id_document, business_license } = req.body;
-
-    await db.query(
-      `UPDATE owner_profiles 
-       SET full_name = ?, phone_number = ?, address = ?, profile_photo = ?, id_document = ?, business_license = ?
-       WHERE id = ?`,
-      [full_name, phone_number, address, profile_photo, id_document, business_license, req.params.id]
-    );
-
-    res.json({ message: 'Profile updated successfully' });
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ message: 'Invalid profile id' });
+    const profile = await OwnerProfiles.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!profile) return res.status(404).json({ message: 'Profile not found' });
+    res.json(profile);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -236,116 +153,58 @@ router.put('/owner/:id', async (req, res) => {
 // BROKER PROFILE ROUTES
 // ============================================================================
 
-// Get ALL broker profiles (for admin)
 router.get('/broker', async (req, res) => {
   try {
-    const [profiles] = await db.query(
-      `SELECT bp.*, u.name as user_name, u.email as user_email 
-       FROM broker_profiles bp 
-       LEFT JOIN users u ON bp.user_id = u.id 
-       ORDER BY bp.created_at DESC`
-    );
+    const profiles = await BrokerProfiles.aggregate([
+      { $sort: { createdAt: -1 } },
+      { $lookup: { from: 'users', localField: 'user_id', foreignField: '_id', as: 'user' } },
+      { $unwind: { path: '$user', preserveNullAndEmptyArrays: true } },
+      { $addFields: { id: '$_id', user_name: '$user.name', user_email: '$user.email' } }
+    ]);
     res.json(profiles);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// Get broker profile by user ID
 router.get('/broker/:userId', async (req, res) => {
   try {
-    const [profiles] = await db.query(
-      'SELECT * FROM broker_profiles WHERE user_id = ?',
-      [req.params.userId]
-    );
-
-    if (profiles.length === 0) {
-      return res.status(404).json({ message: 'Profile not found' });
-    }
-
-    res.json(profiles[0]);
+    if (!mongoose.Types.ObjectId.isValid(req.params.userId)) return res.status(404).json({ message: 'Profile not found' });
+    let profile = await BrokerProfiles.findOne({ user_id: req.params.userId }).lean();
+    if (!profile) return res.status(404).json({ message: 'Profile not found' });
+    profile.id = profile._id;
+    res.json(profile);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// Create broker profile
 router.post('/broker', async (req, res) => {
   try {
     const { user_id, full_name, phone_number, address, profile_photo, id_document, broker_license, license_number } = req.body;
+    if (!mongoose.Types.ObjectId.isValid(user_id)) return res.status(400).json({ message: 'Invalid user id' });
 
-    // Check if profile already exists
-    const [existing] = await db.query('SELECT * FROM broker_profiles WHERE user_id = ?', [user_id]);
+    const existing = await BrokerProfiles.findOne({ user_id });
+    if (existing) return res.status(400).json({ message: 'Profile already exists' });
 
-    if (existing.length > 0) {
-      return res.status(400).json({ message: 'Profile already exists' });
-    }
-
-    const [result] = await db.query(
-      `INSERT INTO broker_profiles (user_id, full_name, phone_number, address, profile_photo, id_document, broker_license, license_number, profile_status)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')`,
-      [user_id, full_name, phone_number, address, profile_photo, id_document, broker_license, license_number]
-    );
-
-    // Update user table
-    await db.query('UPDATE users SET profile_completed = TRUE WHERE id = ?', [user_id]);
-
-    res.status(201).json({
-      message: 'Profile created successfully. Waiting for admin approval.',
-      profileId: result.insertId
+    const newProfile = await BrokerProfiles.create({
+      user_id, full_name, phone_number, address, profile_photo, id_document, broker_license, license_number, profile_status: 'pending'
     });
+
+    await Users.findByIdAndUpdate(user_id, { profile_completed: true });
+
+    res.status(201).json({ message: 'Profile created successfully.', profileId: newProfile._id });
   } catch (error) {
-    console.error('Create profile error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// Update broker profile
 router.put('/broker/:id', async (req, res) => {
   try {
-    const { full_name, phone_number, address, profile_photo, id_document, broker_license, license_number } = req.body;
-
-    await db.query(
-      `UPDATE broker_profiles 
-       SET full_name = ?, phone_number = ?, address = ?, profile_photo = ?, id_document = ?, broker_license = ?, license_number = ?
-       WHERE id = ?`,
-      [full_name, phone_number, address, profile_photo, id_document, broker_license, license_number, req.params.id]
-    );
-
-    res.json({ message: 'Profile updated successfully' });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-
-// Request edit permission for broker profile
-router.post('/broker/request-edit', async (req, res) => {
-  try {
-    const { user_id, profile_id } = req.body;
-
-    // Check if there's already a pending request
-    const [existingRequests] = await db.query(
-      'SELECT * FROM profile_edit_requests WHERE user_id = ? AND status = \'pending\'',
-      [user_id]
-    );
-
-    if (existingRequests.length > 0) {
-      return res.status(400).json({ message: 'You already have a pending edit request' });
-    }
-
-    // Create edit request
-    await db.query(
-      'INSERT INTO profile_edit_requests (user_id, profile_id, request_type, status) VALUES (?, ?, \'broker\', \'pending\')',
-      [user_id, profile_id]
-    );
-
-    // Create notification for admin
-    await db.query(
-      'INSERT INTO notifications (user_id, title, message, type) SELECT id, \'Broker Profile Edit Request\', CONCAT(\'Broker \', (SELECT name FROM users WHERE id = ?), \' has requested permission to edit their profile\'), \'info\' FROM users WHERE role IN (\'admin\', \'system_admin\')',
-      [user_id]
-    );
-
-    res.json({ message: 'Edit request submitted successfully' });
+    if (!mongoose.Types.ObjectId.isValid(req.params.id)) return res.status(400).json({ message: 'Invalid profile id' });
+    const profile = await BrokerProfiles.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!profile) return res.status(404).json({ message: 'Profile not found' });
+    res.json(profile);
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
   }
@@ -355,363 +214,236 @@ router.post('/broker/request-edit', async (req, res) => {
 // ADMIN PROFILE APPROVAL ROUTES
 // ============================================================================
 
-// Get all pending profiles
-router.get('/pending', async (req, res) => {
-  try {
-    const [customerProfiles] = await db.query(`
-      SELECT cp.*, u.name as user_name, u.email as user_email, 'customer' as profile_type
-      FROM customer_profiles cp
-      LEFT JOIN users u ON cp.user_id = u.id
-      WHERE LOWER(cp.profile_status) = 'pending'
-    `);
-
-    const [ownerProfiles] = await db.query(`
-      SELECT op.*, u.name as user_name, u.email as user_email, 'owner' as profile_type
-      FROM owner_profiles op
-      LEFT JOIN users u ON op.user_id = u.id
-      WHERE LOWER(op.profile_status) = 'pending'
-    `);
-
-    const [brokerProfiles] = await db.query(`
-      SELECT bp.*, u.name as user_name, u.email as user_email, 'broker' as profile_type
-      FROM broker_profiles bp
-      LEFT JOIN users u ON bp.user_id = u.id
-      WHERE LOWER(bp.profile_status) = 'pending'
-    `);
-
-    res.json({
-      customers: customerProfiles || [],
-      owners: ownerProfiles || [],
-      brokers: brokerProfiles || [],
-      total: (customerProfiles?.length || 0) + (ownerProfiles?.length || 0) + (brokerProfiles?.length || 0)
-    });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-
-// Approve profile (can change from any status)
 router.post('/approve/:profileType/:profileId', async (req, res) => {
   try {
     const { profileType, profileId } = req.params;
     const { adminId } = req.body;
 
-    let tableName;
-    if (profileType === 'customer') tableName = 'customer_profiles';
-    else if (profileType === 'owner') tableName = 'owner_profiles';
-    else if (profileType === 'broker') tableName = 'broker_profiles';
+    if (!mongoose.Types.ObjectId.isValid(profileId)) return res.status(400).json({ message: 'Invalid profile id' });
+
+    let Model;
+    if (profileType === 'customer') Model = CustomerProfiles;
+    else if (profileType === 'owner') Model = OwnerProfiles;
+    else if (profileType === 'broker') Model = BrokerProfiles;
     else return res.status(400).json({ message: 'Invalid profile type' });
 
-    // Get user_id and current status
-    const [profiles] = await db.query(`SELECT user_id, profile_status FROM ${tableName} WHERE id = ?`, [profileId]);
+    const profile = await Model.findById(profileId);
+    if (!profile) return res.status(404).json({ message: 'Profile not found' });
 
-    if (profiles.length === 0) {
-      return res.status(404).json({ message: 'Profile not found' });
-    }
+    const previousStatus = profile.profile_status;
+    
+    profile.profile_status = 'approved';
+    profile.approved_by = adminId || null;
+    profile.approved_at = new Date();
+    profile.rejection_reason = null;
+    await profile.save();
 
-    const userId = profiles[0].user_id;
-    const previousStatus = profiles[0].profile_status;
+    await Users.findByIdAndUpdate(profile.user_id, { profile_approved: true, status: 'active' });
 
-    // Update profile status
-    await db.query(
-      `UPDATE ${tableName} SET 
-        profile_status = 'approved', 
-        approved_by = ?, 
-        approved_at = NOW(), 
-        rejection_reason = NULL 
-       WHERE id = ?`,
-      [adminId, profileId]
-    );
-
-    // Update user table
-    await db.query('UPDATE users SET profile_approved = TRUE, status = \'active\' WHERE id = ?', [userId]);
-
-    // Log the change
-    await db.query(
-      `INSERT INTO profile_status_history (profile_id, profile_type, old_status, new_status, changed_by, reason)
-       VALUES (?, ?, ?, 'approved', ?, 'Admin approval')`,
-      [profileId, profileType, previousStatus, adminId]
-    );
-
-    // Create notification
-    await db.query(
-      `INSERT INTO notifications (user_id, title, message, type)
-       VALUES (?, 'Profile Approved', 'Your profile has been approved. You now have full access to all features.', 'success')`,
-      [userId]
-    );
-
-    // Send email notification
     try {
-      const [user] = await db.query('SELECT name, email FROM users WHERE id = ?', [userId]);
-      if (user.length > 0 && user[0].email) {
-        const template = emailService.templates.accountApproved(user[0].name);
-        await emailService.sendEmail(user[0].email, template.subject, template.html);
+      await ProfileStatusHistory.create({
+        profile_id: profileId, profile_type: profileType, old_status: previousStatus, new_status: 'approved', changed_by: adminId || null, reason: 'Admin approval'
+      });
+      await Notifications.create({
+        user_id: profile.user_id, title: 'Profile Approved', message: 'Your profile has been approved. You now have full access to the system.', type: 'success', is_read: false, created_at: new Date()
+      });
+    } catch(e) { console.warn('Profile approval side-effects error:', e.message); }
+
+    // Send approval email
+    try {
+      const user = await Users.findById(profile.user_id).lean();
+      if (user && user.email) {
+        const emailData = templates.accountApproved(user.name || profile.full_name);
+        await sendEmail(user.email, emailData.subject, emailData.html);
+        console.log(`[PROFILES] Approval email sent to ${user.email}`);
       }
     } catch (emailErr) {
-      console.error('Email notification failed for profile approval:', emailErr);
+      console.error('[PROFILES] Approval email failed:', emailErr.message);
     }
+
+    // Emit real-time socket notification
+    try {
+      const socketModule = require('../socket');
+      socketModule.emitToUser(profile.user_id.toString(), 'new_notification', {
+        title: 'Profile Approved', message: 'Your profile has been approved.', type: 'success', is_read: false, created_at: new Date()
+      });
+    } catch(se) {}
 
     res.json({ message: 'Profile approved successfully', previousStatus, newStatus: 'approved' });
   } catch (error) {
-    console.error('Approve profile error:', error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// Suspend profile (can change from any status)
 router.post('/suspend/:profileType/:profileId', async (req, res) => {
   try {
     const { profileType, profileId } = req.params;
     const { adminId, reason } = req.body;
-
-    let tableName;
-    if (profileType === 'customer') tableName = 'customer_profiles';
-    else if (profileType === 'owner') tableName = 'owner_profiles';
-    else if (profileType === 'broker') tableName = 'broker_profiles';
+    if (!mongoose.Types.ObjectId.isValid(profileId)) return res.status(400).json({ message: 'Invalid profile id' });
+    let Model;
+    if (profileType === 'customer') Model = CustomerProfiles;
+    else if (profileType === 'owner') Model = OwnerProfiles;
+    else if (profileType === 'broker') Model = BrokerProfiles;
     else return res.status(400).json({ message: 'Invalid profile type' });
 
-    // Get user_id and current status
-    const [profiles] = await db.query(`SELECT user_id, profile_status FROM ${tableName} WHERE id = ?`, [profileId]);
+    const profile = await Model.findById(profileId);
+    if (!profile) return res.status(404).json({ message: 'Profile not found' });
+    const previousStatus = profile.profile_status;
+    
+    profile.profile_status = 'suspended';
+    profile.approved_by = adminId || null;
+    profile.approved_at = new Date();
+    profile.rejection_reason = reason || 'Suspended by administrator';
+    await profile.save();
 
-    if (profiles.length === 0) {
-      return res.status(404).json({ message: 'Profile not found' });
-    }
+    await Users.findByIdAndUpdate(profile.user_id, { profile_approved: false });
 
-    const userId = profiles[0].user_id;
-    const previousStatus = profiles[0].profile_status;
-
-    // Update profile status
-    await db.query(
-      `UPDATE ${tableName} SET profile_status = 'suspended', approved_by = ?, approved_at = NOW(), rejection_reason = ? WHERE id = ?`,
-      [adminId, reason || 'Suspended by administrator', profileId]
-    );
-
-    // Update user table (de-approve)
-    await db.query('UPDATE users SET profile_approved = FALSE WHERE id = ?', [userId]);
-
-    // Log the change
-    await db.query(
-      `INSERT INTO profile_status_history (profile_id, profile_type, old_status, new_status, changed_by, reason)
-       VALUES (?, ?, ?, 'suspended', ?, ?)`,
-      [profileId, profileType, previousStatus, adminId, reason || 'Suspended by administrator']
-    );
-
-    // Create notification
-    await db.query(
-      `INSERT INTO notifications (user_id, title, message, type)
-       VALUES (?, 'Profile Suspended', ?, 'warning')`,
-      [userId, `Your profile has been suspended. Reason: ${reason || 'Contact support for details.'}`]
-    );
-
-    // Send email notification
     try {
-      const [user] = await db.query('SELECT name, email FROM users WHERE id = ?', [userId]);
-      if (user.length > 0 && user[0].email) {
-        const template = emailService.templates.securityAlert(user[0].name, `Your account has been suspended. Reason: ${reason || 'Suspended by administrator'}`);
-        await emailService.sendEmail(user[0].email, template.subject, template.html);
-      }
-    } catch (emailErr) {
-      console.error('Email notification failed for profile suspension:', emailErr);
-    }
+      await ProfileStatusHistory.create({ profile_id: profileId, profile_type: profileType, old_status: previousStatus, new_status: 'suspended', changed_by: adminId || null, reason: reason || 'Suspended' });
+      await Notifications.create({ user_id: profile.user_id, title: 'Profile Suspended', message: `Your profile has been suspended. Reason: ${reason || 'Contact support'}`, type: 'warning', is_read: false, created_at: new Date() });
+    } catch(e) { console.warn('Suspension side-effects error:', e.message); }
 
-    res.json({ 
-      message: 'Profile suspended successfully', 
-      previousStatus, 
-      newStatus: 'suspended',
-      reason: reason || 'Suspended by administrator'
-    });
+    // Send suspension email
+    try {
+      const user = await Users.findById(profile.user_id).lean();
+      if (user && user.email) {
+        const emailData = templates.accountRejected(user.name || profile.full_name, reason || 'Your profile has been suspended by the administrator.');
+        await sendEmail(user.email, emailData.subject, emailData.html);
+      }
+    } catch(emailErr) { console.error('[PROFILES] Suspension email failed:', emailErr.message); }
+
+    try {
+      const socketModule = require('../socket');
+      socketModule.emitToUser(profile.user_id.toString(), 'new_notification', {
+        title: 'Profile Suspended', message: `Your profile has been suspended.`, type: 'warning', is_read: false, created_at: new Date()
+      });
+    } catch(se) {}
+
+    res.json({ message: 'Profile suspended successfully', previousStatus, newStatus: 'suspended' });
   } catch (error) {
-    console.error('Suspend profile error:', error);
+    console.error(error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// Reject profile (can change from any status)
 router.post('/reject/:profileType/:profileId', async (req, res) => {
   try {
     const { profileType, profileId } = req.params;
     const { adminId, rejectionReason } = req.body;
-
-    let tableName;
-    if (profileType === 'customer') tableName = 'customer_profiles';
-    else if (profileType === 'owner') tableName = 'owner_profiles';
-    else if (profileType === 'broker') tableName = 'broker_profiles';
+    if (!mongoose.Types.ObjectId.isValid(profileId)) return res.status(400).json({ message: 'Invalid profile id' });
+    let Model;
+    if (profileType === 'customer') Model = CustomerProfiles;
+    else if (profileType === 'owner') Model = OwnerProfiles;
+    else if (profileType === 'broker') Model = BrokerProfiles;
     else return res.status(400).json({ message: 'Invalid profile type' });
 
-    // Get user_id and current status
-    const [profiles] = await db.query(`SELECT user_id, profile_status FROM ${tableName} WHERE id = ?`, [profileId]);
+    const profile = await Model.findById(profileId);
+    if (!profile) return res.status(404).json({ message: 'Profile not found' });
+    const previousStatus = profile.profile_status;
+    
+    profile.profile_status = 'rejected';
+    profile.approved_by = adminId || null;
+    profile.approved_at = new Date();
+    profile.rejection_reason = rejectionReason;
+    await profile.save();
 
-    if (profiles.length === 0) {
-      return res.status(404).json({ message: 'Profile not found' });
-    }
+    await Users.findByIdAndUpdate(profile.user_id, { profile_approved: false });
 
-    const userId = profiles[0].user_id;
-    const previousStatus = profiles[0].profile_status;
-
-    // Update profile status
-    await db.query(
-      `UPDATE ${tableName} SET profile_status = 'rejected', approved_by = ?, approved_at = NOW(), rejection_reason = ? WHERE id = ?`,
-      [adminId, rejectionReason, profileId]
-    );
-
-    // Update user table (ensure not approved)
-    await db.query('UPDATE users SET profile_approved = FALSE WHERE id = ?', [userId]);
-
-    // Log the change
-    await db.query(
-      `INSERT INTO profile_status_history (profile_id, profile_type, old_status, new_status, changed_by, reason)
-       VALUES (?, ?, ?, 'rejected', ?, ?)`,
-      [profileId, profileType, previousStatus, adminId, rejectionReason]
-    );
-
-    // Create notification
-    await db.query(
-      `INSERT INTO notifications (user_id, title, message, type)
-       VALUES (?, 'Profile Rejected', ?, 'error')`,
-      [userId, `Your profile has been rejected. Reason: ${rejectionReason}`]
-    );
-
-    // Send email notification
     try {
-      const [user] = await db.query('SELECT name, email FROM users WHERE id = ?', [userId]);
-      if (user.length > 0 && user[0].email) {
-        const template = emailService.templates.accountRejected(user[0].name, rejectionReason);
-        await emailService.sendEmail(user[0].email, template.subject, template.html);
-      }
-    } catch (emailErr) {
-      console.error('Email notification failed for profile rejection:', emailErr);
-    }
+      await ProfileStatusHistory.create({ profile_id: profileId, profile_type: profileType, old_status: previousStatus, new_status: 'rejected', changed_by: adminId || null, reason: rejectionReason });
+      await Notifications.create({ user_id: profile.user_id, title: 'Profile Rejected', message: `Your profile has been rejected. Reason: ${rejectionReason}`, type: 'error', is_read: false, created_at: new Date() });
+    } catch(e) { console.warn('Rejection side-effects error:', e.message); }
 
-    res.json({ 
-      message: 'Profile rejected successfully', 
-      previousStatus, 
-      newStatus: 'rejected',
-      reason: rejectionReason
-    });
+    // Send rejection email
+    try {
+      const user = await Users.findById(profile.user_id).lean();
+      if (user && user.email) {
+        const emailData = templates.accountRejected(user.name || profile.full_name, rejectionReason);
+        await sendEmail(user.email, emailData.subject, emailData.html);
+      }
+    } catch(emailErr) { console.error('[PROFILES] Rejection email failed:', emailErr.message); }
+
+    try {
+      const socketModule = require('../socket');
+      socketModule.emitToUser(profile.user_id.toString(), 'new_notification', {
+        title: 'Profile Rejected', message: `Your profile has been rejected.`, type: 'error', is_read: false, created_at: new Date()
+      });
+    } catch(se) {}
+
+    res.json({ message: 'Profile rejected successfully', previousStatus, newStatus: 'rejected' });
   } catch (error) {
-    console.error('Reject profile error:', error);
+    console.error(error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
-// Get total pending profiles count
+router.post('/change-status/:profileType/:profileId', async (req, res) => {
+  try {
+    const { profileType, profileId } = req.params;
+    const { newStatus, adminId, reason } = req.body;
+    if (!mongoose.Types.ObjectId.isValid(profileId)) return res.status(400).json({ message: 'Invalid profile id' });
+    let Model;
+    if (profileType === 'customer') Model = CustomerProfiles;
+    else if (profileType === 'owner') Model = OwnerProfiles;
+    else if (profileType === 'broker') Model = BrokerProfiles;
+    else return res.status(400).json({ message: 'Invalid profile type' });
+
+    const profile = await Model.findById(profileId);
+    if (!profile) return res.status(404).json({ message: 'Profile not found' });
+    const previousStatus = profile.profile_status;
+    
+    profile.profile_status = newStatus;
+    profile.approved_by = adminId || null;
+    profile.approved_at = new Date();
+    profile.rejection_reason = newStatus === 'rejected' ? reason : null;
+    await profile.save();
+
+    await Users.findByIdAndUpdate(profile.user_id, { profile_approved: newStatus === 'approved' });
+
+    try {
+      await ProfileStatusHistory.create({ profile_id: profileId, profile_type: profileType, old_status: previousStatus, new_status: newStatus, changed_by: adminId || null, reason: reason });
+    } catch(e) {}
+
+    res.json({ message: 'Profile status changed', previousStatus, newStatus });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
 router.get('/pending', async (req, res) => {
   try {
-    const [customerCount] = await db.query('SELECT COUNT(*) as total FROM customer_profiles WHERE profile_status = \'pending\'');
-    const [ownerCount] = await db.query('SELECT COUNT(*) as total FROM owner_profiles WHERE profile_status = \'pending\'');
-    const [brokerCount] = await db.query('SELECT COUNT(*) as total FROM broker_profiles WHERE profile_status = \'pending\'');
+    const customerCount = await CustomerProfiles.countDocuments({ profile_status: 'pending' });
+    const ownerCount = await OwnerProfiles.countDocuments({ profile_status: 'pending' });
+    const brokerCount = await BrokerProfiles.countDocuments({ profile_status: 'pending' });
 
-    const total = parseInt(customerCount[0].total) + parseInt(ownerCount[0].total) + parseInt(brokerCount[0].total);
+    // The frontend actually expects two things from /pending. Sometimes it uses GET /pending for arrays of profiles, sometimes GET /pending for counts. Let's return both to be safe.
     
+    const customers = await CustomerProfiles.aggregate([{ $match: { profile_status: 'pending' } }, { $lookup: { from: 'users', localField: 'user_id', foreignField: '_id', as: 'user' } }, { $unwind: '$user' }, { $addFields: { id: '$_id', profile_type: 'customer', user_name: '$user.name', user_email: '$user.email' } }]);
+    const owners = await OwnerProfiles.aggregate([{ $match: { profile_status: 'pending' } }, { $lookup: { from: 'users', localField: 'user_id', foreignField: '_id', as: 'user' } }, { $unwind: '$user' }, { $addFields: { id: '$_id', profile_type: 'owner', user_name: '$user.name', user_email: '$user.email' } }]);
+    const brokers = await BrokerProfiles.aggregate([{ $match: { profile_status: 'pending' } }, { $lookup: { from: 'users', localField: 'user_id', foreignField: '_id', as: 'user' } }, { $unwind: '$user' }, { $addFields: { id: '$_id', profile_type: 'broker', user_name: '$user.name', user_email: '$user.email' } }]);
+
     res.json({
-      total,
-      breakdown: {
-        customer: customerCount[0].total,
-        owner: ownerCount[0].total,
-        broker: brokerCount[0].total
-      }
+      customers: customers,
+      owners: owners,
+      brokers: brokers,
+      total: customerCount + ownerCount + brokerCount,
+      breakdown: { customer: customerCount, owner: ownerCount, broker: brokerCount }
     });
   } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+});
+
+router.get('/history/:profileType/:profileId', async (req, res) => {
+  try {
+    const history = await ProfileStatusHistory.find({ profile_id: req.params.profileId, profile_type: req.params.profileType }).sort({ createdAt: -1 });
+    res.json(history);
+  } catch (error) {
+    console.error(error);
     res.status(500).json({ message: 'Server error', error: error.message });
   }
 });
 
 module.exports = router;
-
-
-// Get profile status history
-router.get('/history/:profileType/:profileId', async (req, res) => {
-  try {
-    const { profileType, profileId } = req.params;
-
-    const [history] = await db.query(`
-      SELECT psh.*, u.name as changed_by_name
-      FROM profile_status_history psh
-      LEFT JOIN users u ON psh.changed_by = u.id
-      WHERE psh.profile_id = ? AND psh.profile_type = ?
-      ORDER BY psh.changed_at DESC
-    `, [profileId, profileType]);
-
-    res.json(history);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});
-
-// Change profile status (flexible endpoint for any status change)
-router.post('/change-status/:profileType/:profileId', async (req, res) => {
-  try {
-    const { profileType, profileId } = req.params;
-    const { newStatus, adminId, reason } = req.body;
-
-    const validStatuses = ['pending', 'approved', 'rejected', 'suspended'];
-    if (!validStatuses.includes(newStatus)) {
-      return res.status(400).json({ message: 'Invalid status' });
-    }
-
-    let tableName;
-    if (profileType === 'customer') tableName = 'customer_profiles';
-    else if (profileType === 'owner') tableName = 'owner_profiles';
-    else if (profileType === 'broker') tableName = 'broker_profiles';
-    else return res.status(400).json({ message: 'Invalid profile type' });
-
-    // Get user_id and current status
-    const [profiles] = await db.query(`SELECT user_id, profile_status FROM ${tableName} WHERE id = ?`, [profileId]);
-
-    if (profiles.length === 0) {
-      return res.status(404).json({ message: 'Profile not found' });
-    }
-
-    const userId = profiles[0].user_id;
-    const previousStatus = profiles[0].profile_status;
-
-    // Update profile status
-    const rejectionReason = newStatus === 'rejected' ? reason : null;
-    await db.query(
-      `UPDATE ${tableName} SET profile_status = ?, approved_by = ?, approved_at = NOW(), rejection_reason = ? WHERE id = ?`,
-      [newStatus, adminId, rejectionReason, profileId]
-    );
-
-    // Update user table based on new status
-    const isApproved = newStatus === 'approved';
-    await db.query('UPDATE users SET profile_approved = ? WHERE id = ?', [isApproved, userId]);
-
-    // Log the change
-    await db.query(
-      `INSERT INTO profile_status_history (profile_id, profile_type, old_status, new_status, changed_by, reason)
-       VALUES (?, ?, ?, ?, ?, ?)`,
-      [profileId, profileType, previousStatus, newStatus, adminId, reason || `Changed to ${newStatus}`]
-    );
-
-    // Create notification
-    const notificationMessages = {
-      approved: 'Your profile has been approved. You now have full access to all features.',
-      rejected: `Your profile has been rejected. Reason: ${reason || 'See admin for details'}`,
-      suspended: `Your profile has been suspended. Reason: ${reason || 'Contact support for details'}`,
-      pending: 'Your profile status has been changed to pending review.'
-    };
-
-    const notificationTypes = {
-      approved: 'success',
-      rejected: 'error',
-      suspended: 'warning',
-      pending: 'info'
-    };
-
-    await db.query(
-      `INSERT INTO notifications (user_id, title, message, type)
-       VALUES (?, ?, ?, ?)`,
-      [userId, `Profile ${newStatus}`, notificationMessages[newStatus], notificationTypes[newStatus]]
-    );
-
-    res.json({ 
-      message: `Profile status changed successfully`, 
-      previousStatus, 
-      newStatus,
-      userId
-    });
-  } catch (error) {
-    console.error('Change profile status error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
-});

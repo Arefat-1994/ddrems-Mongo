@@ -1,15 +1,23 @@
 const express = require("express");
 const router = express.Router();
-const db = require("../config/db");
+const mongoose = require("mongoose");
+const { RentalPaymentSchedules, Notifications, Properties, Users, AgreementRequests, BrokerEngagements } = require("../models");
 
 // ============================================================================
 // HELPER: Notify user
 // ============================================================================
 async function notifyUser(userId, title, message, type) {
-  await db.query(
-    "INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)",
-    [userId, title, message, type || "info"]
-  );
+  try {
+    await Notifications.create({
+      user_id: userId,
+      title: title,
+      message: message,
+      type: type || "info",
+      created_at: new Date()
+    });
+  } catch (error) {
+    console.error("Error in notifyUser:", error);
+  }
 }
 
 // ============================================================================
@@ -33,15 +41,11 @@ async function generateRentalSchedule({
   const startDate = new Date();
   startDate.setDate(1); // Start from 1st of current month
 
-  // Per user decision: schedule starts from Month 2
-  // Month 1 is the initial payment already handled by the main workflow
   let stepMonths = 1;
   if (paymentSchedule === 'quarterly') stepMonths = 3;
   if (paymentSchedule === 'semi_annual') stepMonths = 6;
   if (paymentSchedule === 'annual' || paymentSchedule === 'yearly') stepMonths = 12;
 
-  // Per user decision: schedule starts from Month 2
-  // Month 1 is the initial payment already handled by the main workflow
   const startMonth = 2;
   let installmentCounter = 1;
 
@@ -49,46 +53,31 @@ async function generateRentalSchedule({
     const dueDate = new Date(startDate);
     dueDate.setMonth(dueDate.getMonth() + currentMonth - 1); 
 
-    // Calculate how many months this installment covers (handles partial periods at the end of the lease)
     const monthsCovered = Math.min(stepMonths, leaseDurationMonths - currentMonth + 1);
     
     const installmentAmount = monthlyRent * monthsCovered;
-    const ownerNet = installmentAmount; // Full amount to owner
+    const ownerNet = installmentAmount; 
 
     scheduleRows.push({
-      installmentNumber: installmentCounter++,
+      agreement_request_id: agreementRequestId || null,
+      broker_engagement_id: brokerEngagementId || null,
+      tenant_id: tenantId,
+      owner_id: ownerId,
+      property_id: propertyId,
+      installment_number: installmentCounter++,
       amount: installmentAmount,
-      dueDate: dueDate.toISOString().split('T')[0],
-      ownerNet: ownerNet,
-      commissionDeducted: false,
-      brokerCommission: 0,
-      systemFee: 0
+      due_date: dueDate,
+      status: 'pending',
+      commission_deducted: false,
+      broker_commission_amount: 0,
+      system_fee_amount: 0,
+      owner_net_amount: ownerNet,
+      created_at: new Date()
     });
   }
 
-  // Insert all rows
-  for (const row of scheduleRows) {
-    await db.query(
-      `INSERT INTO rental_payment_schedules
-         (agreement_request_id, broker_engagement_id, tenant_id, owner_id, property_id,
-          installment_number, amount, due_date, status,
-          commission_deducted, broker_commission_amount, system_fee_amount, owner_net_amount)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending', ?, ?, ?, ?)`,
-      [
-        agreementRequestId || null,
-        brokerEngagementId || null,
-        tenantId,
-        ownerId,
-        propertyId,
-        row.installmentNumber,
-        row.amount,
-        row.dueDate,
-        row.commissionDeducted,
-        row.brokerCommission,
-        row.systemFee,
-        row.ownerNet
-      ]
-    );
+  if (scheduleRows.length > 0) {
+    await RentalPaymentSchedules.insertMany(scheduleRows);
   }
 
   return scheduleRows.length;
@@ -118,22 +107,15 @@ router.post("/generate-schedule", async (req, res) => {
       return res.status(400).json({ success: false, message: "Missing required fields" });
     }
 
-    // Check if schedule already exists for this agreement
     if (agreement_request_id) {
-      const [existing] = await db.query(
-        "SELECT id FROM rental_payment_schedules WHERE agreement_request_id = ? LIMIT 1",
-        [agreement_request_id]
-      );
-      if (existing.length > 0) {
+      const existing = await RentalPaymentSchedules.findOne({ agreement_request_id: agreement_request_id });
+      if (existing) {
         return res.status(400).json({ success: false, message: "Payment schedule already exists for this agreement" });
       }
     }
     if (broker_engagement_id) {
-      const [existing] = await db.query(
-        "SELECT id FROM rental_payment_schedules WHERE broker_engagement_id = ? LIMIT 1",
-        [broker_engagement_id]
-      );
-      if (existing.length > 0) {
+      const existing = await RentalPaymentSchedules.findOne({ broker_engagement_id: broker_engagement_id });
+      if (existing) {
         return res.status(400).json({ success: false, message: "Payment schedule already exists for this engagement" });
       }
     }
@@ -152,11 +134,9 @@ router.post("/generate-schedule", async (req, res) => {
       brokerId: broker_id
     });
 
-    // Notify tenant
     await notifyUser(tenant_id, "📅 Rent Payment Schedule Created",
       `Your rental payment schedule has been set up with ${count} upcoming installments. Check your Rent Payments tab for details.`, "info");
 
-    // Notify owner
     await notifyUser(owner_id, "📅 Rent Schedule Active",
       `A rental payment schedule with ${count} installments has been created for your property.`, "info");
 
@@ -174,25 +154,32 @@ router.post("/generate-schedule", async (req, res) => {
 router.get("/tenant/:tenantId", async (req, res) => {
   try {
     const { tenantId } = req.params;
-    const [payments] = await db.query(
-      `SELECT rps.*, p.title AS property_title, p.location AS property_location,
-              u.name AS owner_name,
-              COALESCE(ar.payment_schedule, be.payment_schedule, 'monthly') AS payment_schedule,
-              COALESCE(ar.rental_duration_months, be.rental_duration_months) AS lease_duration_months
-       FROM rental_payment_schedules rps
-       JOIN properties p ON rps.property_id = p.id
-       JOIN users u ON rps.owner_id = u.id
-       LEFT JOIN agreement_requests ar ON rps.agreement_request_id = ar.id
-       LEFT JOIN broker_engagements be ON rps.broker_engagement_id = be.id
-       WHERE rps.tenant_id = ?
-       ORDER BY rps.due_date ASC`,
-      [tenantId]
-    );
+    if (!mongoose.Types.ObjectId.isValid(tenantId)) return res.status(400).json({ message: 'Invalid Tenant ID' });
 
-    // Group by property
+    const payments = await RentalPaymentSchedules.aggregate([
+      { $match: { tenant_id: new mongoose.Types.ObjectId(tenantId) } },
+      { $lookup: { from: 'properties', localField: 'property_id', foreignField: '_id', as: 'property' } },
+      { $unwind: { path: '$property', preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: 'users', localField: 'owner_id', foreignField: '_id', as: 'owner' } },
+      { $unwind: { path: '$owner', preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: 'agreementrequests', localField: 'agreement_request_id', foreignField: '_id', as: 'agreement' } },
+      { $unwind: { path: '$agreement', preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: 'brokerengagements', localField: 'broker_engagement_id', foreignField: '_id', as: 'engagement' } },
+      { $unwind: { path: '$engagement', preserveNullAndEmptyArrays: true } },
+      { $addFields: {
+        id: '$_id',
+        property_title: '$property.title',
+        property_location: '$property.location',
+        owner_name: '$owner.name',
+        payment_schedule: { $ifNull: ['$agreement.payment_schedule', { $ifNull: ['$engagement.payment_schedule', 'monthly'] }] },
+        lease_duration_months: { $ifNull: ['$agreement.rental_duration_months', '$engagement.rental_duration_months'] }
+      }},
+      { $sort: { due_date: 1 } }
+    ]);
+
     const grouped = {};
     for (const pay of payments) {
-      const key = pay.property_id;
+      const key = pay.property_id.toString();
       if (!grouped[key]) {
         grouped[key] = {
           property_id: pay.property_id,
@@ -221,24 +208,32 @@ router.get("/tenant/:tenantId", async (req, res) => {
 router.get("/owner/:ownerId", async (req, res) => {
   try {
     const { ownerId } = req.params;
-    const [payments] = await db.query(
-      `SELECT rps.*, p.title AS property_title, p.location AS property_location,
-              u.name AS tenant_name,
-              COALESCE(ar.payment_schedule, be.payment_schedule, 'monthly') AS payment_schedule,
-              COALESCE(ar.rental_duration_months, be.rental_duration_months) AS lease_duration_months
-       FROM rental_payment_schedules rps
-       JOIN properties p ON rps.property_id = p.id
-       JOIN users u ON rps.tenant_id = u.id
-       LEFT JOIN agreement_requests ar ON rps.agreement_request_id = ar.id
-       LEFT JOIN broker_engagements be ON rps.broker_engagement_id = be.id
-       WHERE rps.owner_id = ?
-       ORDER BY rps.due_date ASC`,
-      [ownerId]
-    );
+    if (!mongoose.Types.ObjectId.isValid(ownerId)) return res.status(400).json({ message: 'Invalid Owner ID' });
+
+    const payments = await RentalPaymentSchedules.aggregate([
+      { $match: { owner_id: new mongoose.Types.ObjectId(ownerId) } },
+      { $lookup: { from: 'properties', localField: 'property_id', foreignField: '_id', as: 'property' } },
+      { $unwind: { path: '$property', preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: 'users', localField: 'tenant_id', foreignField: '_id', as: 'tenant' } },
+      { $unwind: { path: '$tenant', preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: 'agreementrequests', localField: 'agreement_request_id', foreignField: '_id', as: 'agreement' } },
+      { $unwind: { path: '$agreement', preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: 'brokerengagements', localField: 'broker_engagement_id', foreignField: '_id', as: 'engagement' } },
+      { $unwind: { path: '$engagement', preserveNullAndEmptyArrays: true } },
+      { $addFields: {
+        id: '$_id',
+        property_title: '$property.title',
+        property_location: '$property.location',
+        tenant_name: '$tenant.name',
+        payment_schedule: { $ifNull: ['$agreement.payment_schedule', { $ifNull: ['$engagement.payment_schedule', 'monthly'] }] },
+        lease_duration_months: { $ifNull: ['$agreement.rental_duration_months', '$engagement.rental_duration_months'] }
+      }},
+      { $sort: { due_date: 1 } }
+    ]);
 
     const grouped = {};
     for (const pay of payments) {
-      const key = pay.property_id;
+      const key = pay.property_id.toString();
       if (!grouped[key]) {
         grouped[key] = {
           property_id: pay.property_id,
@@ -266,19 +261,28 @@ router.get("/owner/:ownerId", async (req, res) => {
 // ============================================================================
 router.get("/admin/all", async (req, res) => {
   try {
-    const [payments] = await db.query(
-      `SELECT rps.*, p.title AS property_title, p.location AS property_location,
-              t.name AS tenant_name, o.name AS owner_name,
-              COALESCE(ar.payment_schedule, be.payment_schedule, 'monthly') AS payment_schedule,
-              COALESCE(ar.rental_duration_months, be.rental_duration_months) AS lease_duration_months
-       FROM rental_payment_schedules rps
-       JOIN properties p ON rps.property_id = p.id
-       JOIN users t ON rps.tenant_id = t.id
-       JOIN users o ON rps.owner_id = o.id
-       LEFT JOIN agreement_requests ar ON rps.agreement_request_id = ar.id
-       LEFT JOIN broker_engagements be ON rps.broker_engagement_id = be.id
-       ORDER BY rps.due_date ASC`
-    );
+    const payments = await RentalPaymentSchedules.aggregate([
+      { $lookup: { from: 'properties', localField: 'property_id', foreignField: '_id', as: 'property' } },
+      { $unwind: { path: '$property', preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: 'users', localField: 'tenant_id', foreignField: '_id', as: 'tenant' } },
+      { $unwind: { path: '$tenant', preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: 'users', localField: 'owner_id', foreignField: '_id', as: 'owner' } },
+      { $unwind: { path: '$owner', preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: 'agreementrequests', localField: 'agreement_request_id', foreignField: '_id', as: 'agreement' } },
+      { $unwind: { path: '$agreement', preserveNullAndEmptyArrays: true } },
+      { $lookup: { from: 'brokerengagements', localField: 'broker_engagement_id', foreignField: '_id', as: 'engagement' } },
+      { $unwind: { path: '$engagement', preserveNullAndEmptyArrays: true } },
+      { $addFields: {
+        id: '$_id',
+        property_title: '$property.title',
+        property_location: '$property.location',
+        tenant_name: '$tenant.name',
+        owner_name: '$owner.name',
+        payment_schedule: { $ifNull: ['$agreement.payment_schedule', { $ifNull: ['$engagement.payment_schedule', 'monthly'] }] },
+        lease_duration_months: { $ifNull: ['$agreement.rental_duration_months', '$engagement.rental_duration_months'] }
+      }},
+      { $sort: { due_date: 1 } }
+    ]);
     res.json({ success: true, payments });
   } catch (error) {
     console.error("Error fetching admin payments:", error);
@@ -295,34 +299,55 @@ router.post("/pay/:scheduleId", async (req, res) => {
     const { scheduleId } = req.params;
     const { tenant_id, payment_method, transaction_reference, receipt_url } = req.body;
 
-    const [schedule] = await db.query(
-      "SELECT * FROM rental_payment_schedules WHERE id = ?", [scheduleId]
-    );
-    if (schedule.length === 0) {
+    const sched = await RentalPaymentSchedules.findById(scheduleId);
+    if (!sched) {
       return res.status(404).json({ success: false, message: "Payment schedule not found" });
     }
 
-    const sched = schedule[0];
-    if (sched.tenant_id !== tenant_id) {
+    if (sched.tenant_id.toString() !== tenant_id) {
       return res.status(403).json({ success: false, message: "Unauthorized" });
     }
     if (sched.status === 'paid') {
       return res.status(400).json({ success: false, message: "This installment has already been paid" });
     }
 
-    await db.query(
-      `UPDATE rental_payment_schedules SET
-         status = 'submitted',
-         payment_method = ?,
-         transaction_reference = ?,
-         receipt_url = ?,
-         paid_at = NOW(),
-         updated_at = NOW()
-       WHERE id = ?`,
-      [payment_method, transaction_reference, receipt_url, scheduleId]
-    );
+    let final_receipt_path = receipt_url || null;
+    if (receipt_url && receipt_url.startsWith('data:')) {
+      const fs = require('fs');
+      const path = require('path');
+      try {
+        const parts = receipt_url.split(',');
+        if (parts.length === 2) {
+          const mimeMatch = parts[0].match(/data:(.*?);/);
+          let ext = 'jpg';
+          if (mimeMatch && mimeMatch[1]) {
+             const mimeParts = mimeMatch[1].split('/');
+             ext = mimeParts[1] || 'jpg';
+             if (mimeMatch[1] === 'application/pdf') ext = 'pdf';
+             else if (mimeMatch[1] === 'image/jpeg') ext = 'jpg';
+             else if (mimeMatch[1] === 'image/png') ext = 'png';
+          }
+          const buffer = Buffer.from(parts[1], 'base64');
+          const fileName = `rent_receipt_${sched._id}_${Date.now()}.${ext}`;
+          const dirPath = path.join(__dirname, '../uploads/receipts');
+          if (!fs.existsSync(dirPath)) fs.mkdirSync(dirPath, { recursive: true });
+          const filePath = path.join(dirPath, fileName);
+          fs.writeFileSync(filePath, buffer);
+          final_receipt_path = `/uploads/receipts/${fileName}`;
+        }
+      } catch (err) {
+        console.error("Error saving rent payment receipt file:", err);
+      }
+    }
 
-    // Notify the landlord
+    sched.status = 'submitted';
+    sched.payment_method = payment_method;
+    sched.transaction_reference = transaction_reference;
+    sched.receipt_url = final_receipt_path;
+    sched.paid_at = new Date();
+    sched.updated_at = new Date();
+    await sched.save();
+
     await notifyUser(sched.owner_id, "💰 Rent Payment Submitted",
       `Your tenant has submitted rent payment for installment #${sched.installment_number}. Please verify.`, "warning");
 
@@ -340,53 +365,42 @@ router.post("/pay/:scheduleId", async (req, res) => {
 router.put("/verify/:scheduleId", async (req, res) => {
   try {
     const { scheduleId } = req.params;
-    const { owner_id, decision, notes } = req.body; // decision: 'approve' or 'reject'
+    const { owner_id, decision, notes, is_admin } = req.body; 
 
-    const [schedule] = await db.query(
-      "SELECT * FROM rental_payment_schedules WHERE id = ?", [scheduleId]
-    );
-    if (schedule.length === 0) {
+    const sched = await RentalPaymentSchedules.findById(scheduleId);
+    if (!sched) {
       return res.status(404).json({ success: false, message: "Payment not found" });
     }
 
-    const sched = schedule[0];
-    if (sched.owner_id !== owner_id) {
-      return res.status(403).json({ success: false, message: "Only the landlord can verify payments" });
+    // Allow verification by owner OR admin
+    if (!is_admin && sched.owner_id.toString() !== owner_id) {
+      return res.status(403).json({ success: false, message: "Only the landlord or admin can verify payments" });
     }
     if (sched.status !== 'submitted') {
       return res.status(400).json({ success: false, message: "Payment is not in submitted state. Current: " + sched.status });
     }
 
     if (decision === 'approve') {
-      await db.query(
-        `UPDATE rental_payment_schedules SET
-           status = 'paid',
-           verified_by_id = ?,
-           verified_at = NOW(),
-           verification_notes = ?,
-           updated_at = NOW()
-         WHERE id = ?`,
-        [owner_id, notes || 'Approved', scheduleId]
-      );
+      sched.status = 'paid';
+      sched.verified_by_id = owner_id;
+      sched.verified_at = new Date();
+      sched.verification_notes = notes || 'Approved';
+      sched.updated_at = new Date();
+      await sched.save();
 
       await notifyUser(sched.tenant_id, "✅ Rent Payment Verified",
         `Your rent payment for installment #${sched.installment_number} has been verified by the landlord.`, "success");
 
       res.json({ success: true, message: "Payment verified and marked as paid.", status: "paid" });
     } else {
-      // Reject — reset to pending so tenant can re-submit
-      await db.query(
-        `UPDATE rental_payment_schedules SET
-           status = 'pending',
-           payment_method = NULL,
-           transaction_reference = NULL,
-           receipt_url = NULL,
-           paid_at = NULL,
-           verification_notes = ?,
-           updated_at = NOW()
-         WHERE id = ?`,
-        [notes || 'Rejected by landlord', scheduleId]
-      );
+      sched.status = 'pending';
+      sched.payment_method = undefined;
+      sched.transaction_reference = undefined;
+      sched.receipt_url = undefined;
+      sched.paid_at = undefined;
+      sched.verification_notes = notes || 'Rejected by landlord';
+      sched.updated_at = new Date();
+      await sched.save();
 
       await notifyUser(sched.tenant_id, "❌ Rent Payment Rejected",
         `Your rent payment for installment #${sched.installment_number} was rejected. Reason: ${notes || 'No reason given'}. Please re-submit.`, "error");
@@ -406,10 +420,9 @@ router.put("/verify/:scheduleId", async (req, res) => {
 router.get("/summary/:propertyId", async (req, res) => {
   try {
     const { propertyId } = req.params;
-    const [payments] = await db.query(
-      "SELECT * FROM rental_payment_schedules WHERE property_id = ? ORDER BY due_date ASC",
-      [propertyId]
-    );
+    if (!mongoose.Types.ObjectId.isValid(propertyId)) return res.status(400).json({ message: 'Invalid Property ID' });
+
+    const payments = await RentalPaymentSchedules.find({ property_id: propertyId }).sort({ due_date: 1 }).lean();
 
     const total = payments.length;
     const paid = payments.filter(p => p.status === 'paid').length;
@@ -436,26 +449,23 @@ router.get("/summary/:propertyId", async (req, res) => {
 // ============================================================================
 router.put("/check-overdue", async (req, res) => {
   try {
-    // Find all pending payments with due_date in the past
-    const [overdue] = await db.query(
-      `SELECT rps.*, u.name AS tenant_name
-       FROM rental_payment_schedules rps
-       JOIN users u ON rps.tenant_id = u.id
-       WHERE rps.status = 'pending' AND rps.due_date < CURRENT_DATE`
-    );
+    const today = new Date();
+    const overduePayments = await RentalPaymentSchedules.find({
+      status: 'pending',
+      due_date: { $lt: today }
+    }).populate('tenant_id', 'name');
 
     let updated = 0;
-    for (const payment of overdue) {
-      await db.query(
-        "UPDATE rental_payment_schedules SET status = 'overdue', updated_at = NOW() WHERE id = ?",
-        [payment.id]
-      );
+    for (const payment of overduePayments) {
+      payment.status = 'overdue';
+      payment.updated_at = new Date();
+      await payment.save();
 
-      await notifyUser(payment.tenant_id, "⚠️ Rent Payment Overdue",
+      await notifyUser(payment.tenant_id._id, "⚠️ Rent Payment Overdue",
         `Your rent payment of ${Number(payment.amount).toLocaleString()} ETB (installment #${payment.installment_number}) is overdue. Please submit payment immediately.`, "error");
 
       await notifyUser(payment.owner_id, "⚠️ Overdue Rent Payment",
-        `Tenant ${payment.tenant_name}'s rent payment (installment #${payment.installment_number}) is now overdue.`, "warning");
+        `Tenant ${payment.tenant_id.name}'s rent payment (installment #${payment.installment_number}) is now overdue.`, "warning");
 
       updated++;
     }

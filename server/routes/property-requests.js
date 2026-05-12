@@ -1,146 +1,92 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/db');
+const mongoose = require('mongoose');
+const { PropertyRequests, Properties, Users, Notifications } = require('../models');
 
-// Get broker's property requests
 router.get('/broker/:brokerId', async (req, res) => {
   try {
-    const [requests] = await db.query(`
-      SELECT pr.*, 
-             p.title as property_title, 
-             p.location as property_location, 
-             p.price as property_price,
-             p.main_image as property_image,
-             owner.name as owner_name
-      FROM property_requests pr
-      JOIN properties p ON pr.property_id = p.id
-      LEFT JOIN users owner ON pr.owner_id = owner.id
-      WHERE pr.broker_id = ?
-      ORDER BY pr.created_at DESC
-    `, [req.params.brokerId]);
-
+    if (!mongoose.Types.ObjectId.isValid(req.params.brokerId)) return res.json([]);
+    const requests = await PropertyRequests.aggregate([
+      { $match: { broker_id: new mongoose.Types.ObjectId(req.params.brokerId) } },
+      { $lookup: { from: 'properties', localField: 'property_id', foreignField: '_id', as: 'property' } },
+      { $unwind: { path: '$property', preserveNullAndEmptyArrays: true } },
+      { $addFields: { id: '$_id', property_title: '$property.title' } },
+      { $sort: { created_at: -1 } }
+    ]);
     res.json(requests);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
-// Get owner's property requests
 router.get('/owner/:ownerId', async (req, res) => {
   try {
-    const [requests] = await db.query(`
-      SELECT pr.*, 
-             p.title as property_title, 
-             p.location as property_location, 
-             p.price as property_price,
-             broker.name as broker_name,
-             broker.email as broker_email
-      FROM property_requests pr
-      JOIN properties p ON pr.property_id = p.id
-      JOIN users broker ON pr.broker_id = broker.id
-      WHERE pr.owner_id = ? AND pr.status = 'pending'
-      ORDER BY pr.created_at DESC
-    `, [req.params.ownerId]);
-
+    if (!mongoose.Types.ObjectId.isValid(req.params.ownerId)) return res.json([]);
+    const requests = await PropertyRequests.aggregate([
+      { $match: { owner_id: new mongoose.Types.ObjectId(req.params.ownerId) } },
+      { $lookup: { from: 'properties', localField: 'property_id', foreignField: '_id', as: 'property' } },
+      { $lookup: { from: 'users', localField: 'broker_id', foreignField: '_id', as: 'broker' } },
+      { $unwind: { path: '$property', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$broker', preserveNullAndEmptyArrays: true } },
+      { $addFields: { id: '$_id', property_title: '$property.title', broker_name: '$broker.name' } },
+      { $sort: { created_at: -1 } }
+    ]);
     res.json(requests);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
-// Create property request
 router.post('/', async (req, res) => {
   try {
-    const { property_id, broker_id, request_type, request_message } = req.body;
-
-    // Get property owner
-    const [properties] = await db.query(
-      'SELECT owner_id FROM properties WHERE id = ?',
-      [property_id]
-    );
-
-    if (properties.length === 0) {
-      return res.status(404).json({ message: 'Property not found' });
-    }
-
-    const ownerId = properties[0].owner_id;
-
-    // Check if request already exists
-    const [existing] = await db.query(
-      'SELECT * FROM property_requests WHERE property_id = ? AND broker_id = ? AND status = \'pending\'',
-      [property_id, broker_id]
-    );
-
-    if (existing.length > 0) {
-      return res.status(400).json({ message: 'You already have a pending request for this property' });
-    }
-
-    const [result] = await db.query(
-      `INSERT INTO property_requests (property_id, broker_id, owner_id, request_type, request_message, status)
-       VALUES (?, ?, ?, ?, ?, 'pending')`,
-      [property_id, broker_id, ownerId, request_type, request_message]
-    );
-
-    // Create notification for owner
-    if (ownerId) {
-      await db.query(
-        `INSERT INTO notifications (user_id, title, message, type, related_id)
-         VALUES (?, 'New Property Request', 'A broker has sent you a property request', 'info', ?)`,
-        [ownerId, result.insertId]
-      );
-    }
-
-    res.status(201).json({
-      message: 'Property request sent successfully',
-      requestId: result.insertId
+    const { property_id, broker_id, owner_id, request_type, request_message } = req.body;
+    
+    const newReq = await PropertyRequests.create({
+      property_id,
+      broker_id,
+      owner_id,
+      request_type,
+      request_message,
+      status: 'pending',
+      created_at: new Date()
     });
-  } catch (error) {
-    console.error('Create property request error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+
+    if (owner_id) {
+      await Notifications.create({
+        user_id: owner_id,
+        type: 'property_request',
+        message: 'A broker has requested to manage your property.',
+        created_at: new Date(),
+        is_read: false
+      });
+    }
+
+    res.json({ message: 'Success', success: true, id: newReq._id });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
-// Respond to property request
 router.put('/:id/respond', async (req, res) => {
   try {
     const { status, response_message } = req.body;
+    const request = await PropertyRequests.findByIdAndUpdate(req.params.id, {
+      status,
+      response_message,
+      responded_at: new Date(),
+      updated_at: new Date()
+    });
 
-    if (!['accepted', 'rejected'].includes(status)) {
-      return res.status(400).json({ message: 'Invalid status' });
+    if (request && request.broker_id) {
+      await Notifications.create({
+        user_id: request.broker_id,
+        type: 'request_response',
+        message: status === 'approved' ? 'Your property request was approved.' : 'Your property request was rejected.',
+        created_at: new Date(),
+        is_read: false
+      });
+
+      if (status === 'approved' && request.property_id) {
+        await Properties.findByIdAndUpdate(request.property_id, { broker_id: request.broker_id });
+      }
     }
 
-    // Get request details
-    const [requests] = await db.query(
-      'SELECT * FROM property_requests WHERE id = ?',
-      [req.params.id]
-    );
-
-    if (requests.length === 0) {
-      return res.status(404).json({ message: 'Request not found' });
-    }
-
-    const request = requests[0];
-
-    // Update request
-    await db.query(
-      `UPDATE property_requests 
-       SET status = ?, response_message = ?, responded_at = NOW()
-       WHERE id = ?`,
-      [status, response_message, req.params.id]
-    );
-
-    // Create notification for broker
-    await db.query(
-      `INSERT INTO notifications (user_id, title, message, type)
-       VALUES (?, 'Property Request ${status === 'accepted' ? 'Accepted' : 'Rejected'}', ?, '${status === 'accepted' ? 'success' : 'error'}')`,
-      [request.broker_id, response_message || `Your property request has been ${status}`]
-    );
-
-    res.json({ message: `Request ${status} successfully` });
-  } catch (error) {
-    console.error('Respond to request error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+    res.json({ message: 'Updated', success: true });
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
 module.exports = router;

@@ -18,11 +18,11 @@ const AdminProfileApproval = ({ user, onLogout }) => {
   const fetchProfiles = async () => {
     try {
       setLoading(true);
-      // This would fetch from a backend endpoint
-      // For now, we'll show a placeholder
-      setPendingProfiles([]);
-      setApprovedProfiles([]);
-      setRejectedProfiles([]);
+      const API_BASE = `http://${window.location.hostname}:5000/api`;
+      const response = await axios.get(`${API_BASE}/profile-approval/all`);
+      setPendingProfiles(response.data.pending || []);
+      setApprovedProfiles(response.data.approved || []);
+      setRejectedProfiles(response.data.rejected || []);
     } catch (error) {
       console.error('Error fetching profiles:', error);
       setMessage('❌ Error loading profiles');
@@ -33,7 +33,8 @@ const AdminProfileApproval = ({ user, onLogout }) => {
 
   const handleApproveProfile = async (userId) => {
     try {
-      // Call backend to approve profile
+      const API_BASE = `http://${window.location.hostname}:5000/api`;
+      await axios.post(`${API_BASE}/profile-approval/${userId}/approve`);
       setMessage('✅ Profile approved successfully!');
       setTimeout(() => setMessage(''), 3000);
       fetchProfiles();
@@ -44,7 +45,8 @@ const AdminProfileApproval = ({ user, onLogout }) => {
 
   const handleRejectProfile = async (userId) => {
     try {
-      // Call backend to reject profile
+      const API_BASE = `http://${window.location.hostname}:5000/api`;
+      await axios.post(`${API_BASE}/profile-approval/${userId}/reject`);
       setMessage('✅ Profile rejected');
       setTimeout(() => setMessage(''), 3000);
       fetchProfiles();
@@ -134,18 +136,44 @@ const AdminProfileApproval = ({ user, onLogout }) => {
                     No pending profiles
                   </div>
                 )}
+                {activeTab === 'pending' && pendingProfiles.map(p => (
+                  <div key={p.id} style={{ padding: '15px', border: '1px solid #ddd', borderRadius: '8px', marginBottom: '10px', background: '#fff' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <div>
+                        <strong>{p.name}</strong> ({p.role})<br/>
+                        <span style={{ fontSize: '14px', color: '#666' }}>{p.email} • {p.phone || 'No phone'}</span>
+                      </div>
+                      <div>
+                        <button onClick={() => handleApproveProfile(p.id)} style={{ background: '#10b981', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer', marginRight: '5px' }}>Approve</button>
+                        <button onClick={() => handleRejectProfile(p.id)} style={{ background: '#ef4444', color: 'white', border: 'none', padding: '8px 12px', borderRadius: '4px', cursor: 'pointer' }}>Reject</button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
 
                 {activeTab === 'approved' && approvedProfiles.length === 0 && (
                   <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
                     No approved profiles
                   </div>
                 )}
+                {activeTab === 'approved' && approvedProfiles.map(p => (
+                  <div key={p.id} style={{ padding: '15px', border: '1px solid #ddd', borderRadius: '8px', marginBottom: '10px', background: '#f0fdf4' }}>
+                    <strong>{p.name}</strong> ({p.role})<br/>
+                    <span style={{ fontSize: '14px', color: '#666' }}>{p.email} • {p.phone || 'No phone'}</span>
+                  </div>
+                ))}
 
                 {activeTab === 'rejected' && rejectedProfiles.length === 0 && (
                   <div style={{ textAlign: 'center', padding: '40px', color: '#999' }}>
                     No rejected profiles
                   </div>
                 )}
+                {activeTab === 'rejected' && rejectedProfiles.map(p => (
+                  <div key={p.id} style={{ padding: '15px', border: '1px solid #ddd', borderRadius: '8px', marginBottom: '10px', background: '#fef2f2' }}>
+                    <strong>{p.name}</strong> ({p.role})<br/>
+                    <span style={{ fontSize: '14px', color: '#666' }}>{p.email} • {p.phone || 'No phone'}</span>
+                  </div>
+                ))}
               </>
             )}
           </div>

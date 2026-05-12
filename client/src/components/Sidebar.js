@@ -60,7 +60,6 @@ const Sidebar = ({
         ...baseItems,
         { id: "properties", icon: "🏠", label: "My Properties" },
         { id: "browse-properties", icon: "🔍", label: "Browse Properties" },
-        { id: "key-requests", icon: "🔐", label: "Key Access" },
         { id: "requests", icon: "📩", label: "Requests" },
         { id: "commission", icon: "💰", label: "Commission" },
         { id: "broker-engagement", icon: "💼", label: "Engagement Center" },
@@ -81,12 +80,11 @@ const Sidebar = ({
         { id: "broker-engagement", icon: "🤝", label: "Broker Engagement" },
         { id: "broker-holds", icon: "⏱️", label: "Booked Lists" },
         { id: "rent-payments", icon: "🏠", label: "Rent Payments" },
-        { id: "key-requests", icon: "🔐", label: "Access Key Requests" },
         { id: "documents", icon: "📄", label: "Document Verification" },
         { id: "transactions", icon: "💳", label: "Transactions" },
         { id: "reports", icon: "📊", label: "Reports" },
         { id: "announcements", icon: "📢", label: "Announcements" },
-        { id: "mpesa", icon: "📱", label: "M-Pesa Dashboard" },
+        { id: "chapa", icon: "💳", label: "Chapa Dashboard" },
       ];
     }
 
@@ -122,11 +120,10 @@ const Sidebar = ({
         { id: "bookings", icon: "⏱️", label: "My Booked Lists" },
         { id: "broker-engagement", icon: "🤝", label: "Broker Engagement" },
         { id: "agreement-workflow", icon: "🤝", label: "Agreements Workflow" },
-        { id: "key-requests", icon: "🔐", label: "Key Access" },
         { id: "announcements", icon: "📢", label: "Announcements" },
         { id: "rent-payments", icon: "🏠", label: "Rent Payments" },
         { id: "messages", icon: "📧", label: "Messages" },
-        { id: "mpesa", icon: "📱", label: "M-Pesa Payments" },
+        { id: "chapa", icon: "💳", label: "Chapa Payments" },
         { id: "complaints", icon: "📋", label: "Complaints" },
         { id: "profile", icon: "👤", label: "Profile" },
       ];

@@ -69,13 +69,13 @@ const UserSettingsEnhanced = ({ user, onLogout, onRefreshUser }) => {
       console.log('Fetching settings for user:', user.id);
       
       // Fetch user preferences
-      const prefsResponse = await axios.get(`/api/user-settings/${user.id}`);
+      const prefsResponse = await axios.get(`http://${window.location.hostname}:5000/api/user-settings/${user.id}`);
       console.log('Settings loaded:', prefsResponse.data);
       setPreferences(prefsResponse.data);
       
       // Fetch 2FA settings
       try {
-        const twoFAResponse = await axios.get(`/api/user-settings/${user.id}/two-factor`);
+        const twoFAResponse = await axios.get(`http://${window.location.hostname}:5000/api/user-settings/${user.id}/two-factor`);
         console.log('2FA Settings loaded:', twoFAResponse.data);
         setTwoFactorSettings(twoFAResponse.data);
       } catch (err) {
@@ -136,7 +136,7 @@ const UserSettingsEnhanced = ({ user, onLogout, onRefreshUser }) => {
   const fetchActivityLogs = async () => {
     try {
       setLogsLoading(true);
-      const response = await axios.get(`/api/user-settings/${user.id}/activity-logs`);
+      const response = await axios.get(`http://${window.location.hostname}:5000/api/user-settings/${user.id}/activity-logs`);
       setActivityLogs(response.data);
     } catch (error) {
       console.error('Error fetching activity logs:', error);
@@ -148,7 +148,7 @@ const UserSettingsEnhanced = ({ user, onLogout, onRefreshUser }) => {
   const fetchActiveSessions = async () => {
     try {
       setSessionsLoading(true);
-      const response = await axios.get(`/api/user-settings/${user.id}/sessions`);
+      const response = await axios.get(`http://${window.location.hostname}:5000/api/user-settings/${user.id}/sessions`);
       setActiveSessions(response.data);
     } catch (error) {
       console.error('Error fetching active sessions:', error);
@@ -159,7 +159,7 @@ const UserSettingsEnhanced = ({ user, onLogout, onRefreshUser }) => {
 
   const handleTerminateSession = async (sessionId) => {
     try {
-      await axios.delete(`/api/user-settings/${user.id}/sessions/${sessionId}`);
+      await axios.delete(`http://${window.location.hostname}:5000/api/user-settings/${user.id}/sessions/${sessionId}`);
       fetchActiveSessions();
       setMessage('✅ Session terminated successfully');
     } catch (error) {
@@ -169,7 +169,7 @@ const UserSettingsEnhanced = ({ user, onLogout, onRefreshUser }) => {
 
   const handleTerminateAllOtherSessions = async () => {
     try {
-      await axios.delete(`/api/user-settings/${user.id}/sessions`);
+      await axios.delete(`http://${window.location.hostname}:5000/api/user-settings/${user.id}/sessions`);
       fetchActiveSessions();
       setMessage('✅ All other sessions terminated');
     } catch (error) {
@@ -179,7 +179,7 @@ const UserSettingsEnhanced = ({ user, onLogout, onRefreshUser }) => {
 
   const handleGlobalCloseSessions = async () => {
     try {
-      await axios.post('/api/system/sessions/close-all', {}, { headers: { 'x-user-role': user.role } });
+      await axios.post(`http://${window.location.hostname}:5000/api/system/sessions/close-all`, {}, { headers: { 'x-user-role': user.role } });
       setMessage('✅ ALL platform sessions closed recursively');
     } catch (error) {
       setMessage('❌ Error closing all sessions');
@@ -213,11 +213,11 @@ const UserSettingsEnhanced = ({ user, onLogout, onRefreshUser }) => {
       console.log('Saving settings for user:', user.id);
       
       // Save preferences
-      await axios.post(`/api/user-settings/${user.id}`, preferences);
+      await axios.post(`http://${window.location.hostname}:5000/api/user-settings/${user.id}`, preferences);
       
       // Save 2FA settings
       if (twoFactorSettings) {
-        await axios.post(`/api/user-settings/${user.id}/two-factor`, twoFactorSettings);
+        await axios.post(`http://${window.location.hostname}:5000/api/user-settings/${user.id}/two-factor`, twoFactorSettings);
       }
       
       setMessage('✅ Settings saved successfully!');
@@ -402,7 +402,7 @@ const UserSettingsEnhanced = ({ user, onLogout, onRefreshUser }) => {
         }
         
         // Verify OTP
-        const response = await axios.post(`/api/user-settings/${user.id}/verify-otp`, {
+        const response = await axios.post(`http://${window.location.hostname}:5000/api/user-settings/${user.id}/verify-otp`, {
           otpCode: otpCode,
           generatedOTP: generatedOTP
         });
@@ -430,7 +430,7 @@ const UserSettingsEnhanced = ({ user, onLogout, onRefreshUser }) => {
         }
         
         // Save password-based 2FA
-        await axios.post(`/api/user-settings/${user.id}/setup-password-2fa`, {
+        await axios.post(`http://${window.location.hostname}:5000/api/user-settings/${user.id}/setup-password-2fa`, {
           securityPassword: securityPassword
         });
         
@@ -453,7 +453,7 @@ const UserSettingsEnhanced = ({ user, onLogout, onRefreshUser }) => {
     try {
       setSaving(true);
       
-      await axios.post(`/api/user-settings/${user.id}/disable-2fa`, {});
+      await axios.post(`http://${window.location.hostname}:5000/api/user-settings/${user.id}/disable-2fa`, {});
       
       handleTwoFactorChange('twoFactorEnabled', false);
       setMessage('✅ Two-Factor Authentication disabled');
@@ -565,6 +565,7 @@ const UserSettingsEnhanced = ({ user, onLogout, onRefreshUser }) => {
             <button className={`tab-btn-image ${activeTab === 'profile' ? 'active' : ''}`} onClick={() => setActiveTab('profile')}>👤 Profile</button>
             <button className={`tab-btn-image ${activeTab === 'activity' ? 'active' : ''}`} onClick={() => setActiveTab('activity')}>📈 Activity</button>
             <button className={`tab-btn-image ${activeTab === 'sessions' ? 'active' : ''}`} onClick={() => setActiveTab('sessions')}>📱 Sessions</button>
+            <button className={`tab-btn-image ${activeTab === 'idle-timeout' ? 'active' : ''}`} onClick={() => setActiveTab('idle-timeout')}>⏱️ Idle Timeout</button>
             {(user.role === 'system_admin' || user.role === 'property_admin') && (
               <button className={`tab-btn-image ${activeTab === 'system' ? 'active' : ''}`} onClick={() => setActiveTab('system')}>
                 🖥️ System <span className="expand-icon">⤤</span>
@@ -1193,6 +1194,86 @@ const UserSettingsEnhanced = ({ user, onLogout, onRefreshUser }) => {
             </div>
           )}
 
+          {/* Idle Timeout Tab */}
+          {activeTab === 'idle-timeout' && (
+            <div className="tab-content">
+              <h2>⏱️ Session Idle Timeout</h2>
+              {['system_admin', 'property_admin'].includes(user?.role) ? (
+                <div style={{ background: 'rgba(16,185,129,0.08)', borderRadius: '12px', padding: '24px', border: '1px solid rgba(16,185,129,0.2)', textAlign: 'center' }}>
+                  <div style={{ fontSize: '48px', marginBottom: '12px' }}>🛡️</div>
+                  <h3 style={{ color: '#059669', margin: '0 0 8px' }}>You Are Exempt</h3>
+                  <p style={{ color: '#64748b', margin: 0 }}>As a <strong>{user.role === 'system_admin' ? 'System Admin' : 'Property Admin'}</strong>, your session will never auto-expire due to inactivity.</p>
+                </div>
+              ) : (
+                <>
+                  <p className="help-text">Choose how long your session stays active when you're not interacting with the system. After the idle period, you'll be prompted to stay logged in or will be automatically logged out for security.</p>
+
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))', gap: '12px', marginTop: '20px' }}>
+                    {[
+                      { value: 5, label: '5 Minutes', desc: 'Default - Most Secure', icon: '🔒' },
+                      { value: 10, label: '10 Minutes', desc: 'Short Break', icon: '☕' },
+                      { value: 20, label: '20 Minutes', desc: 'Medium Break', icon: '📖' },
+                      { value: 30, label: '30 Minutes', desc: 'Extended Break', icon: '🍽️' },
+                      { value: 60, label: '1 Hour', desc: 'Long Session', icon: '⏳' },
+                    ].map(opt => {
+                      const isSelected = (preferences?.idleTimeout || preferences?.idle_timeout || 5) === opt.value;
+                      return (
+                        <div
+                          key={opt.value}
+                          onClick={() => handlePreferenceChange('idleTimeout', opt.value)}
+                          style={{
+                            padding: '20px 16px', borderRadius: '14px', cursor: 'pointer',
+                            textAlign: 'center', transition: 'all 0.3s ease',
+                            background: isSelected ? 'linear-gradient(135deg, #4f46e5, #6366f1)' : '#f8fafc',
+                            color: isSelected ? '#fff' : '#1e293b',
+                            border: isSelected ? '2px solid #4f46e5' : '2px solid #e2e8f0',
+                            boxShadow: isSelected ? '0 8px 25px rgba(79,70,229,0.3)' : '0 2px 8px rgba(0,0,0,0.04)',
+                            transform: isSelected ? 'scale(1.02)' : 'scale(1)',
+                          }}
+                        >
+                          <div style={{ fontSize: '28px', marginBottom: '8px' }}>{opt.icon}</div>
+                          <div style={{ fontSize: '16px', fontWeight: 700, marginBottom: '4px' }}>{opt.label}</div>
+                          <div style={{ fontSize: '11px', opacity: 0.7 }}>{opt.desc}</div>
+                          {opt.value === 5 && (
+                            <div style={{
+                              marginTop: '8px', fontSize: '10px', fontWeight: 700,
+                              padding: '2px 8px', borderRadius: '8px',
+                              background: isSelected ? 'rgba(255,255,255,0.2)' : 'rgba(79,70,229,0.1)',
+                              color: isSelected ? '#fff' : '#4f46e5',
+                              display: 'inline-block',
+                            }}>DEFAULT</div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  <div style={{ marginTop: '24px', background: 'rgba(245,158,11,0.08)', borderRadius: '12px', padding: '16px', border: '1px solid rgba(245,158,11,0.2)' }}>
+                    <p style={{ margin: 0, fontSize: '13px', color: '#92400e' }}>
+                      ⚠️ <strong>Security Note:</strong> A shorter idle timeout provides better security by automatically logging you out when you're away. Choose a longer timeout only if you frequently step away for short periods.
+                    </p>
+                  </div>
+
+                  <div style={{ marginTop: '16px', textAlign: 'center' }}>
+                    <button
+                      onClick={handleSave}
+                      disabled={saving}
+                      style={{
+                        padding: '12px 32px', borderRadius: '12px', border: 'none',
+                        background: saving ? '#94a3b8' : 'linear-gradient(135deg, #4f46e5, #6366f1)',
+                        color: '#fff', fontWeight: 700, fontSize: '14px',
+                        cursor: saving ? 'not-allowed' : 'pointer',
+                        boxShadow: '0 4px 15px rgba(79,70,229,0.3)',
+                      }}
+                    >
+                      {saving ? '⏳ Saving...' : '💾 Save Idle Timeout'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
           {/* System Management Tab */}
           {activeTab === 'system' && (user.role === 'system_admin' || user.role === 'property_admin') && (
             <div className="tab-content">
@@ -1235,12 +1316,12 @@ const UserSettingsEnhanced = ({ user, onLogout, onRefreshUser }) => {
                     <div className="action-buttons">
                       <button className="restart-btn" onClick={() => {
                         if(window.confirm('Are you sure you want to RESTART the system?')) {
-                          axios.post('/api/system/restart', {}, { headers: { 'x-user-role': user.role } });
+                          axios.post(`http://${window.location.hostname}:5000/api/system/restart`, {}, { headers: { 'x-user-role': user.role } });
                         }
                       }}>🔄 Restart System</button>
                       <button className="shutdown-btn" onClick={() => {
                         if(window.confirm('Are you sure you want to SHUTDOWN the system? This will stop all services.')) {
-                          axios.post('/api/system/shutdown', {}, { headers: { 'x-user-role': user.role } });
+                          axios.post(`http://${window.location.hostname}:5000/api/system/shutdown`, {}, { headers: { 'x-user-role': user.role } });
                         }
                       }}>🛑 Shutdown System</button>
                       <button className="close-all-sessions-btn" onClick={() => {

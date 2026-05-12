@@ -37,23 +37,71 @@ const LoginForm = ({ onLogin, onShowRegister, onBackToLanding }) => {
   const [resetError, setResetError] = useState('');
   const [resetLoading, setResetLoading] = useState(false);
 
+  // Security lockout states
+  const [isLocked, setIsLocked] = useState(false);
+  const [lockCountdown, setLockCountdown] = useState(0);
+  const [isBanned, setIsBanned] = useState(false);
+  const [isSuspicious, setIsSuspicious] = useState(false);
+  const [attemptCount, setAttemptCount] = useState(0);
+
+  // Lockout countdown timer
+  React.useEffect(() => {
+    if (lockCountdown <= 0) {
+      setIsLocked(false);
+      return;
+    }
+    const timer = setInterval(() => {
+      setLockCountdown(prev => {
+        if (prev <= 1) {
+          setIsLocked(false);
+          setError('');
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [lockCountdown]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    if (isLocked || isBanned) return;
     setError('');
     setLoading(true);
 
     try {
-      const response = await axios.post('http://localhost:5000/api/auth/login', {
+      const response = await axios.post(`http://${window.location.hostname}:5000/api/auth/login`, {
         email,
         password
       });
       
+      // Success — reset everything
+      setAttemptCount(0);
+      setIsLocked(false);
+      setIsSuspicious(false);
+      setIsBanned(false);
       onLogin(response.data.token, response.data.user);
     } catch (err) {
-      if (err.response?.status === 403) {
-        setError('⏳ ' + (err.response?.data?.message || 'Your account is pending activation.'));
-      } else if (err.response?.status === 401) {
-        setError('❌ ' + (err.response?.data?.message || 'Invalid email or password.'));
+      const data = err.response?.data;
+      const status = err.response?.status;
+
+      if (data?.attempts) setAttemptCount(data.attempts);
+
+      if (status === 429 && data?.locked) {
+        // Locked out
+        setIsLocked(true);
+        setLockCountdown(data.remaining_seconds || 60);
+        setError(`🔒 ${data.message}`);
+      } else if (data?.banned) {
+        setIsBanned(true);
+        setError(`🛑 ${data.message}`);
+      } else if (data?.suspicious) {
+        setIsSuspicious(true);
+        setError(`🚨 ${data.message}`);
+      } else if (status === 403) {
+        setError('⏳ ' + (data?.message || 'Your account is pending activation.'));
+      } else if (status === 401) {
+        setError('❌ ' + (data?.message || 'Invalid email or password.'));
       } else {
         setError('⚠️ Login failed. Please check your connection and try again.');
       }
@@ -71,12 +119,12 @@ const LoginForm = ({ onLogin, onShowRegister, onBackToLanding }) => {
     try {
       if (resetStep === 1) {
         // Request OTP
-        const res = await axios.post('http://localhost:5000/api/auth/forgot-password', { email: resetEmail });
+        const res = await axios.post(`http://${window.location.hostname}:5000/api/auth/forgot-password`, { email: resetEmail });
         setResetMessage(res.data.message);
         setResetStep(2);
       } else {
         // Verify OTP
-        const res = await axios.post('http://localhost:5000/api/auth/verify-otp', { email: resetEmail, otp: otpCode });
+        const res = await axios.post(`http://${window.location.hostname}:5000/api/auth/verify-otp`, { email: resetEmail, otp: otpCode });
         setResetMessage(res.data.message);
         setTimeout(() => {
           setShowForgotModal(false);
@@ -137,10 +185,13 @@ const LoginForm = ({ onLogin, onShowRegister, onBackToLanding }) => {
             <label>Email Address</label>
             <input
               type="email"
+              name="email"
+              autoComplete="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="admin@ddrems.com"
               required
+              disabled={isLocked || isBanned}
             />
           </div>
 
@@ -158,10 +209,13 @@ const LoginForm = ({ onLogin, onShowRegister, onBackToLanding }) => {
             <div style={{ position: 'relative' }}>
               <input
                 type={showPassword ? "text" : "password"}
+                name="password"
+                autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 placeholder="Enter your password"
                 required
+                disabled={isLocked || isBanned}
                 style={{ width: '100%', paddingRight: '40px' }}
               />
               <button 
@@ -185,8 +239,16 @@ const LoginForm = ({ onLogin, onShowRegister, onBackToLanding }) => {
             </div>
           </div>
 
-          <button type="submit" className="login-btn" disabled={loading}>
-            {loading ? 'Logging in...' : 'Login'}
+          <button 
+            type="submit" 
+            className="login-btn" 
+            disabled={loading || isLocked || isBanned}
+            style={{ 
+              opacity: (isLocked || isBanned) ? 0.6 : 1, 
+              cursor: (isLocked || isBanned) ? 'not-allowed' : 'pointer' 
+            }}
+          >
+            {loading ? 'Logging in...' : isLocked ? `Locked (${lockCountdown}s)` : isBanned ? 'Account Banned' : 'Login'}
           </button>
         </form>
 

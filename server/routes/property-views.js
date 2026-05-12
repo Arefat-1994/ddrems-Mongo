@@ -1,59 +1,41 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/db');
+const mongoose = require('mongoose');
+const { PropertyViews, Properties } = require('../models');
 
-// Record a property view
 router.post('/', async (req, res) => {
   try {
     const { user_id, property_id } = req.body;
-    await db.query(
-      'INSERT INTO property_views (user_id, property_id) VALUES (?, ?)',
-      [user_id, property_id]
-    );
+    await PropertyViews.create({ user_id, property_id });
     res.json({ message: 'View recorded' });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
-// Get recent views for a customer
 router.get('/user/:userId', async (req, res) => {
   try {
-    const { userId } = req.params;
-    const [views] = await db.query(`
-      SELECT v.*, p.title as property_title, p.location as property_location, p.price as property_price, (
-        SELECT image_url FROM property_images WHERE property_id = p.id LIMIT 1
-      ) as main_image
-      FROM property_views v
-      JOIN properties p ON v.property_id = p.id
-      WHERE v.user_id = ?
-      ORDER BY v.viewed_at DESC
-      LIMIT 10
-    `, [userId]);
+    if (!mongoose.Types.ObjectId.isValid(req.params.userId)) return res.json([]);
+    const views = await PropertyViews.aggregate([
+      { $match: { user_id: new mongoose.Types.ObjectId(req.params.userId) } },
+      { $lookup: { from: 'properties', localField: 'property_id', foreignField: '_id', as: 'property' } },
+      { $unwind: '$property' },
+      { $addFields: { id: '$_id', property_title: '$property.title', property_location: '$property.location', property_price: '$property.price', main_image: '$property.main_image' } },
+      { $sort: { viewed_at: -1 } },
+      { $limit: 10 }
+    ]);
     res.json(views);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
-// Get most viewed properties (recommendations)
 router.get('/recommendations', async (req, res) => {
   try {
-    const [recommendations] = await db.query(`
-      SELECT p.*, COUNT(v.id) as view_count, (
-        SELECT image_url FROM property_images WHERE property_id = p.id LIMIT 1
-      ) as main_image
-      FROM properties p
-      LEFT JOIN property_views v ON p.id = v.property_id
-      WHERE p.status = 'active'
-      GROUP BY p.id
-      ORDER BY view_count DESC
-      LIMIT 8
-    `);
+    const recommendations = await Properties.aggregate([
+      { $match: { status: 'active' } },
+      { $addFields: { id: '$_id' } },
+      { $sort: { views: -1 } },
+      { $limit: 8 }
+    ]);
     res.json(recommendations);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
 module.exports = router;

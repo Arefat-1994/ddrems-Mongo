@@ -49,9 +49,9 @@ const CommissionTracking = ({ user, onLogout, onSettingsClick, onBack }) => {
     try {
       // Fetch real commission records
       const [commRes, summaryRes, engRes] = await Promise.all([
-        axios.get(`http://localhost:5000/api/commissions/broker/${user.id}`).catch(() => ({ data: [] })),
-        axios.get(`http://localhost:5000/api/commissions/broker/${user.id}/summary`).catch(() => ({ data: {} })),
-        axios.get(`http://localhost:5000/api/commissions/broker/${user.id}/engagements`).catch(() => ({ data: { engagements: [] } }))
+        axios.get(`http://${window.location.hostname}:5000/api/commissions/broker/${user.id}`).catch(() => ({ data: [] })),
+        axios.get(`http://${window.location.hostname}:5000/api/commissions/broker/${user.id}/summary`).catch(() => ({ data: {} })),
+        axios.get(`http://${window.location.hostname}:5000/api/commissions/broker/${user.id}/engagements`).catch(() => ({ data: { engagements: [] } }))
       ]);
 
       setCommissions(Array.isArray(commRes.data) ? commRes.data : []);

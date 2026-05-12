@@ -4,12 +4,11 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import "./AgreementWorkflow.css";
 import PageHeader from "./PageHeader";
-import MpesaPayment from "./MpesaPayment";
 
-const API = "http://localhost:5000/api/agreement-workflow";
+const API = `http://${window.location.hostname}:5000/api/agreement-workflow`;
 
 // Helper: detect rental agreement reliably
-const isRental = (agr) => agr?.agreement_type === 'rent' || agr?.property_listing_type === 'rent';
+const isRental = (agr) => agr?.agreement_type === 'rent' || agr?.agreement_type === 'rental' || agr?.property_listing_type === 'rent';
 const buyerOrTenant = (agr) => isRental(agr) ? 'Tenant' : 'Buyer';
 const ownerOrLandlord = (agr) => isRental(agr) ? 'Landlord' : 'Owner';
 const priceOrRent = (agr) => isRental(agr) ? 'Rent' : 'Price';
@@ -35,9 +34,7 @@ const getDocumentUrl = (path) => {
   return `http://${window.location.hostname}:5000${path.startsWith("/") ? "" : "/"}${path}`;
 };
 
-const toggleKey = (docId, setVisibleKeys) => {
-  setVisibleKeys(prev => ({ ...prev, [docId]: !prev[docId] }));
-};
+
 
 
 
@@ -159,6 +156,7 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
   const [showModal, setShowModal] = useState(false);
   const [modalType, setModalType] = useState("");
   const [viewDocModal, setViewDocModal] = useState(false);
+  // eslint-disable-next-line no-unused-vars
   const [viewingDoc, setViewingDoc] = useState(null);
   const [formData, setFormData] = useState({});
   const [actionLoading, setActionLoading] = useState(false);
@@ -168,8 +166,9 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
   const [contractError, setContractError] = useState(null);
   const [downloadingPdf, setDownloadingPdf] = useState(false);
   const [propertyMedia, setPropertyMedia] = useState(null);
-  const [visibleKeys, setVisibleKeys] = useState({});
   const [enteredKeys, setEnteredKeys] = useState({});
+  const [visibleKeys, setVisibleKeys] = useState({});
+  const [bankAccounts, setBankAccounts] = useState([]);
 
   const contractRef = useRef(null);
 
@@ -177,16 +176,29 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
   const isOwner = user.role === "owner" || user.role === "landlord";
   const isBuyer = user.role === "user" || user.role === "customer";
 
+  const toggleKey = (docId) => {
+    setVisibleKeys(prev => ({ ...prev, [docId]: !prev[docId] }));
+  };
+
   const fetchActiveProperties = useCallback(async () => {
     try {
       const res = await axios.get(
-        "http://localhost:5000/api/properties/active",
+        `http://${window.location.hostname}:5000/api/properties/active`,
       );
       setActiveProperties(res.data || []);
       return res.data || [];
     } catch (err) {
       console.error("Error fetching properties:", err);
       return [];
+    }
+  }, []);
+
+  const fetchBankAccounts = useCallback(async () => {
+    try {
+      const res = await axios.get(`http://${window.location.hostname}:5000/api/bank-accounts/active`);
+      setBankAccounts(res.data.accounts || res.data || []);
+    } catch (err) {
+      console.error("Error fetching bank accounts:", err);
     }
   }, []);
 
@@ -286,6 +298,7 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
 
   useEffect(() => {
     fetchAgreements();
+    fetchBankAccounts();
     if (user.role === "user" || user.role === "customer") {
       fetchActiveProperties().then((properties) => {
         if (initialPropertyId && properties) {
@@ -298,7 +311,7 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
         }
       });
     }
-  }, [initialPropertyId, fetchAgreements, fetchActiveProperties, user.role]);
+  }, [initialPropertyId, fetchAgreements, fetchBankAccounts, fetchActiveProperties, user.role]);
 
 
   const submitAction = async () => {
@@ -388,16 +401,66 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
           method = "put";
           data = { buyer_id: user.id };
           break;
-        case "submit_payment":
-          url = `${API}/${id}/submit-payment`;
-          data = {
-            buyer_id: user.id,
-            payment_method: formData.payment_method,
-            payment_amount: formData.payment_amount,
-            payment_reference: formData.payment_reference,
-            receipt_document: formData.receipt_document,
-          };
-          break;
+        case "submit_payment": {
+            const price = Number(selectedAgreement?.proposed_price || selectedAgreement?.property_price || 0);
+            const hasBroker = !!selectedAgreement?.broker_id;
+            const feePayer = selectedAgreement?.system_fee_payer || 'buyer';
+            const sysRate = hasBroker ? 0.02 : 0.05;
+            const sysFee = price * sysRate;
+            const brokerRate = hasBroker ? (selectedAgreement?.commission_percentage || 2.5) / 100 : 0;
+            const brokerFee = price * brokerRate;
+            let buyerFee = 0;
+            if (feePayer === 'buyer') buyerFee = sysFee + brokerFee;
+            else if (feePayer === 'split') buyerFee = (sysFee + brokerFee) / 2;
+            const totalAmount = price + buyerFee;
+
+            // If Chapa is selected and amount is within limit, redirect to Chapa
+            if (formData.payment_method === 'chapa' && totalAmount <= 100000) {
+              try {
+                const chapaRes = await axios.post(`${API.replace('/agreement-workflow', '').replace('/api', '/api/chapa')}/initialize`, {
+                  amount: totalAmount,
+                  email: user.email || "payment@gmail.com",
+                  first_name: user.first_name || user.name?.split(' ')[0] || 'Customer',
+                  last_name: user.last_name || user.name?.split(' ')[1] || 'Name',
+                  agreementId: id,
+                  returnUrl: `${window.location.origin}/?page=chapa`
+                });
+                if (chapaRes.data.success && chapaRes.data.checkout_url) {
+                  window.location.href = chapaRes.data.checkout_url;
+                  return;
+                } else {
+                  throw new Error(chapaRes.data.message || 'Failed to initialize Chapa');
+                }
+              } catch (err) {
+                const errMsg = err.response?.data?.message || err.message;
+                alert(`❌ ${typeof errMsg === 'object' ? JSON.stringify(errMsg) : errMsg}`);
+                setActionLoading(false);
+                return;
+              }
+            }
+
+            // Manual payment methods (bank_transfer, cash)
+            if (!formData.payment_method) {
+              alert("❌ Please select a payment method.");
+              setActionLoading(false);
+              return;
+            }
+            if (!formData.payment_reference) {
+              alert("❌ Please enter a transaction reference number.");
+              setActionLoading(false);
+              return;
+            }
+
+            url = `${API}/${id}/submit-payment`;
+            data = {
+              buyer_id: user.id,
+              payment_method: formData.payment_method,
+              payment_amount: totalAmount,
+              payment_reference: formData.payment_reference,
+              receipt_document: formData.receipt_document,
+            };
+            break;
+          }
         case "verify_payment":
           url = `${API}/${id}/verify-payment`;
           method = "put";
@@ -558,11 +621,11 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
           <div className="sig-status">
             <span className={agr.buyer_signed || agr.buyer_signed_date ? "signed" : "unsigned"}>
               {agr.buyer_signed || agr.buyer_signed_date ? "✅" : "⬜"} {buyerOrTenant(agr)}{" "}
-              {agr.buyer_signed || agr.buyer_signed_date ? "Signed" : "Not Signed"}
+              {agr.buyer_signed || agr.buyer_signed_date ? "Digital Signature" : "Waiting Signature"}
             </span>
             <span className={agr.owner_signed || agr.owner_signed_date ? "signed" : "unsigned"}>
               {agr.owner_signed || agr.owner_signed_date ? "✅" : "⬜"} {ownerOrLandlord(agr)}{" "}
-              {agr.owner_signed || agr.owner_signed_date ? "Signed" : "Not Signed"}
+              {agr.owner_signed || agr.owner_signed_date ? "Digital Signature" : "Waiting Signature"}
             </span>
           </div>
         )}
@@ -586,7 +649,7 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
     return (
       <>
         {/* ── Admin Actions ── */}
-        {isAdmin && agr.status === "pending_admin_review" && (
+        {isAdmin && (agr.status === "pending_admin_review" || agr.status === "price_negotiation") && (
           <button
             className="btn-primary"
             onClick={() => openModal(agr, "forward")}
@@ -663,6 +726,31 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
             👁️ View & Decide
           </button>
         )}
+        {isOwner && agr.status === "pending_admin_review" && (
+          <div className="status-badge-inline" style={{ fontSize: '12px', padding: '12px', background: '#fffbeb', borderRadius: '10px', color: '#92400e', fontWeight: 600, border: '1px solid #fef3c7', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span>⏳ Waiting for Admin to review the buyer's request...</span>
+          </div>
+        )}
+        {isOwner && agr.status === "counter_offer" && (
+          <div className="status-badge-inline" style={{ fontSize: '12px', padding: '12px', background: '#fffbeb', borderRadius: '10px', color: '#92400e', fontWeight: 600, border: '1px solid #fef3c7', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span>⏳ Waiting for Admin to forward your counter-offer...</span>
+          </div>
+        )}
+        {isOwner && agr.status === "owner_counter_offered" && (
+          <div className="status-badge-inline" style={{ fontSize: '12px', padding: '12px', background: '#f5f3ff', borderRadius: '10px', color: '#5b21b6', fontWeight: 600, border: '1px solid #ddd6fe', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span>⏳ Waiting for Buyer to respond to your counter-offer...</span>
+          </div>
+        )}
+        {isOwner && agr.status === "owner_accepted" && (
+          <div className="status-badge-inline" style={{ fontSize: '12px', padding: '12px', background: '#f0fdf4', borderRadius: '10px', color: '#166534', fontWeight: 600, border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span>✅ You accepted the offer! Waiting for Admin to generate the contract...</span>
+          </div>
+        )}
+        {isOwner && agr.status === "agreement_generated" && (
+          <div className="status-badge-inline" style={{ fontSize: '12px', padding: '12px', background: '#eff6ff', borderRadius: '10px', color: '#1e40af', fontWeight: 600, border: '1px solid #bfdbfe', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span>⏳ Contract generated. Waiting for Buyer to sign first...</span>
+          </div>
+        )}
         {isOwner && agr.status === "buyer_signed" && (
           <button
             className="btn-success"
@@ -679,6 +767,26 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
           >
             🎥 Upload Property Video Tour
           </button>
+        )}
+        {isOwner && agr.status === "video_submitted" && (
+          <div className="status-badge-inline" style={{ fontSize: '12px', padding: '12px', background: '#fffbeb', borderRadius: '10px', color: '#92400e', fontWeight: 600, border: '1px solid #fef3c7', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span>⏳ Video submitted. Waiting for Admin to verify...</span>
+          </div>
+        )}
+        {isOwner && agr.status === "media_released" && (
+          <div className="status-badge-inline" style={{ fontSize: '12px', padding: '12px', background: '#f5f3ff', borderRadius: '10px', color: '#5b21b6', fontWeight: 600, border: '1px solid #ddd6fe', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span>⏳ Media released to Buyer. Waiting for Buyer to review...</span>
+          </div>
+        )}
+        {isOwner && agr.status === "media_viewed" && (
+          <div className="status-badge-inline" style={{ fontSize: '12px', padding: '12px', background: '#eff6ff', borderRadius: '10px', color: '#1e40af', fontWeight: 600, border: '1px solid #bfdbfe', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span>⏳ Buyer has reviewed the media. Waiting for payment submission...</span>
+          </div>
+        )}
+        {isOwner && agr.status === "payment_submitted" && (
+          <div className="status-badge-inline" style={{ fontSize: '12px', padding: '12px', background: '#fff7ed', borderRadius: '10px', color: '#c2410c', fontWeight: 600, border: '1px solid #fed7aa', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span>⏳ Buyer submitted payment. Waiting for Admin verification...</span>
+          </div>
         )}
         {isOwner && agr.status === "payment_verified" && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
@@ -701,13 +809,33 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
             )}
           </div>
         )}
-        {isOwner && agr.status === "payment_submitted" && (
-          <div className="status-badge-inline" style={{ fontSize: '12px', padding: '12px', background: '#fff7ed', borderRadius: '10px', color: '#c2410c', fontWeight: 600, border: '1px solid #fed7aa', display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span>⏳ Buyer submitted payment. Waiting for Admin verification...</span>
+        {isOwner && agr.status === "handover_confirmed" && (
+          <div className="status-badge-inline" style={{ fontSize: '12px', padding: '12px', background: '#f0fdf4', borderRadius: '10px', color: '#166534', fontWeight: 600, border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span>🔑 Handover confirmed! Waiting for Admin to release funds.</span>
+          </div>
+        )}
+        {isOwner && agr.status === "completed" && (
+          <div className="status-badge-inline" style={{ fontSize: '12px', padding: '12px', background: '#f0fdf4', borderRadius: '10px', color: '#059669', fontWeight: 600, border: '1px solid #a7f3d0', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span>🎉 Agreement completed successfully! Funds released.</span>
           </div>
         )}
 
         {/* ── Tenant/Buyer Actions ── */}
+        {isBuyer && agr.status === "price_negotiation" && (
+          <div className="status-badge-inline" style={{ fontSize: '12px', padding: '12px', background: '#eff6ff', borderRadius: '10px', color: '#1e40af', fontWeight: 600, border: '1px solid #bfdbfe', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span>📝 Your agreement request has been submitted. Waiting for Admin to review and forward to the Owner...</span>
+          </div>
+        )}
+        {isBuyer && agr.status === "pending_admin_review" && (
+          <div className="status-badge-inline" style={{ fontSize: '12px', padding: '12px', background: '#fffbeb', borderRadius: '10px', color: '#92400e', fontWeight: 600, border: '1px solid #fef3c7', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span>⏳ Admin is reviewing your request...</span>
+          </div>
+        )}
+        {isBuyer && agr.status === "waiting_owner_response" && (
+          <div className="status-badge-inline" style={{ fontSize: '12px', padding: '12px', background: '#f5f3ff', borderRadius: '10px', color: '#5b21b6', fontWeight: 600, border: '1px solid #ddd6fe', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span>⏳ Your offer has been forwarded to the Owner. Waiting for their response...</span>
+          </div>
+        )}
         {isBuyer &&
           (agr.status === "counter_offer" ||
             agr.status === "counter_offer_forwarded" ||
@@ -720,6 +848,16 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
               👁️ View & Decide
             </button>
           )}
+        {isBuyer && agr.status === "owner_accepted" && (
+          <div className="status-badge-inline" style={{ fontSize: '12px', padding: '12px', background: '#f0fdf4', borderRadius: '10px', color: '#166534', fontWeight: 600, border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span>✅ Owner accepted your offer! Admin will generate the contract shortly...</span>
+          </div>
+        )}
+        {isBuyer && agr.status === "owner_rejected" && (
+          <div className="status-badge-inline" style={{ fontSize: '12px', padding: '12px', background: '#fef2f2', borderRadius: '10px', color: '#991b1b', fontWeight: 600, border: '1px solid #fecaca', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span>❌ Owner rejected your offer. You may submit a new agreement request.</span>
+          </div>
+        )}
         {isBuyer && agr.status === "agreement_generated" && (
           <button
             className="btn-success"
@@ -727,6 +865,11 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
           >
             ✍️ Sign Agreement
           </button>
+        )}
+        {isBuyer && agr.status === "buyer_signed" && (
+          <div className="status-badge-inline" style={{ fontSize: '12px', padding: '12px', background: '#eff6ff', borderRadius: '10px', color: '#1e40af', fontWeight: 600, border: '1px solid #bfdbfe', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span>✍️ You have signed! Waiting for Owner to sign the agreement...</span>
+          </div>
         )}
         {isBuyer && agr.status === "media_released" && (
           <button
@@ -755,6 +898,11 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
             💰 Submit Payment
           </button>
         )}
+        {isBuyer && agr.status === "payment_submitted" && (
+          <div className="status-badge-inline" style={{ fontSize: '12px', padding: '12px', background: '#fffbeb', borderRadius: '10px', color: '#92400e', fontWeight: 600, border: '1px solid #fef3c7', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span>💰 Payment submitted! Waiting for Admin to verify your payment...</span>
+          </div>
+        )}
         {isBuyer && agr.status === "payment_verified" && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <button
@@ -776,7 +924,17 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
             )}
           </div>
         )}
-        {["agreement_generated", "buyer_signed", "fully_signed", "payment_submitted", "payment_verified", "handover_confirmed"].includes(agr.status) && (
+        {isBuyer && agr.status === "handover_confirmed" && (
+          <div className="status-badge-inline" style={{ fontSize: '12px', padding: '12px', background: '#f0fdf4', borderRadius: '10px', color: '#166534', fontWeight: 600, border: '1px solid #bbf7d0', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span>🔑 Handover confirmed! Admin will release funds to complete the deal.</span>
+          </div>
+        )}
+        {isBuyer && agr.status === "completed" && (
+          <div className="status-badge-inline" style={{ fontSize: '12px', padding: '12px', background: '#f0fdf4', borderRadius: '10px', color: '#059669', fontWeight: 600, border: '1px solid #a7f3d0', display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span>🎉 Agreement completed successfully! Congratulations on your new property.</span>
+          </div>
+        )}
+        {["agreement_generated", "buyer_signed", "fully_signed", "video_submitted", "media_released", "media_viewed", "payment_submitted", "payment_verified", "handover_confirmed", "completed"].includes(agr.status) && (
           <button
             className="btn-outline"
             onClick={() => {
@@ -866,12 +1024,12 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
               </div>
             )}
             <div>
-              <strong>{buyerOrTenant(a)} Signed</strong>
-              <span>{a.buyer_signed || a.buyer_signed_date ? "✅ Yes" : "❌ No"}</span>
+              <strong>{buyerOrTenant(a)} Digital Signature</strong>
+              <span>{a.buyer_signed || a.buyer_signed_date ? "✅ Confirmed" : "⏳ Waiting"}</span>
             </div>
             <div>
-              <strong>{ownerOrLandlord(a)} Signed</strong>
-              <span>{a.owner_signed || a.owner_signed_date ? "✅ Yes" : "❌ No"}</span>
+              <strong>{ownerOrLandlord(a)} Digital Signature</strong>
+              <span>{a.owner_signed || a.owner_signed_date ? "✅ Confirmed" : "⏳ Waiting"}</span>
             </div>
             <div>
               <strong>Payment</strong>
@@ -937,7 +1095,8 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
             if (
               isBuyer &&
               (a.status === "counter_offer" ||
-                a.status === "counter_offer_forwarded")
+                a.status === "counter_offer_forwarded" ||
+                a.status === "owner_counter_offered")
             ) {
               return (
                 <div
@@ -1939,24 +2098,26 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
       else if (feePayer === 'split') buyerFee = (sysFee + brokerFee) / 2;
       
       const totalAmount = price + buyerFee;
-
-      // If M-Pesa selected, show the dedicated M-Pesa component
-      if (formData.payment_method === "mpesa") {
-        return (
-          <MpesaPayment
-            agreement={{ ...selectedAgreement, total_payment_amount: totalAmount }}
-            user={user}
-            onSuccess={() => { closeModal(); fetchAgreements(); }}
-            onCancel={() => setFormData({ ...formData, payment_method: "" })}
-          />
-        );
-      }
+      const chapaAvailable = totalAmount <= 100000;
 
       return (
         <div className="modal-form">
           <p className="form-desc">
             💰 The contract is signed. Submit your payment details below.
           </p>
+
+          {/* Amount Summary */}
+          <div className="info-banner" style={{ textAlign: "center", padding: "16px", marginBottom: "16px" }}>
+            <p style={{ fontSize: "18px", margin: "0 0 8px" }}>
+              💰 <strong>Total Amount Due:</strong> <span style={{ color: "#059669" }}>{totalAmount.toLocaleString()} ETB</span>
+            </p>
+            <div style={{ fontSize: "12px", color: "#64748b" }}>
+              Agreed {isRental(selectedAgreement) ? 'rent' : 'price'}: {price.toLocaleString()} ETB
+              {buyerFee > 0 && ` + fees: ${buyerFee.toLocaleString()} ETB`}
+            </div>
+          </div>
+
+          {/* Payment Method Selection */}
           <div className="form-group">
             <label>Payment Method *</label>
             <select
@@ -1964,29 +2125,61 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
               onChange={(e) => setFormData({ ...formData, payment_method: e.target.value })}
               required
             >
-              <option value="">Select method</option>
-              <option value="mpesa">📱 M-Pesa (Safaricom Ethiopia)</option>
+              <option value="">-- Select Payment Method --</option>
+              {chapaAvailable && <option value="chapa">📱 Chapa (Online Payment)</option>}
               <option value="bank_transfer">🏦 Bank Transfer</option>
-              <option value="chapa">� Chapa</option>
               <option value="cash">💵 Cash Deposit</option>
-              <option value="check">📝 Check</option>
             </select>
           </div>
-          {formData.payment_method && formData.payment_method !== "mpesa" && (
+
+          {/* Chapa Info */}
+          {formData.payment_method === "chapa" && (
+            <div style={{ background: "#ecfdf5", border: "1px solid #6ee7b7", borderRadius: 10, padding: "16px", textAlign: "center" }}>
+              <p style={{ fontSize: 14, color: "#065f46", margin: 0 }}>
+                📱 You will be redirected to <strong>Chapa's secure payment portal</strong> to complete payment.
+              </p>
+            </div>
+          )}
+
+          {/* Manual Payment Fields */}
+          {(formData.payment_method === "bank_transfer" || formData.payment_method === "cash") && (
             <>
+              <div style={{ background: "#eff6ff", border: "1px solid #bfdbfe", borderRadius: 10, padding: "14px", marginBottom: "12px" }}>
+                <p style={{ fontSize: 13, color: "#1e40af", margin: '0 0 10px 0', fontWeight: 'bold' }}>
+                  {formData.payment_method === "bank_transfer" 
+                    ? "🏦 Please transfer the total amount to one of the following DDREMS bank accounts:"
+                    : "💵 Please make a cash deposit at any DDREMS-approved branch and provide the receipt number below."
+                  }
+                </p>
+                {formData.payment_method === "bank_transfer" && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                    {bankAccounts.filter(acc => acc.type === 'bank' || acc.type === 'mobile').length > 0 ? (
+                      bankAccounts.filter(acc => acc.type === 'bank' || acc.type === 'mobile').map(acc => (
+                        <div key={acc.id || acc._id} style={{ padding: '10px', background: '#fff', borderRadius: '8px', fontSize: '13px', color: '#1e3a8a', border: '1px solid #93c5fd', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span><strong>{acc.bank_name}</strong></span>
+                          <span style={{ fontSize: '14px', fontWeight: 'bold', letterSpacing: '1px' }}>{acc.account_number}</span>
+                          <span style={{ color: '#64748b' }}>{acc.account_name}</span>
+                        </div>
+                      ))
+                    ) : (
+                      <div style={{ padding: '10px', background: '#fff', borderRadius: '8px', fontSize: '13px', color: '#64748b', fontStyle: 'italic' }}>
+                        No active bank accounts found. Please contact support.
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
               <div className="form-group">
-                <label>Payment Amount (ETB) *</label>
+                <label>Payment Amount (ETB)</label>
                 <input
                   type="number"
-                  value={formData.payment_amount || totalAmount || ""}
+                  value={totalAmount}
                   readOnly
                   style={{ background: '#f1f5f9', cursor: 'not-allowed', fontWeight: 'bold', color: '#1e293b' }}
-                  required
                 />
-                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>
-                  Includes agreed {isRental(selectedAgreement) ? 'rent' : 'price'} + your share of system/broker fees.
-                </div>
               </div>
+
               <div className="form-group">
                 <label>Transaction Reference / Receipt Number *</label>
                 <input
@@ -1994,25 +2187,43 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
                   value={formData.payment_reference || ""}
                   onChange={(e) => setFormData({ ...formData, payment_reference: e.target.value })}
                   required
-                  placeholder="e.g. TXN-2026-001234"
+                  placeholder={formData.payment_method === "bank_transfer" ? "e.g., TXN-2026-001234" : "e.g., CASH-REC-001234"}
                 />
               </div>
+
               <div className="form-group">
-                <label>Receipt Document / Proof of Payment</label>
+                <label>Receipt / Proof of Payment *</label>
                 <input
                   type="file"
                   accept="image/*, application/pdf"
                   onChange={(e) => {
                     const file = e.target.files[0];
                     if (file) {
+                      if (file.size > 5 * 1024 * 1024) {
+                        alert("❌ File too large. Maximum size is 5MB.");
+                        e.target.value = "";
+                        return;
+                      }
                       const reader = new FileReader();
                       reader.onloadend = () => setFormData({ ...formData, receipt_document: reader.result });
                       reader.readAsDataURL(file);
                     }
                   }}
                 />
+                {formData.receipt_document && (
+                  <p style={{ fontSize: 12, color: "#059669", marginTop: 4 }}>✅ Receipt uploaded successfully</p>
+                )}
               </div>
             </>
+          )}
+
+          {/* No Chapa warning for large amounts */}
+          {!chapaAvailable && (
+            <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 10, padding: "12px", marginTop: "8px" }}>
+              <p style={{ fontSize: 12, color: "#9a3412", margin: 0 }}>
+                ⚠️ Online payment (Chapa) is not available for amounts exceeding 100,000 ETB. Please use Bank Transfer or Cash Deposit.
+              </p>
+            </div>
           )}
         </div>
       );
@@ -2025,38 +2236,59 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
             <div className="confirm-icon">✅</div>
             <h3>Verify Payment</h3>
             <p>
-              Confirm that the buyer's payment has been received in the DDREMS
-              bank account.
+              Review the buyer's payment details and uploaded receipt below.
+              After verification, confirm to proceed to the handover stage.
             </p>
-            <div className="info-banner">
-              <p>
-                👤 <strong>Buyer:</strong> {selectedAgreement?.customer_name}
-              </p>
-              <p>
-                💰 <strong>Expected Amount:</strong>{" "}
-                {Number(
-                  selectedAgreement?.proposed_price ||
-                  selectedAgreement?.property_price ||
-                  0,
-                ).toLocaleString()}{" "}
-                ETB
-              </p>
+          </div>
+
+          {/* Payment Details */}
+          <div style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 10, padding: "16px", marginBottom: "16px" }}>
+            <h4 style={{ margin: "0 0 12px", fontSize: 14, color: "#1e293b", borderBottom: "1px solid #e2e8f0", paddingBottom: 8 }}>📋 Payment Details</h4>
+            <div style={{ display: "grid", gap: "8px" }}>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <span style={{ color: "#64748b" }}>👤 Buyer:</span>
+                <strong style={{ color: "#1e293b" }}>{selectedAgreement?.customer_name || "N/A"}</strong>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <span style={{ color: "#64748b" }}>💰 Expected Amount:</span>
+                <strong style={{ color: "#059669" }}>{Number(selectedAgreement?.proposed_price || selectedAgreement?.property_price || 0).toLocaleString()} ETB</strong>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <span style={{ color: "#64748b" }}>🏦 Payment Method:</span>
+                <strong style={{ color: "#1e293b" }}>{(selectedAgreement?.payment_method || "N/A").replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase())}</strong>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", fontSize: 13 }}>
+                <span style={{ color: "#64748b" }}>🔖 Reference Number:</span>
+                <strong style={{ color: "#1e293b" }}>{selectedAgreement?.payment_reference || "N/A"}</strong>
+              </div>
             </div>
-            {selectedAgreement?.receipt_document && (
-              <div className="form-group" style={{ marginTop: '16px' }}>
-                <label>Uploaded Payment Proof</label>
+          </div>
+
+          {/* Receipt Document Preview */}
+          {selectedAgreement?.receipt_document ? (
+            <div style={{ marginBottom: "16px" }}>
+              <h4 style={{ margin: "0 0 10px", fontSize: 14, color: "#1e293b" }}>🧾 Uploaded Payment Receipt</h4>
+              <div style={{ border: "2px solid #e2e8f0", borderRadius: 10, overflow: "hidden", background: "#fff" }}>
                 {selectedAgreement.receipt_document.startsWith('data:image') ? (
-                  <img src={selectedAgreement.receipt_document} alt="Payment Proof" style={{ maxWidth: '100%', borderRadius: '8px', border: '1px solid #e2e8f0' }} />
+                  <img src={selectedAgreement.receipt_document} alt="Payment Receipt" style={{ width: '100%', maxHeight: '400px', objectFit: 'contain', display: 'block' }} />
                 ) : selectedAgreement.receipt_document.startsWith('data:application/pdf') ? (
-                  <iframe src={selectedAgreement.receipt_document} style={{ width: '100%', height: '400px', border: '1px solid #e2e8f0', borderRadius: '8px' }} title="Payment Proof PDF" />
+                  <iframe src={selectedAgreement.receipt_document} style={{ width: '100%', height: '400px', border: 'none' }} title="Payment Receipt PDF" />
                 ) : (
-                  <a href={selectedAgreement.receipt_document} target="_blank" rel="noopener noreferrer" className="btn-outline">
-                    📎 View Document
-                  </a>
+                  <div style={{ padding: "20px", textAlign: "center" }}>
+                    <a href={selectedAgreement.receipt_document} target="_blank" rel="noopener noreferrer" 
+                       style={{ display: "inline-block", padding: "10px 20px", background: "#3b82f6", color: "#fff", borderRadius: 8, textDecoration: "none", fontWeight: 600 }}>
+                      📎 Open Receipt Document
+                    </a>
+                  </div>
                 )}
               </div>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div style={{ background: "#fef2f2", border: "1px solid #fecaca", borderRadius: 10, padding: "14px", marginBottom: "16px", textAlign: "center" }}>
+              <p style={{ margin: 0, fontSize: 13, color: "#dc2626" }}>⚠️ No receipt document was uploaded by the buyer.</p>
+            </div>
+          )}
+
           <div className="form-group">
             <label>Verification Notes</label>
             <textarea
@@ -2067,6 +2299,12 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
               rows="3"
               placeholder="e.g. Payment received via CBE, ref #1234"
             />
+          </div>
+
+          <div style={{ background: "#fff7ed", border: "1px solid #fed7aa", borderRadius: 10, padding: "12px", marginTop: "8px" }}>
+            <p style={{ margin: 0, fontSize: 12, color: "#9a3412" }}>
+              ⚠️ By clicking Confirm, you verify that the payment has been received and the transaction is legitimate. This will advance the agreement to the handover stage.
+            </p>
           </div>
         </div>
       );
@@ -2234,53 +2472,103 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
 
             {/* Map Preview */}
             <div style={{ marginBottom: 24 }}>
-              <h4 style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', marginBottom: 10 }}>🗺️ Location Preview (Will be released)</h4>
+              <h4 style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', marginBottom: 10 }}>🗺️ View on Map</h4>
               {Number(propertyMedia?.latitude) && Number(propertyMedia?.longitude) ? (
-                <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+                <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #e2e8f0', background: '#f8fafc' }}>
                   <iframe
                     title="Property Location"
                     width="100%"
-                    height="200"
+                    height="300"
                     frameBorder="0"
+                    scrolling="no"
                     src={`https://www.openstreetmap.org/export/embed.html?bbox=${Number(propertyMedia.longitude) - 0.002},${Number(propertyMedia.latitude) - 0.002},${Number(propertyMedia.longitude) + 0.002},${Number(propertyMedia.latitude) + 0.002}&layer=mapnik&marker=${propertyMedia.latitude},${propertyMedia.longitude}`}
                   />
+                  <div style={{ padding: '8px 12px', background: '#fff', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 12, color: '#64748b' }}>📍 {propertyMedia.location_name || 'Dire Dawa, Ethiopia'}</span>
+                    <a href={`https://www.openstreetmap.org/?mlat=${propertyMedia.latitude}&mlon=${propertyMedia.longitude}#map=18/${propertyMedia.latitude}/${propertyMedia.longitude}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#3b82f6', textDecoration: 'none' }}>🔗 Open Full Map</a>
+                  </div>
                 </div>
-
               ) : (
-                <div style={{ padding: 20, textAlign: 'center', background: '#fff1f2', borderRadius: 12, border: '1px dashed #fda4af' }}>
-                  <p style={{ color: '#e11d48', fontSize: 13 }}>🗺️ Location coordinates missing!</p>
+                <div style={{ padding: 30, textAlign: 'center', background: '#f8fafc', borderRadius: 12, border: '1px dashed #cbd5e1' }}>
+                  <p style={{ color: '#94a3b8', fontSize: 13 }}>🗺️ Map location not available</p>
                 </div>
               )}
             </div>
 
             {/* Documents Preview */}
             <div style={{ marginBottom: 12 }}>
-              <h4 style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', marginBottom: 10 }}>📄 Documents (Will be released)</h4>
+              <h4 style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', marginBottom: 10 }}>📄 Property Documents</h4>
               {propertyMedia?.documents && propertyMedia.documents.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
                   {propertyMedia.documents.map((doc) => (
-                    <div key={doc.id} style={{ display: 'flex', flexDirection: 'column', gap: 6, padding: '12px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0' }}>
+                    <div key={doc.id} style={{
+                      padding: '10px 14px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0',
+                      marginBottom: 10
+                    }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>📄 {doc.document_name || doc.document_type}</span>
+                        <div>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>📄 {doc.document_name || doc.document_type}</div>
+                          <div style={{ fontSize: 11, color: '#94a3b8' }}>{doc.document_type} • {doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString() : 'N/A'}</div>
+                          
+                          {isBuyer && (
+                            <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ fontSize: 11, color: '#64748b' }}>Enter Key:</span>
+                              <input 
+                                type="text"
+                                placeholder="XXXX-XXXX"
+                                style={{ padding: '4px 8px', fontSize: '11px', border: '1px solid #cbd5e1', borderRadius: '4px', width: '100px', fontFamily: 'monospace', textTransform: 'uppercase' }}
+                                value={enteredKeys[doc.id] || ''}
+                                onChange={(e) => setEnteredKeys({...enteredKeys, [doc.id]: e.target.value.toUpperCase()})}
+                              />
+                              {enteredKeys[doc.id] === doc.access_key && (
+                                <span style={{ fontSize: 11, color: '#10b981', fontWeight: 'bold' }}>✅ Matched</span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+
                         <div style={{ display: 'flex', gap: 8 }}>
-                          <button 
-                            className="btn btn-outline-secondary btn-sm" 
-                            style={{ fontSize: 10, padding: '2px 8px' }}
-                            onClick={() => toggleKey(doc.id, setVisibleKeys)}
-                          >
-                            {visibleKeys[doc.id] ? "🙈 Hide Key" : "🔑 Show Key"}
-                          </button>
-                          <a href={getDocumentUrl(doc.document_path)} target="_blank" rel="noopener noreferrer" style={{ fontSize: 11, color: '#3b82f6', fontWeight: 600 }}>Preview</a>
+                          {(!isBuyer || selectedAgreement?.status === 'media_released' || selectedAgreement?.status === 'completed') ? (
+                            <button 
+                              type="button"
+                              className="btn-outline" 
+                              style={{ fontSize: 11, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
+                              onClick={() => toggleKey(doc.id)}
+                            >
+                              {visibleKeys[doc.id] ? "🙈 Hide Key" : "🔑 Show Key"}
+                            </button>
+                          ) : null}
+
+                           {(!isBuyer || enteredKeys[doc.id] === doc.access_key) ? (
+                             <button 
+                               type="button"
+                               className="btn-outline" 
+                               style={{ fontSize: 11, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
+                               onClick={() => { setViewingDoc(doc); setViewDocModal(true); }}
+                             >
+                               👁️ View
+                             </button>
+                           ) : (
+                             <button 
+                               type="button"
+                               disabled 
+                               className="btn-outline" 
+                               style={{ fontSize: 11, padding: '4px 10px', opacity: 0.6, cursor: 'not-allowed' }}
+                             >
+                               🔒 Locked
+                             </button>
+                           )}
                         </div>
                       </div>
-                      {visibleKeys[doc.id] && (
-                        <div style={{ fontSize: 11, color: '#64748b', background: '#f1f5f9', padding: '4px 8px', borderRadius: 4, display: 'flex', justifyContent: 'space-between' }}>
-                          <span>Access Key: <strong>{doc.access_key}</strong></span>
+                      
+                      {visibleKeys[doc.id] && (!isBuyer || selectedAgreement?.status === 'media_released' || selectedAgreement?.status === 'completed') && (
+                        <div style={{ marginTop: 10, padding: 8, background: '#fff', border: '1px dashed #cbd5e1', borderRadius: 4, textAlign: 'center' }}>
+                          <span style={{ fontSize: 12, color: '#64748b' }}>Access Key:</span>
+                          <span style={{ marginLeft: 8, fontSize: 14, fontWeight: 'bold', fontFamily: 'monospace', letterSpacing: '2px', color: '#0f172a' }}>{doc.access_key}</span>
                         </div>
                       )}
                     </div>
                   ))}
-
                 </div>
               ) : (
                 <div style={{ padding: 20, textAlign: 'center', background: '#fff1f2', borderRadius: 12, border: '1px dashed #fda4af' }}>
@@ -2326,7 +2614,7 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
             <div style={{ marginBottom: 24 }}>
               <h4 style={{ fontSize: 15, fontWeight: 700, color: '#1e293b', marginBottom: 10 }}>🗺️ View on Map</h4>
               {Number(propertyMedia?.latitude) && Number(propertyMedia?.longitude) ? (
-                <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+                <div style={{ borderRadius: 12, overflow: 'hidden', border: '1px solid #e2e8f0', background: '#f8fafc' }}>
                   <iframe
                     title="Property Location"
                     width="100%"
@@ -2335,6 +2623,10 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
                     scrolling="no"
                     src={`https://www.openstreetmap.org/export/embed.html?bbox=${Number(propertyMedia.longitude) - 0.002},${Number(propertyMedia.latitude) - 0.002},${Number(propertyMedia.longitude) + 0.002},${Number(propertyMedia.latitude) + 0.002}&layer=mapnik&marker=${propertyMedia.latitude},${propertyMedia.longitude}`}
                   />
+                  <div style={{ padding: '8px 12px', background: '#fff', borderTop: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ fontSize: 12, color: '#64748b' }}>📍 {propertyMedia.location_name || 'Dire Dawa, Ethiopia'}</span>
+                    <a href={`https://www.openstreetmap.org/?mlat=${propertyMedia.latitude}&mlon=${propertyMedia.longitude}#map=18/${propertyMedia.latitude}/${propertyMedia.longitude}`} target="_blank" rel="noopener noreferrer" style={{ fontSize: 12, color: '#3b82f6', textDecoration: 'none' }}>🔗 Open Full Map</a>
+                  </div>
                 </div>
               ) : (
                 <div style={{ padding: '30px', textAlign: 'center', background: '#f8fafc', borderRadius: '12px', border: '1px dashed #cbd5e1' }}>
@@ -2349,55 +2641,69 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
               {propertyMedia?.documents && propertyMedia.documents.length > 0 ? (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                   {propertyMedia.documents.map((doc) => (
-                    <div key={doc.id} style={{ padding: '12px', background: '#f8fafc', borderRadius: 10, border: '1px solid #e2e8f0', marginBottom: 10 }}>
-                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 }}>
+                    <div key={doc.id} style={{
+                      padding: '10px 14px', background: '#f8fafc', borderRadius: 8, border: '1px solid #e2e8f0',
+                      marginBottom: 10
+                    }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
-                          <div style={{ fontSize: 14, fontWeight: 600, color: '#1e293b' }}>📄 {doc.document_name || doc.document_type}</div>
-                          <div style={{ fontSize: 12, color: '#94a3b8' }}>{doc.document_type}</div>
-                        </div>
-                        <div style={{ display: 'flex', gap: 8 }}>
-                          <button 
-                            className="btn btn-outline-primary btn-sm" 
-                            style={{ fontSize: 11, padding: '4px 10px' }}
-                            onClick={() => toggleKey(doc.id, setVisibleKeys)}
-                          >
-                            {visibleKeys[doc.id] ? "🙈 Hide Key" : "🔑 Show Key"}
-                          </button>
+                          <div style={{ fontSize: 13, fontWeight: 600, color: '#1e293b' }}>📄 {doc.document_name || doc.document_type}</div>
+                          <div style={{ fontSize: 11, color: '#94a3b8' }}>{doc.document_type} • {doc.uploaded_at ? new Date(doc.uploaded_at).toLocaleDateString() : 'N/A'}</div>
                           
-                          {enteredKeys[doc.id] === doc.access_key ? (
-                            <button 
-                              onClick={() => {
-                                setViewingDoc(doc);
-                                setViewDocModal(true);
-                              }}
-                              style={{ fontSize: 13, padding: '6px 14px', borderRadius: 6, border: '1px solid #3b82f6', background: '#3b82f6', color: '#fff', fontWeight: 600, cursor: 'pointer' }}
-                            >
-                              👁️ View
-                            </button>
-                          ) : (
-                            <button disabled style={{ fontSize: 13, padding: '6px 14px', borderRadius: 6, border: '1px solid #cbd5e1', background: '#f1f5f9', color: '#94a3b8', fontWeight: 600, cursor: 'not-allowed' }}>
-                              🔒 Locked
-                            </button>
-                          )}
-                        </div>
-                      </div>
-                      
-                      {visibleKeys[doc.id] && (
-                        <div style={{ marginTop: 8, padding: 8, background: '#fffbeb', borderRadius: 6, border: '1px solid #fef3c7' }}>
-                          <p style={{ margin: '0 0 6px', fontSize: 11, color: '#92400e', fontWeight: 600 }}>🔑 Document Access Key:</p>
-                          <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                            <span style={{ fontSize: 14, fontWeight: 700, color: '#b45309', fontFamily: 'monospace', letterSpacing: 2 }}>{doc.access_key}</span>
-                            <div style={{ flex: 1 }}>
+                          {isBuyer && (
+                            <div style={{ marginTop: 8, display: 'flex', alignItems: 'center', gap: 6 }}>
+                              <span style={{ fontSize: 11, color: '#64748b' }}>Enter Key:</span>
                               <input 
-                                type="text" 
-                                placeholder="Enter Key to Unlock" 
-                                style={{ width: '100%', padding: '4px 8px', fontSize: 12, borderRadius: 4, border: '1px solid #d1d5db' }}
+                                type="text"
+                                placeholder="XXXX-XXXX"
+                                style={{ padding: '4px 8px', fontSize: '11px', border: '1px solid #cbd5e1', borderRadius: '4px', width: '100px', fontFamily: 'monospace', textTransform: 'uppercase' }}
                                 value={enteredKeys[doc.id] || ''}
                                 onChange={(e) => setEnteredKeys({...enteredKeys, [doc.id]: e.target.value.toUpperCase()})}
                               />
+                              {enteredKeys[doc.id] === doc.access_key && (
+                                <span style={{ fontSize: 11, color: '#10b981', fontWeight: 'bold' }}>✅ Matched</span>
+                              )}
                             </div>
-                            {enteredKeys[doc.id] === doc.access_key && <span style={{ fontSize: 12, color: '#059669' }}>✅</span>}
-                          </div>
+                          )}
+                        </div>
+
+                        <div style={{ display: 'flex', gap: 8 }}>
+                          {(!isBuyer || selectedAgreement?.status === 'media_released' || selectedAgreement?.status === 'completed') ? (
+                            <button 
+                              type="button"
+                              className="btn-outline" 
+                              style={{ fontSize: 11, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
+                              onClick={() => toggleKey(doc.id)}
+                            >
+                              {visibleKeys[doc.id] ? "🙈 Hide Key" : "🔑 Show Key"}
+                            </button>
+                          ) : null}
+
+                           {(!isBuyer || enteredKeys[doc.id] === doc.access_key) ? (
+                             <a 
+                               href={getDocumentUrl(doc.document_path)} target="_blank" rel="noopener noreferrer"
+                               className="btn-outline" 
+                               style={{ fontSize: 11, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}
+                             >
+                               👁️ View
+                             </a>
+                           ) : (
+                             <button 
+                               type="button"
+                               disabled 
+                               className="btn-outline" 
+                               style={{ fontSize: 11, padding: '4px 10px', opacity: 0.6, cursor: 'not-allowed' }}
+                             >
+                               🔒 Locked
+                             </button>
+                           )}
+                        </div>
+                      </div>
+                      
+                      {visibleKeys[doc.id] && (!isBuyer || selectedAgreement?.status === 'media_released' || selectedAgreement?.status === 'completed') && (
+                        <div style={{ marginTop: 10, padding: 8, background: '#fff', border: '1px dashed #cbd5e1', borderRadius: 4, textAlign: 'center' }}>
+                          <span style={{ fontSize: 12, color: '#64748b' }}>Access Key:</span>
+                          <span style={{ marginLeft: 8, fontSize: 14, fontWeight: 'bold', fontFamily: 'monospace', letterSpacing: '2px', color: '#0f172a' }}>{doc.access_key}</span>
                         </div>
                       )}
                     </div>

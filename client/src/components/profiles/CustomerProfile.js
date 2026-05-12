@@ -37,6 +37,7 @@ const CustomerProfile = ({ user, onComplete }) => {
   const [docPreview, setDocPreview] = useState(null);
   const [submitting, setSubmitting] = useState(false);
   const [editReason, setEditReason] = useState('');
+  const [requestedFields, setRequestedFields] = useState([]);
   const [activeDetailTab, setActiveDetailTab] = useState('Personal Info');
 
   const [selectedCountryCode, setSelectedCountryCode] = useState('+251');
@@ -127,7 +128,9 @@ const CustomerProfile = ({ user, onComplete }) => {
     console.log(`[CustomerProfile] Changing ${name} to:`, value);
     
     // Only allow changes if profile isn't approved OR if in approved edit request mode
-    if (profile?.profile_status === 'approved' && !editMode) {
+    if (profile?.profile_status === 'approved' && editMode && editRequest) {
+      if (!editRequest.approved_fields?.includes(name)) return;
+    } else if (profile?.profile_status === 'approved' && !editMode) {
       return;
     }
     
@@ -155,6 +158,11 @@ const CustomerProfile = ({ user, onComplete }) => {
       return;
     }
 
+    if (requestedFields.length === 0) {
+      alert('Please select at least one field to edit.');
+      return;
+    }
+
     if (!window.confirm('Are you sure you want to request permission to edit your profile? This will notify the admin team.')) {
       return;
     }
@@ -164,10 +172,12 @@ const CustomerProfile = ({ user, onComplete }) => {
         user_id: user.id,
         profile_type: 'customer',
         profile_id: profile.id,
-        reason: editReason
+        reason: editReason,
+        requested_fields: requestedFields
       });
       alert('✅ Edit request sent successfully! Admin will review your request.');
       setEditReason('');
+      setRequestedFields([]);
       setShowEditModal(false);
       fetchEditRequest();
     } catch (error) {
@@ -237,11 +247,11 @@ const CustomerProfile = ({ user, onComplete }) => {
 
       if (profile) {
         // Update existing profile
-        await axios.put(`http://localhost:5000/api/profiles/customer/${profile.id}`, { ...formData, phone_number: fullPhoneNumber });
+        await axios.put(`http://${window.location.hostname}:5000/api/profiles/customer/${profile.id}`, { ...formData, phone_number: fullPhoneNumber });
         
         // If in edit mode, submit the edit request
         if (editMode && editRequest) {
-          await axios.post(`http://localhost:5000/api/edit-requests/${editRequest.id}/submit`, {
+          await axios.post(`http://${window.location.hostname}:5000/api/edit-requests/${editRequest.id}/submit`, {
             user_id: user.id,
             profile_type: 'customer',
             updated_data: { ...formData, phone_number: fullPhoneNumber }
@@ -256,7 +266,7 @@ const CustomerProfile = ({ user, onComplete }) => {
         }
       } else {
         // Create new profile
-        await axios.post('http://localhost:5000/api/profiles/customer', {
+        await axios.post(`http://${window.location.hostname}:5000/api/profiles/customer`, {
           ...formData,
           phone_number: fullPhoneNumber,
           user_id: user.id
@@ -285,7 +295,7 @@ const CustomerProfile = ({ user, onComplete }) => {
         <div style={{ display: 'grid', gap: '16px', marginTop: '16px' }}>
           <div>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '4px' }}>Full Name *</label>
-            <input type="text" name="full_name" value={formData.full_name} onChange={handleChange} required style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }} />
+            <input type="text" name="full_name" value={formData.full_name} onChange={handleChange} required disabled={profile?.profile_status === 'approved' && (!editMode || (editMode && !editRequest?.approved_fields?.includes('full_name')))} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }} />
           </div>
           <div>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '4px' }}>Phone Number *</label>
@@ -294,18 +304,18 @@ const CustomerProfile = ({ user, onComplete }) => {
                 value={selectedCountryCode} 
                 onChange={(e) => setSelectedCountryCode(e.target.value)}
                 style={{ width: '100px', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }}
-                disabled={!!profile && !editMode}
+                disabled={profile?.profile_status === 'approved' && (!editMode || (editMode && !editRequest?.approved_fields?.includes('phone_number')))}
               >
                 {countryCodes.map(c => (
                   <option key={c.code} value={c.code}>{c.code}</option>
                 ))}
               </select>
-              <input type="tel" name="phone_number" value={formData.phone_number} onChange={handleChange} placeholder="Digits only" required disabled={!!profile && !editMode} style={{ flex: 1, padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }} />
+              <input type="tel" name="phone_number" value={formData.phone_number} onChange={handleChange} placeholder="Digits only" required disabled={profile?.profile_status === 'approved' && (!editMode || (editMode && !editRequest?.approved_fields?.includes('phone_number')))} style={{ flex: 1, padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }} />
             </div>
           </div>
           <div>
             <label style={{ display: 'block', fontSize: '13px', fontWeight: '600', marginBottom: '4px' }}>Address *</label>
-            <textarea name="address" value={formData.address} onChange={handleChange} rows="3" required style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }} />
+            <textarea name="address" value={formData.address} onChange={handleChange} rows="3" required disabled={profile?.profile_status === 'approved' && (!editMode || (editMode && !editRequest?.approved_fields?.includes('address')))} style={{ width: '100%', padding: '10px', borderRadius: '6px', border: '1px solid #ccc' }} />
           </div>
         </div>
       </div>
@@ -493,6 +503,30 @@ const CustomerProfile = ({ user, onComplete }) => {
                           value={editReason}
                           onChange={(e) => setEditReason(e.target.value)}
                         />
+                        <div style={{ margin: '16px 0' }}>
+                          <h5 style={{ margin: '0 0 8px 0' }}>Select Fields to Edit:</h5>
+                          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                            {[
+                              { id: 'full_name', label: 'Full Name' },
+                              { id: 'phone_number', label: 'Phone Number' },
+                              { id: 'address', label: 'Address' },
+                              { id: 'profile_photo', label: 'Profile Photo' },
+                              { id: 'id_document', label: 'ID Document' }
+                            ].map(field => (
+                              <label key={field.id} style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '13px', cursor: 'pointer' }}>
+                                <input 
+                                  type="checkbox" 
+                                  checked={requestedFields.includes(field.id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) setRequestedFields([...requestedFields, field.id]);
+                                    else setRequestedFields(requestedFields.filter(f => f !== field.id));
+                                  }}
+                                />
+                                {field.label}
+                              </label>
+                            ))}
+                          </div>
+                        </div>
                         <button className="btn-submit-edit" onClick={() => {
                           handleRequestEdit();
                           setActiveDetailTab('Personal Info');

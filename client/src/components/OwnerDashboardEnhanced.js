@@ -52,9 +52,9 @@ const OwnerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
   const fetchOwnerData = async () => {
     try {
       const [propertiesRes, agreementRequestsRes, notificationsRes] = await Promise.all([
-        axios.get(`http://localhost:5000/api/properties/owner/${user.id}`),
-        axios.get(`http://localhost:5000/api/agreement-requests/owner/${user.id}`),
-        axios.get(`http://localhost:5000/api/notifications/${user.id}`)
+        axios.get(`http://${window.location.hostname}:5000/api/properties/owner/${user.id}`),
+        axios.get(`http://${window.location.hostname}:5000/api/agreement-requests/owner/${user.id}`),
+        axios.get(`http://${window.location.hostname}:5000/api/notifications/${user.id}`)
       ]);
 
       setMyProperties(propertiesRes.data);
@@ -79,7 +79,7 @@ const OwnerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
       // Fetch document access requests for owner's properties
       const propertyIds = propertiesRes.data.map(p => p.id);
       const requestsPromises = propertyIds.map(id =>
-        axios.get(`http://localhost:5000/api/document-access/property/${id}`).catch(() => ({ data: [] }))
+        axios.get(`http://${window.location.hostname}:5000/api/document-access/property/${id}`).catch(() => ({ data: [] }))
       );
       const requestsResults = await Promise.all(requestsPromises);
       const allRequests = requestsResults.flatMap(res => res.data);
@@ -99,7 +99,7 @@ const OwnerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
   const deleteProperty = async (propertyId) => {
     if (!window.confirm('Are you sure you want to delete this property?')) return;
     try {
-      await axios.delete(`http://localhost:5000/api/properties/${propertyId}`);
+      await axios.delete(`http://${window.location.hostname}:5000/api/properties/${propertyId}`);
       alert('Property deleted successfully');
       fetchOwnerData();
     } catch (error) {
@@ -110,7 +110,7 @@ const OwnerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
 
   const handleAgreementResponse = async (requestId, status) => {
     try {
-      await axios.put(`http://localhost:5000/api/agreement-requests/${requestId}/respond`, { 
+      await axios.put(`http://${window.location.hostname}:5000/api/agreement-requests/${requestId}/respond`, { 
         status,
         responded_by: user.id,
         response_message: status === 'accepted' ? 'Your agreement request has been accepted.' : 'Your agreement request has been rejected.'
@@ -125,7 +125,7 @@ const OwnerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
 
   const handleDocumentAccessResponse = async (requestId, status) => {
     try {
-      await axios.put(`http://localhost:5000/api/document-access/${requestId}/respond`, { status });
+      await axios.put(`http://${window.location.hostname}:5000/api/document-access/${requestId}/respond`, { status });
       alert(`Access request ${status}!`);
       fetchOwnerData();
     } catch (error) {
@@ -141,7 +141,7 @@ const OwnerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
 
   const sendDocumentKey = async (document, recipientId) => {
     try {
-      await axios.post('http://localhost:5000/api/messages', {
+      await axios.post(`http://${window.location.hostname}:5000/api/messages`, {
         sender_id: user.id,
         receiver_id: recipientId,
         subject: `Document Access Key for ${selectedProperty?.title}`,
@@ -169,7 +169,7 @@ const OwnerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
 
     try {
       setVideoUploadProgress(1); // Start progress
-      const res = await axios.put(`http://localhost:5000/api/properties/${propertyId}/video`, formData, {
+      const res = await axios.put(`http://${window.location.hostname}:5000/api/properties/${propertyId}/video`, formData, {
         onUploadProgress: (progressEvent) => {
           const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
           setVideoUploadProgress(percentCompleted);
@@ -198,7 +198,7 @@ const OwnerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
 
     try {
       setActionLoading(true);
-      await axios.put(`http://localhost:5000/api/properties/${propertyId}/video-link`, { video_url: videoLink });
+      await axios.put(`http://${window.location.hostname}:5000/api/properties/${propertyId}/video-link`, { video_url: videoLink });
       alert('✅ Video link updated successfully!');
       setShowVideoUploadModal(false);
       setVideoLink('');
@@ -232,12 +232,14 @@ const OwnerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
         <img
           src={property.main_image}
           alt={property.title}
-          style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '8px' }}
+          onClick={() => viewProperty(property)}
+          style={{ width: '60px', height: '60px', objectFit: 'cover', borderRadius: '8px', cursor: 'pointer' }}
+          title="Click to view details"
           onError={(e) => { e.target.onerror = null; e.target.src = ''; e.target.style.display = 'none'; }}
         />
       );
     }
-    return <div style={{ width: '60px', height: '60px', background: '#f1f5f9', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>🏠</div>;
+    return <div onClick={() => viewProperty(property)} style={{ width: '60px', height: '60px', background: '#f1f5f9', borderRadius: '8px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px', cursor: 'pointer' }} title="Click to view details">🏠</div>;
   };
 
   if (currentView === 'agreements') {

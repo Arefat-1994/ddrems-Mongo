@@ -1,87 +1,61 @@
 const express = require('express');
 const router = express.Router();
-const db = require('../config/db');
+const mongoose = require('mongoose');
+const { Favorites, Properties, PropertyImages } = require('../models');
 
-// Get user favorites
 router.get('/:userId', async (req, res) => {
   try {
-    const [favorites] = await db.query(`
-      SELECT f.*, p.title as property_title, p.location as property_location, 
-             p.price as property_price, p.type as property_type,
-             (SELECT image_url FROM property_images WHERE property_id = p.id AND image_type = 'main' LIMIT 1) as main_image
-      FROM favorites f
-      JOIN properties p ON f.property_id = p.id
-      WHERE f.user_id = ?
-      ORDER BY f.created_at DESC
-    `, [req.params.userId]);
+    if (!mongoose.Types.ObjectId.isValid(req.params.userId)) return res.json([]);
+    const favorites = await Favorites.aggregate([
+      { $match: { user_id: new mongoose.Types.ObjectId(req.params.userId) } },
+      { $lookup: { from: 'properties', localField: 'property_id', foreignField: '_id', as: 'property' } },
+      { $unwind: { path: '$property', preserveNullAndEmptyArrays: true } },
+      { $addFields: { id: '$_id', property_title: '$property.title', property_location: '$property.location', property_price: '$property.price', property_type: '$property.type', main_image: '$property.main_image' } },
+      { $sort: { created_at: -1 } }
+    ]);
     res.json(favorites);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
-// Get broker favorites (alias for user favorites)
 router.get('/broker/:brokerId', async (req, res) => {
   try {
-    const [favorites] = await db.query(`
-      SELECT f.*, p.title as property_title, p.location as property_location, 
-             p.price as property_price, p.type as property_type,
-             (SELECT image_url FROM property_images WHERE property_id = p.id AND image_type = 'main' LIMIT 1) as main_image
-      FROM favorites f
-      JOIN properties p ON f.property_id = p.id
-      WHERE f.user_id = ?
-      ORDER BY f.created_at DESC
-    `, [req.params.brokerId]);
+    if (!mongoose.Types.ObjectId.isValid(req.params.brokerId)) return res.json([]);
+    const favorites = await Favorites.aggregate([
+      { $match: { user_id: new mongoose.Types.ObjectId(req.params.brokerId) } },
+      { $lookup: { from: 'properties', localField: 'property_id', foreignField: '_id', as: 'property' } },
+      { $unwind: { path: '$property', preserveNullAndEmptyArrays: true } },
+      { $addFields: { id: '$_id', property_title: '$property.title', property_location: '$property.location', property_price: '$property.price', property_type: '$property.type', main_image: '$property.main_image' } },
+      { $sort: { created_at: -1 } }
+    ]);
     res.json(favorites);
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
-// Add to favorites
 router.post('/', async (req, res) => {
   try {
     const { user_id, property_id, broker_id } = req.body;
     const userId = user_id || broker_id;
-    
-    if (!userId || !property_id) {
-      return res.status(400).json({ message: 'user_id/broker_id and property_id are required' });
-    }
-    
-    await db.query('INSERT INTO favorites (user_id, property_id) VALUES (?, ?)', [userId, property_id]);
+    if (!userId || !property_id) return res.status(400).json({ message: 'user_id and property_id required' });
+    await Favorites.create({ user_id: userId, property_id });
     res.status(201).json({ message: 'Added to favorites' });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
-// Remove from favorites
 router.delete('/:propertyId', async (req, res) => {
   try {
     const { user_id, broker_id } = req.body;
     const userId = user_id || broker_id;
-    
-    if (!userId) {
-      return res.status(400).json({ message: 'user_id or broker_id is required' });
-    }
-    
-    await db.query('DELETE FROM favorites WHERE user_id = ? AND property_id = ?', 
-      [userId, req.params.propertyId]);
+    if (!userId) return res.status(400).json({ message: 'user_id required' });
+    await Favorites.deleteOne({ user_id: userId, property_id: req.params.propertyId });
     res.json({ message: 'Removed from favorites' });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
-// Legacy endpoint for backward compatibility
 router.delete('/:userId/:propertyId', async (req, res) => {
   try {
-    await db.query('DELETE FROM favorites WHERE user_id = ? AND property_id = ?', 
-      [req.params.userId, req.params.propertyId]);
+    await Favorites.deleteOne({ user_id: req.params.userId, property_id: req.params.propertyId });
     res.json({ message: 'Removed from favorites' });
-  } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
-  }
+  } catch (error) { res.status(500).json({ message: 'Server error', error: error.message }); }
 });
 
 module.exports = router;

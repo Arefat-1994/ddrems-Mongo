@@ -19,7 +19,7 @@ const Announcements = ({ user, onLogout, onSettingsClick }) => {
 
   const fetchAnnouncements = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/announcements');
+      const response = await axios.get(`http://${window.location.hostname}:5000/api/announcements`);
       setAnnouncements(response.data);
     } catch (error) {
       console.error('Error fetching announcements:', error);
@@ -49,9 +49,9 @@ const Announcements = ({ user, onLogout, onSettingsClick }) => {
     e.preventDefault();
     try {
       if (editingId) {
-        await axios.put(`http://localhost:5000/api/announcements/${editingId}`, formData);
+        await axios.put(`http://${window.location.hostname}:5000/api/announcements/${editingId}`, formData);
       } else {
-        await axios.post('http://localhost:5000/api/announcements', formData);
+        await axios.post(`http://${window.location.hostname}:5000/api/announcements`, formData);
       }
       fetchAnnouncements();
       setShowModal(false);
@@ -77,7 +77,7 @@ const Announcements = ({ user, onLogout, onSettingsClick }) => {
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this announcement?')) {
       try {
-        await axios.delete(`http://localhost:5000/api/announcements/${id}`);
+        await axios.delete(`http://${window.location.hostname}:5000/api/announcements/${id}`);
         fetchAnnouncements();
       } catch (error) {
         console.error('Error deleting announcement:', error);

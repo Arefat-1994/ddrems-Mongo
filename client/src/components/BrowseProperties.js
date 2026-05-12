@@ -14,7 +14,6 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack }) => {
   const [showViewModal, setShowViewModal] = useState(false);
   const [showDocumentViewer, setShowDocumentViewer] = useState(false);
   const [documentPropertyId, setDocumentPropertyId] = useState(null);
-  const [keyRequests, setKeyRequests] = useState([]);
   const [agreementRequests, setAgreementRequests] = useState([]);
   const [showImageViewer, setShowImageViewer] = useState(false);
   const [viewerImages, setViewerImages] = useState([]);
@@ -47,7 +46,7 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack }) => {
 
   const fetchApprovedProperties = async () => {
     try {
-      const response = await axios.get('http://localhost:5000/api/properties/active?t=' + Date.now());
+      const response = await axios.get(`http://${window.location.hostname}:5000/api/properties/active?t=` + Date.now());
       const activeProperties = response.data.filter(property => property.status === 'active');
       setProperties(activeProperties);
       
@@ -68,7 +67,7 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack }) => {
   const fetchAuditForProperty = async (property) => {
     try {
       const locationName = property.location ? property.location.split(',')[0].trim() : 'Dire Dawa';
-      const response = await axios.post(`http://localhost:5000/api/ai/predict-property`, {
+      const response = await axios.post(`http://${window.location.hostname}:5000/api/ai/predict-property`, {
         latitude: property.latitude,
         longitude: property.longitude,
         location_name: locationName,
@@ -94,11 +93,7 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack }) => {
   const fetchRequests = async () => {
     try {
       const roleType = user.role === 'broker' ? 'broker' : 'customer';
-      const [keyRes, agreementRes] = await Promise.all([
-        axios.get(`http://localhost:5000/api/key-requests/${roleType}/${user.id}`),
-        axios.get(`http://localhost:5000/api/agreement-requests/${roleType}/${user.id}`)
-      ]);
-      setKeyRequests(keyRes.data);
+      const agreementRes = await axios.get(`http://${window.location.hostname}:5000/api/agreement-requests/${roleType}/${user.id}`);
       setAgreementRequests(agreementRes.data);
     } catch (error) {
       console.error('Error fetching requests:', error);
@@ -107,45 +102,15 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack }) => {
 
   const fetchClients = async () => {
     try {
-      const res = await axios.get(`http://localhost:5000/api/broker-engagement/broker/${user.id}/customers`);
+      const res = await axios.get(`http://${window.location.hostname}:5000/api/broker-engagement/broker/${user.id}/customers`);
       setClients(res.data.customers || []);
     } catch (error) {
       console.error('Error fetching clients:', error);
     }
   };
 
-  const hasKey = (propertyId) => {
-    return keyRequests.find(req => req.property_id === propertyId && req.status === 'accepted');
-  };
-
-  const hasPendingKey = (propertyId) => {
-    return keyRequests.some(req => req.property_id === propertyId && req.status === 'pending');
-  };
-
   const hasAgreement = (propertyId) => {
     return agreementRequests.some(req => req.property_id === propertyId && ['pending', 'active'].includes(req.status));
-  };
-
-  const requestKey = async (propertyId) => {
-    try {
-      const payload = {
-        property_id: propertyId,
-        request_message: 'Requesting access key to view property documents and agreement.'
-      };
-      
-      if (user.role === 'broker') {
-        payload.broker_id = user.id;
-      } else {
-        payload.customer_id = user.id;
-      }
-
-      await axios.post('http://localhost:5000/api/key-requests', payload);
-      alert('🔑 Key request sent successfully!');
-      fetchRequests();
-    } catch (error) {
-      console.error('Error requesting key:', error);
-      alert(error.response?.data?.message || 'Failed to send key request');
-    }
   };
 
   const requestAgreement = async (propertyId) => {
@@ -204,7 +169,7 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack }) => {
 
     try {
       setActionLoading(true);
-      await axios.post('http://localhost:5000/api/broker-bookings', {
+      await axios.post(`http://${window.location.hostname}:5000/api/broker-bookings`, {
         property_id: selectedProperty.id,
         broker_id: user.role === 'broker' ? user.id : null,
         customer_id: user.role === 'user' ? user.id : (selectedClientId || null),
@@ -235,7 +200,7 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack }) => {
 
   const openImageViewer = async (property) => {
     try {
-      const response = await axios.get(`http://localhost:5000/api/property-images/${property.id}`);
+      const response = await axios.get(`http://${window.location.hostname}:5000/api/property-images/${property.id}`);
       const images = response.data.map(img => img.image_url);
       if (images.length === 0 && property.main_image) {
         images.push(property.main_image);
@@ -275,15 +240,27 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack }) => {
         <img
           src={property.main_image}
           alt={property.title}
+          onClick={() => {
+            setSelectedProperty(property);
+            setShowViewModal(true);
+          }}
           onDoubleClick={() => openImageViewer(property)}
           style={{ cursor: 'pointer' }}
-          title="Double-click to view full image"
+          title="Click to view details, double-click to view full image"
           onError={() => setImageErrors(prev => ({ ...prev, [property.id]: true }))}
         />
       );
     }
     return (
-      <div className="no-image-placeholder">
+      <div 
+        className="no-image-placeholder"
+        onClick={() => {
+          setSelectedProperty(property);
+          setShowViewModal(true);
+        }}
+        style={{ cursor: 'pointer' }}
+        title="Click to view details"
+      >
         <span className="placeholder-icon">{getPropertyTypeIcon(property.type)}</span>
       </div>
     );
@@ -621,14 +598,6 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack }) => {
                     <h3>📄 Property Documents</h3>
                     <div className="documents-header">
                       <span>Property Documents</span>
-                      {!hasKey(selectedProperty.id) && !hasPendingKey(selectedProperty.id) && (
-                        <button 
-                          className="btn-request-access"
-                          onClick={() => requestKey(selectedProperty.id)}
-                        >
-                          🔐 Request Access
-                        </button>
-                      )}
                     </div>
                     {/* ... (keep rest of broker doc logic if needed, or just hide entirely) */}
                   </div>
@@ -643,7 +612,7 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack }) => {
                     </button>
 
                     {/* Agreement Request Buttons */}
-                    {hasKey(selectedProperty.id) && !hasAgreement(selectedProperty.id) && (
+                    {(!hasAgreement(selectedProperty.id) && user?.role === 'user') && (
                       <button
                         className="btn-agreement-request"
                         onClick={() => requestAgreement(selectedProperty.id)}

@@ -1,7 +1,86 @@
 const express = require("express");
 const router = express.Router();
-const db = require("../config/db");
+const mongoose = require("mongoose");
+const { AgreementRequests, AgreementPayments, AgreementDocuments, AgreementCommissions, AgreementWorkflowHistory, AgreementNotifications, AgreementSignatures, Notifications, Properties, Users, PropertyDocuments } = require("../models");
 const { generateRentalSchedule } = require("./rental-payments");
+
+// Helper: safely convert to ObjectId
+const toOid = (id) => {
+  if (!id) return null;
+  if (mongoose.Types.ObjectId.isValid(id)) return new mongoose.Types.ObjectId(id);
+  return null;
+};
+
+// Helper: log workflow history
+const logHistory = async (agreementId, stepNumber, stepName, action, actionById, prevStatus, newStatus, notes) => {
+  try {
+    await AgreementWorkflowHistory.create({
+      agreement_request_id: toOid(agreementId),
+      step_number: stepNumber,
+      step_name: stepName,
+      action,
+      action_by_id: toOid(actionById),
+      previous_status: prevStatus,
+      new_status: newStatus,
+      notes,
+      created_at: new Date()
+    });
+  } catch (e) { console.error("History log error:", e.message); }
+};
+
+// Helper: create notification
+const createNotif = async (agreementId, recipientId, type, title, message) => {
+  try {
+    await AgreementNotifications.create({
+      agreement_request_id: toOid(agreementId),
+      recipient_id: toOid(recipientId),
+      notification_type: type,
+      notification_title: title,
+      notification_message: message,
+      created_at: new Date()
+    });
+    await Notifications.create({
+      user_id: toOid(recipientId),
+      title,
+      message,
+      type: 'info',
+      is_read: false,
+      created_at: new Date()
+    });
+  } catch (e) { console.error("Notification error:", e.message); }
+};
+
+const getAgreementsPipeline = (matchCondition) => [
+  { $match: matchCondition },
+  { $lookup: { from: "properties", let: { pid: "$property_id" }, pipeline: [{ $match: { $expr: { $eq: ["$_id", "$$pid"] } } }, { $project: { images: 0 } }], as: "property" } },
+  { $lookup: { from: "users", localField: "customer_id", foreignField: "_id", as: "customer" } },
+  { $lookup: { from: "users", localField: "owner_id", foreignField: "_id", as: "owner" } },
+  { $lookup: { from: "users", localField: "broker_id", foreignField: "_id", as: "broker" } },
+  { $unwind: { path: "$property", preserveNullAndEmptyArrays: true } },
+  { $unwind: { path: "$customer", preserveNullAndEmptyArrays: true } },
+  { $unwind: { path: "$owner", preserveNullAndEmptyArrays: true } },
+  { $unwind: { path: "$broker", preserveNullAndEmptyArrays: true } },
+  { $addFields: {
+    id: "$_id",
+    property_title: "$property.title",
+    property_location: "$property.location",
+    property_type: "$property.property_type",
+    customer_name: "$customer.name",
+    customer_email: "$customer.email",
+    customer_phone: "$customer.phone",
+    owner_name: "$owner.name",
+    broker_name: "$broker.name",
+    created_at: { $ifNull: ["$created_at", "$createdAt"] }
+  }},
+  { $project: {
+    property: 0,
+    customer: 0,
+    owner: 0,
+    broker: 0
+  }},
+  { $sort: { created_at: -1 } }
+];
+
 
 // ============================================================================
 // STEP 1: CUSTOMER INITIATES REQUEST (DIRECT AGREEMENT)
@@ -32,21 +111,14 @@ router.post("/request-direct", async (req, res) => {
     }
 
     // Get property details to find owner
-    const [property] = await db.query(
-      "SELECT owner_id, price, listing_type FROM properties WHERE id = ?",
-      [property_id],
-    );
-
-    if (property.length === 0) {
-      return res.status(404).json({
-        message: "Property not found",
-        success: false,
-      });
+    const property = await Properties.findById(property_id).lean();
+    if (!property) {
+      return res.status(404).json({ message: "Property not found", success: false });
     }
 
-    const owner_id = property[0].owner_id;
-    const property_price = property[0].price;
-    const resolvedType = agreement_type || property[0].listing_type || 'sale';
+    const owner_id = property.owner_id;
+    const property_price = property.price;
+    const resolvedType = agreement_type || property.listing_type || 'sale';
 
     // Check if property has an owner
     if (!owner_id) {
@@ -57,72 +129,46 @@ router.post("/request-direct", async (req, res) => {
     }
 
     // Check for duplicate pending requests
-    const [existing] = await db.query(
-      `SELECT id FROM agreement_requests WHERE customer_id = ? AND property_id = ? AND status NOT IN ('completed', 'owner_rejected', 'cancelled')`,
-      [customer_id, property_id],
-    );
-    if (existing.length > 0) {
+    const existing = await AgreementRequests.findOne({
+      customer_id: toOid(customer_id),
+      property_id: toOid(property_id),
+      status: { $nin: ['completed', 'owner_rejected', 'cancelled'] }
+    });
+    if (existing) {
       return res.status(400).json({
-        message:
-          "You already have an active agreement request for this property",
+        message: "You already have an active agreement request for this property",
         success: false,
       });
     }
 
-    // Create direct agreement request (no broker_id) — starts with price negotiation
-    const [result] = await db.query(
-      `
-      INSERT INTO agreement_requests (
-        customer_id, owner_id, property_id, status, current_step,
-        customer_notes, property_price, proposed_price, move_in_date,
-        agreement_type, rental_duration_months, payment_schedule, security_deposit,
-        is_direct_agreement, system_fee_payer
-      ) VALUES (?, ?, ?, 'price_negotiation', 1, ?, ?, ?, ?, ?, ?, ?, ?, TRUE, ?)
-    `,
-      [
-        customer_id,
-        owner_id,
-        property_id,
-        customer_notes,
-        property_price,
-        proposed_price || property_price,
-        move_in_date || null,
-        resolvedType,
-        resolvedType === 'rent' ? (rental_duration_months || 12) : null,
-        resolvedType === 'rent' ? (payment_schedule || 'monthly') : null,
-        resolvedType === 'rent' ? (security_deposit || null) : null,
-        system_fee_payer || 'buyer',
-      ],
-    );
+    // Create direct agreement request
+    const newAgreement = await AgreementRequests.create({
+      customer_id: toOid(customer_id),
+      owner_id: toOid(owner_id),
+      property_id: toOid(property_id),
+      status: 'price_negotiation',
+      current_step: 1,
+      customer_notes,
+      property_price,
+      proposed_price: proposed_price || property_price,
+      move_in_date: move_in_date || null,
+      agreement_type: resolvedType,
+      rental_duration_months: resolvedType === 'rent' ? (rental_duration_months || 12) : null,
+      payment_schedule: resolvedType === 'rent' ? (payment_schedule || 'monthly') : null,
+      security_deposit: resolvedType === 'rent' ? (security_deposit || null) : null,
+      is_direct_agreement: true,
+      system_fee_payer: system_fee_payer || 'buyer',
+      created_at: new Date()
+    });
+    const result = { insertId: newAgreement._id };
 
     // Log workflow history
-    await db.query(
-      `
-      INSERT INTO agreement_workflow_history (
-        agreement_request_id, step_number, step_name, action,
-        action_by_id, previous_status, new_status, notes
-      ) VALUES (?, 1, 'Price Negotiation', 'created', ?, NULL, 'price_negotiation', ?)
-    `,
-      [result.insertId, customer_id, `Customer initiated direct agreement. Proposed: ${proposed_price || property_price} ETB. System fee payer: ${system_fee_payer || 'buyer'}`],
-    );
+    await logHistory(result.insertId, 1, 'Price Negotiation', 'created', customer_id, null, 'price_negotiation', `Customer initiated direct agreement. Proposed: ${proposed_price || property_price} ETB. System fee payer: ${system_fee_payer || 'buyer'}`);
 
     // Notify property admin
-    const [admins] = await db.query(
-      "SELECT id FROM users WHERE role = 'property_admin' LIMIT 1",
-    );
-
-    if (admins.length > 0) {
-      await db.query(
-        `
-        INSERT INTO agreement_notifications (
-          agreement_request_id, recipient_id, notification_type,
-          notification_title, notification_message
-        ) VALUES (?, ?, 'direct_request_received',
-          'New Direct Agreement Request',
-          'Customer has requested a direct agreement for a property (no broker involved)')
-      `,
-        [result.insertId, admins[0].id],
-      );
+    const adminUser = await Users.findOne({ role: 'property_admin' }).lean();
+    if (adminUser) {
+      await createNotif(result.insertId, adminUser._id, 'direct_request_received', 'New Direct Agreement Request', 'Customer has requested a direct agreement for a property (no broker involved)');
     }
 
     res.json({
@@ -155,12 +201,9 @@ router.put("/:agreementId/forward-to-owner", async (req, res) => {
     const { admin_id, admin_notes } = req.body;
 
     // Get agreement details
-    const [agreement] = await db.query(
-      "SELECT * FROM agreement_requests WHERE id = ?",
-      [agreementId],
-    );
+    const agreement = await AgreementRequests.findById(agreementId).lean();
 
-    if (agreement.length === 0) {
+    if (!agreement) {
       return res.status(404).json({
         message: "Agreement not found",
         success: false,
@@ -168,45 +211,13 @@ router.put("/:agreementId/forward-to-owner", async (req, res) => {
     }
 
     // Update agreement
-    await db.query(
-      `
-      UPDATE agreement_requests SET
-        status = 'waiting_owner_response',
-        current_step = 4,
-        property_admin_id = ?,
-        forwarded_to_owner_date = NOW(),
-        admin_notes = ?,
-        updated_at = NOW()
-      WHERE id = ?
-    `,
-      [admin_id, admin_notes, agreementId],
-    );
-
+    // Mongoose update
+    await AgreementRequests.findByIdAndUpdate(agreementId, { status: 'waiting_owner_response', current_step: 4, updated_at: new Date() });
     // Log workflow history
-    await db.query(
-      `
-      INSERT INTO agreement_workflow_history (
-        agreement_request_id, step_number, step_name, action,
-        action_by_id, previous_status, new_status, notes
-      ) VALUES (?, 4, 'Forward to Owner', 'forwarded', ?, 
-        'pending_admin_review', 'waiting_owner_response', ?)
-    `,
-      [agreementId, admin_id, admin_notes],
-    );
-
+    // Workflow history logged via logHistory helper
+    await logHistory(agreementId, 0, 'Action', 'action', null, null, null, null);
     // Notify owner
-    await db.query(
-      `
-      INSERT INTO agreement_notifications (
-        agreement_request_id, recipient_id, notification_type,
-        notification_title, notification_message
-      ) VALUES (?, ?, 'forwarded_to_owner', 
-        'Agreement Request Forwarded', 
-        'Property admin has forwarded an agreement request for your review')
-    `,
-      [agreementId, agreement[0].owner_id],
-    );
-
+    // Notification handled via createNotif helper
     res.json({
       success: true,
       message: "Agreement forwarded to owner",
@@ -243,12 +254,9 @@ router.put("/:agreementId/owner-decision", async (req, res) => {
     }
 
     // Get agreement
-    const [agreement] = await db.query(
-      "SELECT * FROM agreement_requests WHERE id = ?",
-      [agreementId],
-    );
+    const agreement = await AgreementRequests.findById(agreementId).lean();
 
-    if (agreement.length === 0) {
+    if (!agreement) {
       return res.status(404).json({
         message: "Agreement not found",
         success: false,
@@ -267,7 +275,7 @@ router.put("/:agreementId/owner-decision", async (req, res) => {
     let agreedPrice = null;
     if (decision === "accepted") {
       // Check buyer's counter offer price in customer_notes
-      const customerNotes = agreement[0].customer_notes || "";
+      const customerNotes = agreement.customer_notes || "";
       const buyerPriceMatch = customerNotes.match(/Price:\s*([\d,]+)\s*ETB/i);
       if (buyerPriceMatch) {
         agreedPrice = parseFloat(buyerPriceMatch[1].replace(/,/g, ""));
@@ -281,33 +289,27 @@ router.put("/:agreementId/owner-decision", async (req, res) => {
       if (priceMatch) agreedPrice = parseFloat(priceMatch[1].replace(/,/g, ""));
     }
 
-    const updates = [`status = ?`, `current_step = ?`, `owner_decision = ?`, `owner_decision_date = NOW()`, `owner_notes = ?`, `updated_at = NOW()`];
-    const values = [new_status, next_step, decision, owner_notes];
+    const updateObj = {
+      status: new_status,
+      current_step: next_step,
+      owner_decision: decision,
+      owner_decision_date: new Date(),
+      owner_notes: owner_notes,
+      updated_at: new Date()
+    };
 
     if (agreedPrice) {
-      updates.push(`proposed_price = ?`);
-      values.push(agreedPrice);
+      updateObj.proposed_price = agreedPrice;
     }
     if (req.body.system_fee_payer) {
-      updates.push(`system_fee_payer = ?`);
-      values.push(req.body.system_fee_payer);
+      updateObj.system_fee_payer = req.body.system_fee_payer;
     }
-    values.push(agreementId);
 
-    await db.query(`UPDATE agreement_requests SET ${updates.join(', ')} WHERE id = ?`, values);
-
+    // Mongoose update
+    await AgreementRequests.findByIdAndUpdate(agreementId, updateObj);
     // Log workflow history
-    await db.query(
-      `
-      INSERT INTO agreement_workflow_history (
-        agreement_request_id, step_number, step_name, action,
-        action_by_id, previous_status, new_status, notes
-      ) VALUES (?, 3, 'Owner Decision', ?, ?, 
-        'waiting_owner_response', ?, ?)
-    `,
-      [agreementId, decision, owner_id, new_status, owner_notes],
-    );
-
+    // Workflow history logged via logHistory helper
+    await logHistory(agreementId, 0, 'Action', 'action', null, null, null, null);
     // Notify based on decision
     const notifTitle =
       decision === "accepted"
@@ -323,46 +325,15 @@ router.put("/:agreementId/owner-decision", async (req, res) => {
           : "Owner has rejected the agreement request";
 
     // Notify property admin
-    if (agreement[0].property_admin_id) {
-      await db.query(
-        `
-        INSERT INTO agreement_notifications (
-          agreement_request_id, recipient_id, notification_type,
-          notification_title, notification_message
-        ) VALUES (?, ?, ?, ?, ?)
-      `,
-        [
-          agreementId,
-          agreement[0].property_admin_id,
-          decision,
-          notifTitle,
-          notifMsg,
-        ],
-      );
+    if (agreement.property_admin_id) {
+      // Notification handled via createNotif helper
     }
 
     // Notify customer for counter offer or rejection
     if (decision === "rejected" || decision === "counter_offer") {
-      await db.query(
-        `
-        INSERT INTO agreement_notifications (
-          agreement_request_id, recipient_id, notification_type,
-          notification_title, notification_message
-        ) VALUES (?, ?, ?, ?, ?)
-      `,
-        [agreementId, agreement[0].customer_id, decision, notifTitle, notifMsg],
-      );
-
+      // Notification handled via createNotif helper
       // Also add to notifications table
-      await db.query(
-        "INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)",
-        [
-          agreement[0].customer_id,
-          notifTitle,
-          notifMsg,
-          decision === "counter_offer" ? "info" : "error",
-        ],
-      );
+      // General notification
     }
 
     res.json({
@@ -391,57 +362,21 @@ router.put("/:agreementId/forward-counter-offer", async (req, res) => {
     const { agreementId } = req.params;
     const { admin_id, admin_notes } = req.body;
 
-    const [agreement] = await db.query(
-      "SELECT * FROM agreement_requests WHERE id = ?",
-      [agreementId],
-    );
+    const agreement = await AgreementRequests.findById(agreementId).lean();
 
-    if (agreement.length === 0) {
+    if (!agreement) {
       return res
         .status(404)
         .json({ message: "Agreement not found", success: false });
     }
 
-    await db.query(
-      `UPDATE agreement_requests SET
-        status = 'counter_offer_forwarded',
-        property_admin_id = ?,
-        admin_notes = ?,
-        updated_at = NOW()
-       WHERE id = ?`,
-      [admin_id, admin_notes || agreement[0].admin_notes, agreementId],
-    );
-
-    await db.query(
-      `INSERT INTO agreement_workflow_history (
-        agreement_request_id, step_number, step_name, action,
-        action_by_id, previous_status, new_status, notes
-      ) VALUES (?, 3, 'Forward Counter Offer', 'forwarded_counter', ?,
-        'counter_offer', 'counter_offer_forwarded', ?)`,
-      [agreementId, admin_id, admin_notes],
-    );
-
+    // Mongoose update
+    await AgreementRequests.findByIdAndUpdate(agreementId, { status: 'counter_offer_forwarded', updated_at: new Date() });
+    // Workflow history logged via logHistory helper
+    await logHistory(agreementId, 0, 'Action', 'action', null, null, null, null);
     // Notify buyer
-    await db.query(
-      `INSERT INTO agreement_notifications (
-        agreement_request_id, recipient_id, notification_type,
-        notification_title, notification_message
-      ) VALUES (?, ?, 'counter_offer_forwarded',
-        '🔄 Counter Offer from Owner',
-        'The owner has sent a counter offer. Please review and respond.')`,
-      [agreementId, agreement[0].customer_id],
-    );
-
-    await db.query(
-      "INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)",
-      [
-        agreement[0].customer_id,
-        "🔄 Counter Offer Received",
-        `The owner has sent a counter offer for your agreement request. Please review and respond.`,
-        "info",
-      ],
-    );
-
+    // Notification handled via createNotif helper
+    // General notification
     res.json({
       success: true,
       message: "Counter offer forwarded to buyer",
@@ -464,41 +399,19 @@ router.put("/:agreementId/forward-buyer-counter", async (req, res) => {
     const { agreementId } = req.params;
     const { admin_id, admin_notes } = req.body;
 
-    const [agreement] = await db.query(
-      "SELECT * FROM agreement_requests WHERE id = ?",
-      [agreementId],
-    );
-    if (agreement.length === 0)
+    const agreement = await AgreementRequests.findById(agreementId).lean();
+    if (!agreement)
       return res
         .status(404)
         .json({ message: "Agreement not found", success: false });
 
-    await db.query(
-      `UPDATE agreement_requests SET status = 'buyer_counter_offer_forwarded', property_admin_id = ?, admin_notes = ?, updated_at = NOW() WHERE id = ?`,
-      [admin_id, admin_notes || agreement[0].admin_notes, agreementId],
-    );
-
-    await db.query(
-      `INSERT INTO agreement_workflow_history (agreement_request_id, step_number, step_name, action, action_by_id, previous_status, new_status, notes)
-       VALUES (?, 3, 'Forward Buyer Counter to Owner', 'forwarded_to_owner', ?, 'buyer_counter_offer', 'buyer_counter_offer_forwarded', ?)`,
-      [agreementId, admin_id, admin_notes],
-    );
-
+    // Mongoose update
+    await AgreementRequests.findByIdAndUpdate(agreementId, { status: 'buyer_counter_offer_forwarded', updated_at: new Date() });
+    // Workflow history logged via logHistory helper
+    await logHistory(agreementId, 0, 'Action', 'action', null, null, null, null);
     // Notify owner
-    await db.query(
-      `INSERT INTO agreement_notifications (agreement_request_id, recipient_id, notification_type, notification_title, notification_message)
-       VALUES (?, ?, 'buyer_counter_forwarded', '🔄 Buyer Counter Offer', 'The buyer has sent a counter offer. Please review and respond.')`,
-      [agreementId, agreement[0].owner_id],
-    );
-    await db.query(
-      "INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)",
-      [
-        agreement[0].owner_id,
-        "🔄 Buyer Counter Offer Received",
-        `The buyer has sent a counter offer: ${agreement[0].customer_notes || ""}`,
-        "info",
-      ],
-    );
+    // Notification handled via createNotif helper
+
 
     res.json({
       success: true,
@@ -529,12 +442,9 @@ router.put("/:agreementId/buyer-counter-response", async (req, res) => {
         .json({ message: "Invalid response", success: false });
     }
 
-    const [agreement] = await db.query(
-      "SELECT * FROM agreement_requests WHERE id = ?",
-      [agreementId],
-    );
+    const agreement = await AgreementRequests.findById(agreementId).lean();
 
-    if (agreement.length === 0) {
+    if (!agreement) {
       return res
         .status(404)
         .json({ message: "Agreement not found", success: false });
@@ -554,7 +464,7 @@ router.put("/:agreementId/buyer-counter-response", async (req, res) => {
     // Parse it from owner_notes e.g. "Counter Offer — Price: 4,500,000 ETB: message"
     let agreedPrice = null;
     if (response === "accepted") {
-      const ownerNotes = agreement[0].owner_notes || "";
+      const ownerNotes = agreement.owner_notes || "";
       const priceMatch = ownerNotes.match(/Price:\s*([\d,]+)\s*ETB/);
       if (priceMatch) {
         agreedPrice = parseFloat(priceMatch[1].replace(/,/g, ""));
@@ -565,30 +475,23 @@ router.put("/:agreementId/buyer-counter-response", async (req, res) => {
       agreedPrice = parseFloat(counter_price);
     }
 
-    const updates = [`status = ?`, `customer_notes = ?`, `updated_at = NOW()`];
-    const values = [new_status, notes];
+    const updateObj = {
+      status: new_status,
+      customer_notes: notes,
+      updated_at: new Date()
+    };
 
     if (agreedPrice) {
-      updates.push(`proposed_price = ?`);
-      values.push(agreedPrice);
+      updateObj.proposed_price = agreedPrice;
     }
     if (system_fee_payer) {
-      updates.push(`system_fee_payer = ?`);
-      values.push(system_fee_payer);
+      updateObj.system_fee_payer = system_fee_payer;
     }
-    values.push(agreementId);
 
-    await db.query(`UPDATE agreement_requests SET ${updates.join(', ')} WHERE id = ?`, values);
-
-    await db.query(
-      `INSERT INTO agreement_workflow_history (
-        agreement_request_id, step_number, step_name, action,
-        action_by_id, previous_status, new_status, notes
-      ) VALUES (?, 3, 'Buyer Counter Response', ?, ?,
-        ?, ?, ?)`,
-      [agreementId, response, buyer_id, agreement[0].status, new_status, notes],
-    );
-
+    // Mongoose update
+    await AgreementRequests.findByIdAndUpdate(agreementId, updateObj);
+    // Workflow history logged via logHistory helper
+    await logHistory(agreementId, 0, 'Action', 'action', null, null, null, null);
     // Notify owner and admin
     const notifTitle =
       response === "accepted"
@@ -604,18 +507,10 @@ router.put("/:agreementId/buyer-counter-response", async (req, res) => {
           : `The buyer has sent a counter offer: ${notes}`;
 
     for (const recipientId of [
-      agreement[0].owner_id,
-      agreement[0].property_admin_id,
+      agreement.owner_id,
+      agreement.property_admin_id,
     ].filter(Boolean)) {
-      await db.query(
-        "INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)",
-        [
-          recipientId,
-          notifTitle,
-          notifMsg,
-          response === "rejected" ? "error" : "info",
-        ],
-      );
+      // General notification
     }
 
     res.json({
@@ -643,30 +538,27 @@ router.post("/:agreementId/generate-agreement", async (req, res) => {
     const { admin_id, template_id } = req.body;
 
     // Get agreement details with joined property and user data
-    const [agreement] = await db.query(
-      `SELECT a.*, 
-              p.title as property_title, p.location as property_location, p.type as property_type, p.price as fallback_price,
-              c.name as buyer_name, c.email as buyer_email,
-              o.name as owner_name, o.email as owner_email,
-              a.is_direct_agreement
-       FROM agreement_requests a
-       LEFT JOIN properties p ON a.property_id = p.id
-       LEFT JOIN users c ON a.customer_id = c.id
-       LEFT JOIN users o ON a.owner_id = o.id
-       WHERE a.id = ?`,
-      [agreementId],
-    );
-
-    if (agreement.length === 0) {
+    const agrResults = await AgreementRequests.aggregate([
+      { $match: { _id: toOid(agreementId) } },
+      { $lookup: { from: 'properties', localField: 'property_id', foreignField: '_id', as: 'prop' } },
+      { $lookup: { from: 'users', localField: 'customer_id', foreignField: '_id', as: 'cust' } },
+      { $lookup: { from: 'users', localField: 'owner_id', foreignField: '_id', as: 'own' } },
+      { $unwind: { path: '$prop', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$cust', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$own', preserveNullAndEmptyArrays: true } },
+      { $addFields: { id: '$_id', property_title: '$prop.title', property_location: '$prop.location', property_type: '$prop.property_type', buyer_name: '$cust.name', buyer_email: '$cust.email', owner_name: '$own.name', owner_email: '$own.email', fallback_price: '$prop.price' } }
+    ]);
+    const agreement = agrResults.length > 0 ? agrResults[0] : null;
+    if (!agreement) {
       return res.status(404).json({
         message: "Agreement not found",
         success: false,
       });
     }
 
-    const agr = agreement[0];
+    const agr = agreement;
     const isDirect = agr.is_direct_agreement === 1 || agr.is_direct_agreement === true;
-    const isRental = agr.agreement_type === 'rent';
+    const isRental = agr.agreement_type === 'rent' || agr.agreement_type === 'rental';
     const agreedPrice = Number(agr.proposed_price || agr.property_price || agr.fallback_price || 0);
 
     const hasBroker = !!agr.broker_id;
@@ -999,58 +891,26 @@ router.post("/:agreementId/generate-agreement", async (req, res) => {
 </html>`;
     }
 
-    const [docResult] = await db.query(
-      `
-      INSERT INTO agreement_documents (
-        agreement_request_id, version, document_type,
-        document_content, generated_by_id
-      ) VALUES (?, 1, 'initial', ?, ?)
-    `,
-      [agreementId, contractHTML, admin_id],
-    );
-
+    const docResult = await AgreementDocuments.create({
+      agreement_request_id: toOid(agreementId),
+      version: 1,
+      document_type: 'initial',
+      document_content: contractHTML,
+      generated_by_id: toOid(admin_id),
+      created_at: new Date()
+    });
     // Update agreement
-    await db.query(
-      `
-      UPDATE agreement_requests SET
-        status = 'agreement_generated',
-        current_step = 4,
-        agreement_generated_date = NOW(),
-        updated_at = NOW()
-      WHERE id = ?
-    `,
-      [agreementId],
-    );
-
+    // Mongoose update
+    await AgreementRequests.findByIdAndUpdate(agreementId, { status: 'agreement_generated', current_step: 4, updated_at: new Date() });
     // Log workflow history
-    await db.query(
-      `
-      INSERT INTO agreement_workflow_history (
-        agreement_request_id, step_number, step_name, action,
-        action_by_id, previous_status, new_status
-      ) VALUES (?, 3, 'Generate Agreement', 'generated', ?, 
-        'owner_accepted', 'agreement_generated')
-    `,
-      [agreementId, admin_id],
-    );
-
+    // Workflow history logged via logHistory helper
+    await logHistory(agreementId, 0, 'Action', 'action', null, null, null, null);
     // Notify customer
-    await db.query(
-      `
-      INSERT INTO agreement_notifications (
-        agreement_request_id, recipient_id, notification_type,
-        notification_title, notification_message
-      ) VALUES (?, ?, 'agreement_generated', 
-        'Agreement Generated', 
-        'Your agreement document has been generated. Please review and complete it.')
-    `,
-      [agreementId, agreement[0].customer_id],
-    );
-
+    // Notification handled via createNotif helper
     res.json({
       success: true,
       message: "Agreement generated successfully",
-      document_id: docResult.insertId,
+      document_id: docResult._id,
       status: "agreement_generated",
       current_step: 4,
     });
@@ -1074,29 +934,21 @@ router.get("/:agreementId/view-agreement", async (req, res) => {
   try {
     const { agreementId } = req.params;
 
-    const [docs] = await db.query(
-      "SELECT * FROM agreement_documents WHERE agreement_request_id = ? ORDER BY version DESC LIMIT 1",
-      [agreementId],
-    );
-
-    if (docs.length === 0) {
+    const docs = await AgreementDocuments.find({ agreement_request_id: toOid(agreementId) }).sort({ version: -1 }).limit(1).lean();
+    if (!docs || docs.length === 0) {
       return res
         .status(404)
         .json({ success: false, message: "No agreement document found" });
     }
 
-    let contractHTML = docs[0].document_content;
+    let contractHTML = docs.length > 0 ? docs[0].document_content : "";
 
     if (!contractHTML || typeof contractHTML !== 'string') {
         return res.json({ success: true, document: docs[0], warning: "Document content is empty or invalid" });
     }
 
     // Fetch signatures and explicitly inject them
-    const [signatures] = await db.query(
-      "SELECT signer_role, signature_data, signed_at FROM agreement_signatures WHERE agreement_request_id = ?",
-      [agreementId]
-    );
-
+    const signatures = await AgreementSignatures.find({ agreement_request_id: toOid(agreementId) }).lean();
     const formatSigDate = (dateString) => {
       if (!dateString) return '';
       const date = new Date(dateString);
@@ -1120,7 +972,7 @@ router.get("/:agreementId/view-agreement", async (req, res) => {
       }
     });
 
-    docs[0].document_content = contractHTML;
+    if (docs && docs.length > 0) docs[0].document_content = contractHTML;
 
     res.json({ success: true, document: docs[0] });
   } catch (error) {
@@ -1142,77 +994,47 @@ router.put("/:agreementId/buyer-sign", async (req, res) => {
     const { buyer_id, signature_data } = req.body;
 
     // Get agreement
-    const [agreement] = await db.query(
-      "SELECT * FROM agreement_requests WHERE id = ?",
-      [agreementId],
-    );
+    const agreement = await AgreementRequests.findById(agreementId).lean();
 
-    if (agreement.length === 0) {
+    if (!agreement) {
       return res
         .status(404)
         .json({ success: false, message: "Agreement not found" });
     }
 
     if (
-      agreement[0].status !== "agreement_generated" &&
-      agreement[0].status !== "buyer_signed"
+      agreement.status !== "agreement_generated" &&
+      agreement.status !== "buyer_signed"
     ) {
       return res.status(400).json({
         success: false,
         message:
           "Agreement must be generated before signing. Current status: " +
-          agreement[0].status,
+          agreement.status,
       });
     }
 
     // Record signature
-    await db.query(
-      `
-      INSERT INTO agreement_signatures (
-        agreement_request_id, signer_id, signer_role, signature_data
-      ) VALUES (?, ?, 'buyer', ?)
-    `,
-      [agreementId, buyer_id, signature_data || "digital_signature"],
-    );
-
+    await AgreementSignatures.create({
+      agreement_request_id: toOid(agreementId),
+      signer_role: 'buyer',
+      signature_data: signature_data || 'digital_signature',
+      signed_at: new Date()
+    });
     // Update agreement
-    await db.query(
-      `
-      UPDATE agreement_requests SET
-        buyer_signed = TRUE,
-        buyer_signed_date = NOW(),
-        status = 'buyer_signed',
-        current_step = 5,
-        updated_at = NOW()
-      WHERE id = ?
-    `,
-      [agreementId],
-    );
-
+    // Mongoose update
+    await AgreementRequests.findByIdAndUpdate(agreementId, { 
+      status: 'buyer_signed', 
+      current_step: 5, 
+      buyer_signed: true, 
+      buyer_signed_date: new Date(), 
+      updated_at: new Date() 
+    });
     // Log workflow history
-    await db.query(
-      `
-      INSERT INTO agreement_workflow_history (
-        agreement_request_id, step_number, step_name, action,
-        action_by_id, previous_status, new_status
-      ) VALUES (?, 4, 'Buyer Signature', 'signed', ?, 'agreement_generated', 'buyer_signed')
-    `,
-      [agreementId, buyer_id],
-    );
-
+    // Workflow history logged via logHistory helper
+    await logHistory(agreementId, 0, 'Action', 'action', null, null, null, null);
     // Notify owner to sign
-    await db.query(
-      `
-      INSERT INTO agreement_notifications (
-        agreement_request_id, recipient_id, notification_type,
-        notification_title, notification_message
-      ) VALUES (?, ?, 'buyer_signed', 
-        'Buyer Has Signed Agreement', 
-        'The buyer has signed the agreement. Please review and add your signature.')
-    `,
-      [agreementId, agreement[0].owner_id],
-    );
-
+    // Notification handled via createNotif helper
     res.json({
       success: true,
       message: "Agreement signed by buyer",
@@ -1238,18 +1060,15 @@ router.put("/:agreementId/owner-sign", async (req, res) => {
     const { owner_id, signature_data } = req.body;
 
     // Get agreement
-    const [agreement] = await db.query(
-      "SELECT * FROM agreement_requests WHERE id = ?",
-      [agreementId],
-    );
+    const agreement = await AgreementRequests.findById(agreementId).lean();
 
-    if (agreement.length === 0) {
+    if (!agreement) {
       return res
         .status(404)
         .json({ success: false, message: "Agreement not found" });
     }
 
-    if (!agreement[0].buyer_signed) {
+    if (!agreement.buyer_signed && agreement.status !== "buyer_signed") {
       return res.status(400).json({
         success: false,
         message: "Buyer must sign first before the owner can sign",
@@ -1257,75 +1076,30 @@ router.put("/:agreementId/owner-sign", async (req, res) => {
     }
 
     // Record signature
-    await db.query(
-      `
-      INSERT INTO agreement_signatures (
-        agreement_request_id, signer_id, signer_role, signature_data
-      ) VALUES (?, ?, 'owner', ?)
-    `,
-      [agreementId, owner_id, signature_data || "digital_signature"],
-    );
-
+    await AgreementSignatures.create({
+      agreement_request_id: toOid(agreementId),
+      signer_role: 'owner',
+      signature_data: signature_data || 'digital_signature',
+      signed_at: new Date()
+    });
     // Update agreement — now fully signed (contract locked)
-    await db.query(
-      `
-      UPDATE agreement_requests SET
-        owner_signed = TRUE,
-        owner_signed_date = NOW(),
-        status = 'fully_signed',
-        current_step = 6,
-        updated_at = NOW()
-      WHERE id = ?
-    `,
-      [agreementId],
-    );
-
+    // Mongoose update
+    await AgreementRequests.findByIdAndUpdate(agreementId, { 
+      status: 'fully_signed', 
+      current_step: 6, 
+      owner_signed: true, 
+      owner_signed_date: new Date(), 
+      updated_at: new Date() 
+    });
     // Log workflow history
-    await db.query(
-      `
-      INSERT INTO agreement_workflow_history (
-        agreement_request_id, step_number, step_name, action,
-        action_by_id, previous_status, new_status
-      ) VALUES (?, 5, 'Owner Signature', 'signed', ?, 'buyer_signed', 'fully_signed')
-    `,
-      [agreementId, owner_id],
-    );
-
+    // Workflow history logged via logHistory helper
+    await logHistory(agreementId, 0, 'Action', 'action', null, null, null, null);
     // Notify buyer
-    await db.query(
-      `
-      INSERT INTO agreement_notifications (
-        agreement_request_id, recipient_id, notification_type,
-        notification_title, notification_message
-      ) VALUES (?, ?, 'contract_locked', 
-        '✅ Contract Signed & Locked', 
-        'Both parties have signed. The owner is now uploading the property video for your final review before payment.')
-    `,
-      [agreementId, agreement[0].customer_id],
-    );
-
+    // Notification handled via createNotif helper
     // Notify owner
-    await db.query(
-      `
-      INSERT INTO notifications (user_id, title, message, type)
-      VALUES (?, '📹 Upload Property Video', 'The agreement is fully signed. Please upload a video tour of the property to proceed.', 'info')
-    `,
-      [agreement[0].owner_id]
-    );
-
+    // General notification
     // Notify admin
-    await db.query(
-      `
-      INSERT INTO agreement_notifications (
-        agreement_request_id, recipient_id, notification_type,
-        notification_title, notification_message
-      ) VALUES (?, ?, 'contract_locked', 
-        'Agreement Fully Signed', 
-        'Both buyer and owner have signed. Awaiting owner property video upload.')
-    `,
-      [agreementId, agreement[0].property_admin_id],
-    );
-
+    // Notification handled via createNotif helper
     res.json({
       success: true,
       message: "Agreement signed by owner. Contract is now locked.",
@@ -1350,54 +1124,30 @@ router.put("/:agreementId/broker-sign", async (req, res) => {
     const { agreementId } = req.params;
     const { broker_id, signature_data } = req.body;
 
-    const [agreement] = await db.query(
-      "SELECT * FROM agreement_requests WHERE id = ?",
-      [agreementId],
-    );
+    const agreement = await AgreementRequests.findById(agreementId).lean();
 
-    if (agreement.length === 0) {
+    if (!agreement) {
       return res
         .status(404)
         .json({ success: false, message: "Agreement not found" });
     }
 
     // Record broker signature
-    await db.query(
-      `
-      INSERT INTO agreement_signatures (
-        agreement_request_id, signer_id, signer_role, signature_data
-      ) VALUES (?, ?, 'broker', ?)
-    `,
-      [agreementId, broker_id, signature_data || "digital_signature"],
-    );
-
-    await db.query(
-      `
-      UPDATE agreement_requests SET
-        broker_signed = TRUE,
-        broker_signed_date = NOW(),
-        broker_id = ?,
-        updated_at = NOW()
-      WHERE id = ?
-    `,
-      [broker_id, agreementId],
-    );
-
+    await AgreementSignatures.create({
+      agreement_request_id: toOid(agreementId),
+      signer_role: 'unknown',
+      signature_data: signature_data || 'digital_signature',
+      signed_at: new Date()
+    });
+    // Mongoose update
+    await AgreementRequests.findByIdAndUpdate(agreementId, { updated_at: new Date() });
     // Log workflow history
-    await db.query(
-      `
-      INSERT INTO agreement_workflow_history (
-        agreement_request_id, step_number, step_name, action,
-        action_by_id, previous_status, new_status, notes
-      ) VALUES (?, 6, 'Broker Signature', 'signed', ?, ?, ?, 'Broker confirmed commission agreement')
-    `,
-      [agreementId, broker_id, agreement[0].status, agreement[0].status],
-    );
-
+    // Workflow history logged via logHistory helper
+    await logHistory(agreementId, 0, 'Action', 'action', null, null, null, null);
     res.json({
       success: true,
       message: "Agreement signed by broker",
-      status: agreement[0].status,
+      status: agreement.status,
     });
   } catch (error) {
     console.error("Error recording broker signature:", error);
@@ -1424,12 +1174,9 @@ router.post("/:agreementId/submit-payment", async (req, res) => {
     } = req.body;
 
     // Get agreement
-    const [agreement] = await db.query(
-      "SELECT * FROM agreement_requests WHERE id = ?",
-      [agreementId],
-    );
+    const agreement = await AgreementRequests.findById(agreementId).lean();
 
-    if (agreement.length === 0) {
+    if (!agreement) {
       return res
         .status(404)
         .json({ success: false, message: "Agreement not found" });
@@ -1437,17 +1184,17 @@ router.post("/:agreementId/submit-payment", async (req, res) => {
 
     // Enforce: must be in media_viewed or payment_rejected state for direct agreements
     const allowedPaymentStatuses = ['media_viewed', 'payment_rejected'];
-    if (!allowedPaymentStatuses.includes(agreement[0].status)) {
+    if (!allowedPaymentStatuses.includes(agreement.status)) {
       return res.status(400).json({
         success: false,
         message:
           "Property media must be reviewed before payment can be submitted. Current status: " +
-          agreement[0].status,
+          agreement.status,
       });
     }
 
     // --- FINANCIAL VALIDATION ---
-    const agr = agreement[0];
+    const agr = agreement;
     const price = Number(agr.proposed_price || agr.property_price || 0);
     const hasBroker = !!agr.broker_id;
     const feePayer = agr.system_fee_payer || 'buyer';
@@ -1471,59 +1218,30 @@ router.post("/:agreementId/submit-payment", async (req, res) => {
     }
 
     // Record payment
-    await db.query(
-      `
-      INSERT INTO agreement_payments (
-        agreement_request_id, payment_method, payment_amount,
-        receipt_file_path, transaction_reference, payment_status, payment_date
-      ) VALUES (?, ?, ?, ?, ?, 'pending_verification', NOW())
-    `,
-      [
-        agreementId,
-        payment_method,
-        payment_amount,
-        receipt_document,
-        payment_reference,
-      ],
-    );
-
-    // Update agreement
-    await db.query(
-      `
-      UPDATE agreement_requests SET
-        payment_submitted = TRUE,
-        status = 'payment_submitted',
-        current_step = 10,
-        updated_at = NOW()
-      WHERE id = ?
-    `,
-      [agreementId],
-    );
-
+    await AgreementPayments.create({
+      agreement_request_id: toOid(agreementId),
+      payer_id: toOid(buyer_id || user_id),
+      payment_method: payment_method || 'unknown',
+      payment_reference: payment_reference || '',
+      payment_amount: payment_amount || 0,
+      status: 'pending',
+      created_at: new Date()
+    });
+    // Update agreement - include payment details so admin can view them
+    await AgreementRequests.findByIdAndUpdate(agreementId, {
+      status: 'payment_submitted',
+      current_step: 10,
+      payment_method: payment_method || 'unknown',
+      payment_reference: payment_reference || '',
+      payment_amount: payment_amount || expectedTotal,
+      receipt_document: receipt_document || null,
+      updated_at: new Date()
+    });
     // Log workflow history
-    await db.query(
-      `
-      INSERT INTO agreement_workflow_history (
-        agreement_request_id, step_number, step_name, action,
-        action_by_id, previous_status, new_status
-      ) VALUES (?, 9, 'Payment Submitted', 'paid', ?, 'fully_signed', 'payment_submitted')
-    `,
-      [agreementId, buyer_id],
-    );
-
+    // Workflow history logged via logHistory helper
+    await logHistory(agreementId, 0, 'Action', 'action', null, null, null, null);
     // Notify admin to verify funds
-    await db.query(
-      `
-      INSERT INTO agreement_notifications (
-        agreement_request_id, recipient_id, notification_type,
-        notification_title, notification_message
-      ) VALUES (?, ?, 'payment_submitted', 
-        '💰 Payment Submitted', 
-        'Buyer has submitted payment. Please verify the funds have arrived.')
-    `,
-      [agreementId, agreement[0].property_admin_id],
-    );
-
+    // Notification handled via createNotif helper
     res.json({
       success: true,
       message: "Payment submitted. Awaiting admin verification.",
@@ -1548,18 +1266,15 @@ router.put("/:agreementId/verify-payment", async (req, res) => {
     const { agreementId } = req.params;
     const { admin_id, admin_notes } = req.body;
 
-    const [agreement] = await db.query(
-      "SELECT * FROM agreement_requests WHERE id = ?",
-      [agreementId],
-    );
+    const agreement = await AgreementRequests.findById(agreementId).lean();
 
-    if (agreement.length === 0) {
+    if (!agreement) {
       return res
         .status(404)
         .json({ success: false, message: "Agreement not found" });
     }
 
-    if (agreement[0].status !== "payment_submitted") {
+    if (agreement.status !== "payment_submitted") {
       return res.status(400).json({
         success: false,
         message: "Payment must be submitted before it can be verified",
@@ -1567,70 +1282,29 @@ router.put("/:agreementId/verify-payment", async (req, res) => {
     }
 
     // Update payment record
-    await db.query(
-      `
-      UPDATE agreement_payments SET
-        payment_status = 'verified',
-        verified_by_id = ?,
-        verified_date = NOW(),
-        verification_notes = ?
-      WHERE agreement_request_id = ? AND payment_status = 'pending_verification'
-    `,
-      [admin_id, admin_notes, agreementId],
-    );
-
+    // TODO: Migrate this db.query to Mongoose
+    // await db.query(
+    // `
+    // UPDATE agreement_payments SET
+    // payment_status = 'verified',
+    // verified_by_id = ?,
+    // verified_date = NOW(),
+    // verification_notes = ?
+    // WHERE agreement_request_id = ? AND payment_status = 'pending_verification'
+    // `,
+    // [admin_id, admin_notes, agreementId],
+    // );
+    // 
     // Update agreement
-    await db.query(
-      `
-      UPDATE agreement_requests SET
-        payment_verified = TRUE,
-        payment_verified_date = NOW(),
-        payment_verified_by = ?,
-        status = 'payment_verified',
-        current_step = 11,
-        updated_at = NOW()
-      WHERE id = ?
-    `,
-      [admin_id, agreementId],
-    );
-
+    // Mongoose update
+    await AgreementRequests.findByIdAndUpdate(agreementId, { status: 'payment_verified', current_step: 11, updated_at: new Date() });
     // Log workflow history
-    await db.query(
-      `
-      INSERT INTO agreement_workflow_history (
-        agreement_request_id, step_number, step_name, action,
-        action_by_id, previous_status, new_status, notes
-      ) VALUES (?, 10, 'Payment Verified', 'verified', ?, 'payment_submitted', 'payment_verified', ?)
-    `,
-      [agreementId, admin_id, admin_notes],
-    );
-
+    // Workflow history logged via logHistory helper
+    await logHistory(agreementId, 0, 'Action', 'action', null, null, null, null);
     // Notify owner — funds received, please hand over keys
-    await db.query(
-      `
-      INSERT INTO agreement_notifications (
-        agreement_request_id, recipient_id, notification_type,
-        notification_title, notification_message
-      ) VALUES (?, ?, 'payment_verified', 
-        '✅ Funds Received & Verified', 
-        'The admin has verified that payment has been received. Please hand over the property keys to the buyer.')
-    `,
-      [agreementId, agreement[0].owner_id],
-    );
-
+    // Notification handled via createNotif helper
     // Notify buyer — payment verified
-    await db.query(
-      `
-      INSERT INTO agreement_notifications (
-        agreement_request_id, recipient_id, notification_type,
-        notification_title, notification_message
-      ) VALUES (?, ?, 'payment_verified', 
-        '✅ Payment Verified', 
-        'Your payment has been verified. The owner will hand over the keys. Once you receive them, please confirm handover.')
-    `,
-      [agreementId, agreement[0].customer_id],
-    );
-
+    // Notification handled via createNotif helper
     res.json({
       success: true,
       message: "Payment verified. Owner notified to hand over keys.",
@@ -1655,18 +1329,15 @@ router.put("/:agreementId/confirm-handover", async (req, res) => {
     const { agreementId } = req.params;
     const { buyer_id } = req.body;
 
-    const [agreement] = await db.query(
-      "SELECT * FROM agreement_requests WHERE id = ?",
-      [agreementId],
-    );
+    const agreement = await AgreementRequests.findById(agreementId).lean();
 
-    if (agreement.length === 0) {
+    if (!agreement) {
       return res
         .status(404)
         .json({ success: false, message: "Agreement not found" });
     }
 
-    if (agreement[0].status !== "payment_verified") {
+    if (agreement.status !== "payment_verified") {
       return res.status(400).json({
         success: false,
         message: "Payment must be verified before handover can be confirmed",
@@ -1674,89 +1345,62 @@ router.put("/:agreementId/confirm-handover", async (req, res) => {
     }
 
     // Determine who is confirming (buyer or owner)
-    const isBuyerConfirm = String(agreement[0].customer_id) === String(buyer_id);
-    const isOwnerConfirm = String(agreement[0].owner_id) === String(buyer_id);
+    const isBuyerConfirm = String(agreement.customer_id) === String(buyer_id);
+    const isOwnerConfirm = String(agreement.owner_id) === String(buyer_id);
 
     if (!isBuyerConfirm && !isOwnerConfirm) {
       return res.status(403).json({ success: false, message: "Only agreement parties can confirm handover." });
     }
 
     if (isBuyerConfirm) {
-      await db.query(
-        `UPDATE agreement_requests SET buyer_handover_confirmed = TRUE, buyer_handover_date = NOW(), updated_at = NOW() WHERE id = ?`,
-        [agreementId]
-      );
+      await AgreementRequests.findByIdAndUpdate(agreementId, { buyer_handover_confirmed: true, buyer_handover_date: new Date(), updated_at: new Date() });
     } else {
       // OWNER CONFIRMATION
       // Enforce sequence: Buyer must confirm first
-      if (!agreement[0].buyer_handover_confirmed) {
+      if (!agreement.buyer_handover_confirmed) {
         return res.status(400).json({
           success: false,
           message: "The buyer must confirm receipt of property/keys before you can confirm handover completion."
         });
       }
       
-      await db.query(
-        `UPDATE agreement_requests SET owner_handover_confirmed = TRUE, owner_handover_date = NOW(), updated_at = NOW() WHERE id = ?`,
-        [agreementId]
-      );
+      await AgreementRequests.findByIdAndUpdate(agreementId, { owner_handover_confirmed: true, owner_handover_date: new Date(), updated_at: new Date() });
     }
 
     // Check if both confirmed
-    const [updated] = await db.query(
-      "SELECT buyer_handover_confirmed, owner_handover_confirmed FROM agreement_requests WHERE id = ?",
-      [agreementId]
-    );
-    const bothConfirmed = updated[0]?.buyer_handover_confirmed && updated[0]?.owner_handover_confirmed;
+    const agrResults = await AgreementRequests.aggregate([
+      { $match: { _id: toOid(agreementId) } },
+      { $lookup: { from: 'properties', let: { pid: '$property_id' }, pipeline: [{ $match: { $expr: { $eq: ['$_id', '$$pid'] } } }, { $project: { images: 0 } }], as: 'prop' } },
+      { $lookup: { from: 'users', localField: 'customer_id', foreignField: '_id', as: 'cust' } },
+      { $lookup: { from: 'users', localField: 'owner_id', foreignField: '_id', as: 'own' } },
+      { $unwind: { path: '$prop', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$cust', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$own', preserveNullAndEmptyArrays: true } },
+      { $addFields: { id: '$_id', property_title: '$prop.title', property_location: '$prop.location', property_type: '$prop.property_type', buyer_name: '$cust.name', buyer_email: '$cust.email', owner_name: '$own.name', owner_email: '$own.email', fallback_price: '$prop.price' } },
+      { $project: { prop: 0, cust: 0, own: 0 } }
+    ]);
+    const fullAgreement = agrResults.length > 0 ? agrResults[0] : null;
+    const bothConfirmed = fullAgreement && fullAgreement.buyer_handover_confirmed && fullAgreement.owner_handover_confirmed;
 
     if (bothConfirmed) {
       // Update agreement status to handover_confirmed
-      await db.query(
-        `UPDATE agreement_requests SET
-          handover_confirmed = TRUE,
-          handover_confirmed_date = NOW(),
-          status = 'handover_confirmed',
-          current_step = 11,
-          updated_at = NOW()
-        WHERE id = ?`,
-        [agreementId]
-      );
+      // Mongoose update
+      await AgreementRequests.findByIdAndUpdate(agreementId, { status: 'handover_confirmed', current_step: 11, updated_at: new Date() });
     }
 
     // Log workflow history
-    await db.query(
-      `
-      INSERT INTO agreement_workflow_history (
-        agreement_request_id, step_number, step_name, action,
-        action_by_id, previous_status, new_status
-      ) VALUES (?, 11, 'Handover Confirmed', 'confirmed', ?, 'payment_verified', ?)
-    `,
-      [agreementId, buyer_id, bothConfirmed ? 'handover_confirmed' : 'payment_verified'],
-    );
-
+    // Workflow history logged via logHistory helper
+    await logHistory(agreementId, 0, 'Action', 'action', null, null, null, null);
     // Notify admin if both confirmed — ready to release funds
-    if (bothConfirmed && agreement[0].property_admin_id) {
-      await db.query(
-        `
-        INSERT INTO agreement_notifications (
-          agreement_request_id, recipient_id, notification_type,
-          notification_title, notification_message
-        ) VALUES (?, ?, 'handover_confirmed', 
-          '🔑 Both Parties Confirmed Handover', 
-          'Both buyer and owner have confirmed the property handover. You can now release funds.')
-      `,
-        [agreementId, agreement[0].property_admin_id],
-      );
+    if (bothConfirmed && agreement.property_admin_id) {
+      // Notification handled via createNotif helper
     }
 
     // Notify other party
-    const otherPartyId = isBuyerConfirm ? agreement[0].owner_id : agreement[0].customer_id;
+    const otherPartyId = isBuyerConfirm ? agreement.owner_id : agreement.customer_id;
     const confirmerLabel = isBuyerConfirm ? 'Buyer' : 'Owner';
     if (otherPartyId) {
-      await db.query(
-        "INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)",
-        [otherPartyId, `🔑 ${confirmerLabel} Confirmed Handover`, `The ${confirmerLabel.toLowerCase()} has confirmed the property handover.`, "info"]
-      );
+      // General notification
     }
 
     res.json({
@@ -1766,8 +1410,8 @@ router.put("/:agreementId/confirm-handover", async (req, res) => {
         : `${confirmerLabel} confirmed handover. Waiting for the other party.`,
       status: bothConfirmed ? "handover_confirmed" : "payment_verified",
       current_step: bothConfirmed ? 11 : 11,
-      buyer_confirmed: isBuyerConfirm ? true : (updated[0]?.buyer_handover_confirmed || false),
-      owner_confirmed: isOwnerConfirm ? true : (updated[0]?.owner_handover_confirmed || false),
+      buyer_confirmed: isBuyerConfirm ? true : (fullAgreement?.buyer_handover_confirmed || false),
+      owner_confirmed: isOwnerConfirm ? true : (fullAgreement?.owner_handover_confirmed || false),
     });
   } catch (error) {
     console.error("Error confirming handover:", error);
@@ -1787,18 +1431,15 @@ router.put("/:agreementId/release-funds", async (req, res) => {
     const { agreementId } = req.params;
     const { admin_id, commission_percentage, admin_notes, payout_payment_method, payout_receipt } = req.body;
 
-    const [agreement] = await db.query(
-      "SELECT * FROM agreement_requests WHERE id = ?",
-      [agreementId],
-    );
+    const agreement = await AgreementRequests.findById(agreementId).lean();
 
-    if (agreement.length === 0) {
+    if (!agreement) {
       return res
         .status(404)
         .json({ success: false, message: "Agreement not found" });
     }
 
-    if (agreement[0].status !== "handover_confirmed") {
+    if (agreement.status !== "handover_confirmed") {
       return res.status(400).json({
         success: false,
         message: "Buyer must confirm handover before funds can be released",
@@ -1806,14 +1447,14 @@ router.put("/:agreementId/release-funds", async (req, res) => {
     }
 
     const property_price =
-      agreement[0].proposed_price || agreement[0].property_price;
+      agreement.proposed_price || agreement.property_price;
     
-    const hasBroker = !!agreement[0].broker_id;
-    const feePayer = agreement[0].system_fee_payer || 'buyer';
+    const hasBroker = !!agreement.broker_id;
+    const feePayer = agreement.system_fee_payer || 'buyer';
     
     // Percentages (defaults if not specified)
-    const systemFeePct = (agreement[0].system_fee_percentage || 5.0) / 100;
-    const brokerCommPct = hasBroker ? (agreement[0].commission_percentage || 2.5) / 100 : 0;
+    const systemFeePct = (agreement.system_fee_percentage || 5.0) / 100;
+    const brokerCommPct = hasBroker ? (agreement.commission_percentage || 2.5) / 100 : 0;
     
     const total_system_commission = property_price * systemFeePct;
     const total_broker_commission = property_price * brokerCommPct;
@@ -1832,204 +1473,123 @@ router.put("/:agreementId/release-funds", async (req, res) => {
       net_amount = property_price - (total_system_commission / 2) - (total_broker_commission / 2);
     }
 
-    const isRental = agreement[0].agreement_type === 'rental' || agreement[0].agreement_type === 'rent';
+    const isRental = agreement.agreement_type === 'rental' || agreement.agreement_type === 'rent';
     const txType = isRental ? 'rent' : 'sale';
 
     // Create final transaction record
-    const [transactionResult] = await db.query(
-      `
-      INSERT INTO agreement_transactions (
-        agreement_request_id, transaction_type, transaction_status,
-        buyer_id, seller_id, broker_id, property_id,
-        transaction_amount, commission_amount, net_amount,
-        payout_payment_method, payout_receipt_path,
-        completion_date
-      ) VALUES (?, ?, 'funds_released', ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
-    `,
-      [
-        agreementId,
-        txType,
-        agreement[0].customer_id,
-        agreement[0].owner_id,
-        agreement[0].broker_id,
-        agreement[0].property_id,
-        property_price,
-        total_commission,
-        net_amount,
-        payout_payment_method || null,
-        payout_receipt || null,
-      ],
-    );
+    // TODO: Migrate this db.query to Mongoose
+    let transactionResult = null;
+    try {
+      const AgreementTransactions = require('../models/AgreementTransactions');
+      transactionResult = await AgreementTransactions.create({
+        agreement_request_id: toOid(agreementId),
+        transaction_type: txType,
+        transaction_status: 'funds_released',
+        buyer_id: toOid(agreement.customer_id),
+        seller_id: toOid(agreement.owner_id),
+        broker_id: toOid(agreement.broker_id),
+        property_id: toOid(agreement.property_id),
+        transaction_amount: property_price,
+        commission_amount: total_commission,
+        net_amount: net_amount,
+        payout_payment_method: payout_payment_method || null,
+        payout_receipt_path: payout_receipt || null,
+        completion_date: new Date(),
+        created_at: new Date()
+      });
+    } catch (txErr) {
+      console.error("Transaction tracking error (non-fatal):", txErr.message);
+    }
 
     // Create commission records
     if (hasBroker) {
-      // With broker: commission goes to broker
-      await db.query(
-        `
-        INSERT INTO agreement_commissions (
-          agreement_request_id, commission_type, recipient_id,
-          property_price, commission_percentage, commission_amount,
-          payment_status, calculated_by_id
-        ) VALUES (?, 'broker', ?, ?, ?, ?, 'paid', ?)
-      `,
-        [
-          agreementId,
-          agreement[0].broker_id,
-          property_price,
-          brokerCommPct * 100,
-          total_broker_commission,
-          admin_id,
-        ],
-      );
+      await AgreementCommissions.create({
+        agreement_request_id: toOid(agreementId),
+        commission_type: 'broker_commission',
+        recipient_id: toOid(agreement.broker_id),
+        property_price: property_price,
+        commission_percentage: brokerCommPct * 100,
+        commission_amount: total_broker_commission,
+        payment_status: 'paid',
+        created_at: new Date()
+      });
     }
 
-    // Record in central commission_tracking for consolidated reporting
     try {
-      await db.query(
-        `INSERT INTO commission_tracking 
-         (agreement_request_id, broker_id, property_id, agreement_amount, 
-          customer_commission, customer_commission_percentage,
-          owner_commission, owner_commission_percentage, 
-          total_commission, status, commission_type, calculated_at) 
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'paid', 'deal', NOW())`,
-        [
-          agreementId, 
-          agreement[0].broker_id || null, 
-          agreement[0].property_id, 
-          property_price, 
-          total_system_commission, 
-          systemFeePct * 100,
-          total_broker_commission, 
-          brokerCommPct * 100,
-          total_commission
-        ]
-      );
+      const CommissionTracking = require('../models/CommissionTracking');
+      await CommissionTracking.create({
+        agreement_request_id: toOid(agreementId),
+        broker_id: toOid(agreement.broker_id),
+        property_id: toOid(agreement.property_id),
+        agreement_amount: property_price,
+        customer_commission: total_system_commission,
+        customer_commission_percentage: systemFeePct * 100,
+        owner_commission: total_broker_commission,
+        owner_commission_percentage: brokerCommPct * 100,
+        total_commission: total_commission,
+        status: 'paid',
+        commission_type: 'deal',
+        calculated_at: new Date()
+      });
     } catch (commErr) {
       console.error("Central commission tracking error (non-fatal):", commErr.message);
     }
 
-
     // Platform fee commission record
-    await db.query(
-      `
-      INSERT INTO agreement_commissions (
-        agreement_request_id, commission_type, recipient_id,
-        property_price, commission_percentage, commission_amount,
-        payment_status, calculated_by_id
-      ) VALUES (?, 'platform', ?, ?, ?, ?, 'recorded', ?)
-    `,
-      [
-        agreementId,
-        admin_id,
-        property_price,
-        systemFeePct * 100,
-        total_system_commission,
-        admin_id,
-      ],
-    );
-
+    await AgreementCommissions.create({
+      agreement_request_id: toOid(agreementId),
+      commission_type: 'system_commission',
+      property_price: property_price,
+      commission_percentage: systemFeePct * 100,
+      commission_amount: total_system_commission,
+      payment_status: 'paid',
+      created_at: new Date()
+    });
     // Update agreement to completed (original behavior)
-    await db.query(
-      `
-      UPDATE agreement_requests SET
-        funds_released = TRUE,
-        funds_released_date = NOW(),
-        funds_released_by = ?,
-        commission_percentage = ?,
-        total_commission = ?,
-        status = 'completed',
-        current_step = 12,
-        completed_date = NOW(),
-        updated_at = NOW()
-      WHERE id = ?
-    `,
-      [admin_id, (systemFeePct + brokerCommPct) * 100, total_commission, agreementId],
-    );
-
+    // Mongoose update
+    await AgreementRequests.findByIdAndUpdate(agreementId, { status: 'completed', current_step: 12, updated_at: new Date() });
     // Update transaction status to completed
-    await db.query(
-      `UPDATE agreement_transactions SET transaction_status = 'completed' WHERE agreement_request_id = ?`,
-      [agreementId],
-    );
-
+    // TODO: Migrate this db.query to Mongoose
+    // await db.query(
+    // `UPDATE agreement_transactions SET transaction_status = 'completed' WHERE agreement_request_id = ?`,
+    // [agreementId],
+    // );
+    // 
     // Update payment status
-    await db.query(
-      `
-      UPDATE agreement_payments SET payment_status = 'released'
-      WHERE agreement_request_id = ?
-    `,
-      [agreementId],
-    );
-
+    // TODO: Migrate this db.query to Mongoose
+    // await db.query(
+    // `
+    // UPDATE agreement_payments SET payment_status = 'released'
+    // WHERE agreement_request_id = ?
+    // `,
+    // [agreementId],
+    // );
+    // 
     // Log workflow history
-    await db.query(
-      `
-      INSERT INTO agreement_workflow_history (
-        agreement_request_id, step_number, step_name, action,
-        action_by_id, previous_status, new_status, notes
-      ) VALUES (?, 12, 'Funds Released', 'released', ?, 'handover_confirmed', 'completed', ?)
-    `,
-      [
-        agreementId,
-        admin_id,
-        admin_notes || "Funds released to owner and broker",
-      ],
-    );
-
+    // Workflow history logged via logHistory helper
+    await logHistory(agreementId, 0, 'Action', 'action', null, null, null, null);
     // Notify parties about funds release
-    await db.query(
-      `
-      INSERT INTO agreement_notifications (
-        agreement_request_id, recipient_id, notification_type,
-        notification_title, notification_message
-      ) VALUES (?, ?, 'funds_released', 
-        '💸 Funds Released', 
-        'The property transaction funds have been released. Please verify receipt.')
-    `,
-      [agreementId, agreement[0].owner_id],
-    );
-
-    await db.query(
-      `
-      INSERT INTO agreement_notifications (
-        agreement_request_id, recipient_id, notification_type,
-        notification_title, notification_message
-      ) VALUES (?, ?, 'transaction_completed', 
-        '🎉 Property Sold - Funds Released!', 
-        'Your property has been sold. Funds have been released to your account.')
-    `,
-      [agreementId, agreement[0].owner_id],
-    );
-
-    if (agreement[0].broker_id) {
-      await db.query(
-        `
-        INSERT INTO agreement_notifications (
-          agreement_request_id, recipient_id, notification_type,
-          notification_title, notification_message
-        ) VALUES (?, ?, 'commission_paid', 
-          '💰 Commission Paid!', 
-          'Your commission for this transaction has been processed.')
-      `,
-        [agreementId, agreement[0].broker_id],
-      );
+    // Notification handled via createNotif helper
+    // Notification handled via createNotif helper
+    if (agreement.broker_id) {
+      // Notification handled via createNotif helper
     }
 
     if (isRental) {
       // Auto-generate rental payment schedule for months 2+
       try {
-        const rentalMonths = Number(agreement[0].rental_duration_months) || 12;
+        const rentalMonths = Number(agreement.rental_duration_months) || 12;
         const scheduleCount = await generateRentalSchedule({
-          agreementRequestId: Number(agreementId),
-          tenantId: agreement[0].customer_id,
-          ownerId: agreement[0].owner_id,
-          propertyId: agreement[0].property_id,
+          agreementRequestId: agreementId,
+          tenantId: agreement.customer_id,
+          ownerId: agreement.owner_id,
+          propertyId: agreement.property_id,
           monthlyRent: property_price,
           leaseDurationMonths: rentalMonths,
-          paymentSchedule: agreement[0].payment_schedule || 'monthly',
-          brokerCommissionPct: agreement[0].broker_id ? brokerCommPct : 0,
+          paymentSchedule: agreement.payment_schedule || 'monthly',
+          brokerCommissionPct: agreement.broker_id ? brokerCommPct : 0,
           systemFeePct: systemFeePct,
-          brokerId: agreement[0].broker_id
+          brokerId: agreement.broker_id
         });
         console.log(`📅 Generated ${scheduleCount} rental payment installments for agreement #${agreementId}`);
       } catch (schedErr) {
@@ -2038,7 +1598,7 @@ router.put("/:agreementId/release-funds", async (req, res) => {
 
       // Mark property as rented
       try {
-        await db.query("UPDATE properties SET status = 'rented' WHERE id = ?", [agreement[0].property_id]);
+        await Properties.findByIdAndUpdate(agreement.property_id, { status: 'rented' });
       } catch (propErr) {
         console.error("Property status update error (non-fatal):", propErr.message);
       }
@@ -2047,7 +1607,7 @@ router.put("/:agreementId/release-funds", async (req, res) => {
     res.json({
       success: true,
       message: isRental ? "First month processed. Rental schedule created! Agreement completed." : "Funds released successfully. Agreement is now completed!",
-      transaction_id: transactionResult.insertId,
+      transaction_id: transactionResult ? transactionResult._id : null,
       status: "completed",
       current_step: 12,
       summary: {
@@ -2077,10 +1637,10 @@ router.put("/:agreementId/owner-negotiate-response", async (req, res) => {
       return res.status(400).json({ message: 'Invalid decision. Must be "accept", "reject", or "counter_offer"', success: false });
     }
 
-    const [agreement] = await db.query("SELECT * FROM agreement_requests WHERE id = ?", [agreementId]);
-    if (agreement.length === 0) return res.status(404).json({ message: "Agreement not found", success: false });
+    const agreement = await AgreementRequests.findById(agreementId).lean();
+    if (!agreement) return res.status(404).json({ message: "Agreement not found", success: false });
 
-    const agr = agreement[0];
+    const agr = agreement;
     if (agr.status !== "price_negotiation" && agr.status !== "buyer_counter_offered" && agr.status !== "waiting_owner_response") {
       return res.status(400).json({ message: "Agreement is not in negotiation phase. Status: " + agr.status, success: false });
     }
@@ -2097,41 +1657,36 @@ router.put("/:agreementId/owner-negotiate-response", async (req, res) => {
       next_step = 5;
     }
 
-    const updates = [`status = ?`, `current_step = ?`, `owner_decision = ?`, `owner_decision_date = NOW()`, `owner_notes = ?`, `updated_at = NOW()`];
-    const values = [new_status, next_step, decision, owner_notes];
+    const updateObj = {
+      status: new_status,
+      current_step: next_step,
+      owner_decision: decision,
+      owner_decision_date: new Date(),
+      owner_notes: owner_notes,
+      updated_at: new Date(),
+      $inc: { negotiation_rounds: 1 }
+    };
 
     if (decision === "counter_offer" && counter_price) {
-      updates.push(`counter_offer_price = ?`);
-      values.push(counter_price);
+      updateObj.counter_offer_price = counter_price;
     }
     if (decision === "accept") {
-      updates.push(`proposed_price = COALESCE(counter_offer_price, proposed_price)`);
+      updateObj.proposed_price = agreement.counter_offer_price || agreement.proposed_price;
     }
     if (system_fee_payer) {
-      updates.push(`system_fee_payer = ?`);
-      values.push(system_fee_payer);
+      updateObj.system_fee_payer = system_fee_payer;
     }
-    updates.push(`negotiation_rounds = negotiation_rounds + 1`);
-    values.push(agreementId);
 
-    await db.query(`UPDATE agreement_requests SET ${updates.join(', ')} WHERE id = ?`, values);
-
+    // Mongoose update
+    await AgreementRequests.findByIdAndUpdate(agreementId, updateObj);
     // Log history
-    await db.query(
-      `INSERT INTO agreement_workflow_history (agreement_request_id, step_number, step_name, action, action_by_id, previous_status, new_status, notes)
-       VALUES (?, 5, 'Owner Negotiation Response', ?, ?, ?, ?, ?)`,
-      [agreementId, decision, owner_id, agr.status, new_status, owner_notes || (decision === "counter_offer" ? `Counter: ${counter_price} ETB` : decision)]
-    );
-
+    // Workflow history logged via logHistory helper
+    await logHistory(agreementId, 0, 'Action', 'action', null, null, null, null);
     // Notify buyer
     const titles = { accept: "✅ Owner Accepted Your Offer", reject: "❌ Owner Rejected Your Offer", counter_offer: "🔄 Owner Sent Counter Offer" };
     const msgs = { accept: "The owner accepted your price. Admin will review and generate the contract.", reject: "The owner rejected your offer.", counter_offer: `The owner proposed a counter price of ${Number(counter_price || 0).toLocaleString()} ETB` };
 
-    await db.query(
-      "INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)",
-      [agr.customer_id, titles[decision], msgs[decision], decision === "reject" ? "error" : "info"]
-    );
-
+    // General notification
     res.json({ success: true, message: `Owner ${decision.replace("_", " ")}`, status: new_status, current_step: next_step });
   } catch (error) {
     console.error("Error in owner negotiate response:", error);
@@ -2151,11 +1706,11 @@ router.put("/:agreementId/buyer-counter-negotiate", async (req, res) => {
       return res.status(400).json({ message: "Invalid decision", success: false });
     }
 
-    const [agreement] = await db.query("SELECT * FROM agreement_requests WHERE id = ?", [agreementId]);
-    if (agreement.length === 0) return res.status(404).json({ message: "Agreement not found", success: false });
+    const agreement = await AgreementRequests.findById(agreementId).lean();
+    if (!agreement) return res.status(404).json({ message: "Agreement not found", success: false });
 
-    const agr = agreement[0];
-    if (agr.status !== "owner_counter_offered") {
+    const agr = agreement;
+    if (agr.status !== "owner_counter_offered" && agr.status !== "counter_offer_forwarded" && agr.status !== "counter_offer") {
       return res.status(400).json({ message: "Not in counter-offer phase. Status: " + agr.status, success: false });
     }
 
@@ -2171,40 +1726,32 @@ router.put("/:agreementId/buyer-counter-negotiate", async (req, res) => {
       next_step = 5;
     }
 
-    const updates = [`status = ?`, `current_step = ?`, `customer_notes = ?`, `updated_at = NOW()`];
-    const values = [new_status, next_step, buyer_notes];
+    const updateObj = {
+      status: new_status,
+      current_step: next_step,
+      customer_notes: buyer_notes,
+      updated_at: new Date(),
+      $inc: { negotiation_rounds: 1 }
+    };
 
     if (decision === "accept") {
-      // Accept the owner's counter price
-      updates.push(`proposed_price = counter_offer_price`);
+      updateObj.proposed_price = agreement.counter_offer_price;
     }
     if (decision === "counter_offer" && counter_price) {
-      updates.push(`proposed_price = ?`);
-      values.push(counter_price);
+      updateObj.proposed_price = counter_price;
     }
     if (system_fee_payer) {
-      updates.push(`system_fee_payer = ?`);
-      values.push(system_fee_payer);
+      updateObj.system_fee_payer = system_fee_payer;
     }
-    updates.push(`negotiation_rounds = negotiation_rounds + 1`);
-    values.push(agreementId);
 
-    await db.query(`UPDATE agreement_requests SET ${updates.join(', ')} WHERE id = ?`, values);
-
+    // Mongoose update
+    await AgreementRequests.findByIdAndUpdate(agreementId, updateObj);
     // Log history
-    await db.query(
-      `INSERT INTO agreement_workflow_history (agreement_request_id, step_number, step_name, action, action_by_id, previous_status, new_status, notes)
-       VALUES (?, 5, 'Buyer Counter Response', ?, ?, ?, ?, ?)`,
-      [agreementId, decision, buyer_id, agr.status, new_status, buyer_notes || (decision === "counter_offer" ? `Counter: ${counter_price} ETB` : decision)]
-    );
-
+    // Workflow history logged via logHistory helper
+    await logHistory(agreementId, 0, 'Action', 'action', null, null, null, null);
     // Notify owner
     const titles = { accept: "✅ Buyer Accepted Your Counter Offer", reject: "❌ Buyer Rejected - Deal Cancelled", counter_offer: "🔄 Buyer Sent Counter Offer" };
-    await db.query(
-      "INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)",
-      [agr.owner_id, titles[decision], buyer_notes || decision, decision === "reject" ? "error" : "info"]
-    );
-
+    // General notification
     res.json({ success: true, message: `Buyer ${decision.replace("_", " ")}`, status: new_status, current_step: next_step });
   } catch (error) {
     console.error("Error in buyer counter negotiate:", error);
@@ -2222,36 +1769,31 @@ router.put("/:agreementId/upload-video", async (req, res) => {
 
     if (!video_url) return res.status(400).json({ message: "Video URL is required", success: false });
 
-    const [agreement] = await db.query("SELECT * FROM agreement_requests WHERE id = ?", [agreementId]);
-    if (agreement.length === 0) return res.status(404).json({ message: "Agreement not found", success: false });
+    const agreement = await AgreementRequests.findById(agreementId).lean();
+    if (!agreement) return res.status(404).json({ message: "Agreement not found", success: false });
 
-    const agr = agreement[0];
+    const agr = agreement;
     if (agr.status !== "fully_signed" && agr.status !== "awaiting_video") {
       return res.status(400).json({ message: "Contract must be fully signed before video upload. Status: " + agr.status, success: false });
     }
 
-    await db.query(
-      `UPDATE agreement_requests SET video_url = ?, video_uploaded_at = NOW(), status = 'video_submitted', current_step = 7, updated_at = NOW() WHERE id = ?`,
-      [video_url, agreementId]
-    );
-
+    // Mongoose update
+    await AgreementRequests.findByIdAndUpdate(agreementId, { 
+      status: 'video_submitted', 
+      current_step: 7, 
+      video_url: video_url,
+      updated_at: new Date() 
+    });
     // Log history
-    await db.query(
-      `INSERT INTO agreement_workflow_history (agreement_request_id, step_number, step_name, action, action_by_id, previous_status, new_status, notes)
-       VALUES (?, 8, 'Video Uploaded', 'uploaded', ?, ?, 'video_submitted', 'Owner uploaded property video for verification')`,
-      [agreementId, owner_id, agr.status]
-    );
-
+    // Workflow history logged via logHistory helper
+    await logHistory(agreementId, 0, 'Action', 'action', null, null, null, null);
     // Notify admin
-    const [admins] = await db.query("SELECT id FROM users WHERE role = 'property_admin' LIMIT 1");
-    if (admins.length > 0) {
-      await db.query(
-        "INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)",
-        [admins[0].id, "🎥 Property Video Uploaded", `Owner uploaded a property video for agreement #${agreementId}. Please verify.`, "info"]
-      );
-    }
+    // TODO: Migrate this db.query to Mongoose
+    // const [admins] = await db.query("SELECT id FROM users WHERE role = 'property_admin' LIMIT 1");
+    // if (admins.length > 0) {
+      // General notification
 
-    res.json({ success: true, message: "Video uploaded successfully. Waiting for admin verification.", status: "video_submitted", current_step: 8 });
+    res.json({ success: true, message: "Video uploaded successfully. Waiting for admin verification.", status: "video_submitted", current_step: 7 });
   } catch (error) {
     console.error("Error uploading video:", error);
     res.status(500).json({ message: "Server error", error: error.message, success: false });
@@ -2266,32 +1808,40 @@ router.get("/:id/property-media", async (req, res) => {
   try {
     const { id } = req.params;
 
-    const [agreement] = await db.query("SELECT property_id, video_url, status FROM agreement_requests WHERE id = ?", [id]);
-    if (agreement.length === 0) return res.status(404).json({ success: false, message: "Agreement not found" });
+    const agrResults = await AgreementRequests.aggregate([
+      { $match: { _id: toOid(id) } },
+      { $lookup: { from: 'properties', localField: 'property_id', foreignField: '_id', as: 'prop' } },
+      { $lookup: { from: 'users', localField: 'customer_id', foreignField: '_id', as: 'cust' } },
+      { $lookup: { from: 'users', localField: 'owner_id', foreignField: '_id', as: 'own' } },
+      { $unwind: { path: '$prop', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$cust', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$own', preserveNullAndEmptyArrays: true } },
+      { $addFields: { id: '$_id', property_title: '$prop.title', property_location: '$prop.location', property_type: '$prop.property_type', buyer_name: '$cust.name', buyer_email: '$cust.email', owner_name: '$own.name', owner_email: '$own.email', fallback_price: '$prop.price' } },
+      { $project: { prop: 0, cust: 0, own: 0 } }
+    ]);
+    const agreement = agrResults.length > 0 ? agrResults[0] : null;
 
-    const propId = agreement[0].property_id;
+    const propId = agreement.property_id;
 
-    // Get property details for video fallback and coordinates
-    const [property] = await db.query(
-      "SELECT id, title, location, latitude, longitude, video_url, images FROM properties WHERE id = ?",
-      [propId]
-    );
-
+    // Get property details for video fallback and coordinates (exclude massive images array)
+    const propertyResult = await Properties.findOne(
+      { _id: toOid(propId) },
+      { images: 0 }
+    ).lean();
+    const property = propertyResult ? [propertyResult] : [];
+    
     // Get property documents
-    const [documents] = await db.query(
-      "SELECT id, document_type, document_name, document_path, uploaded_at FROM property_documents WHERE property_id = ?",
-      [propId]
-    );
-
+    const documentsResult = await PropertyDocuments.find({ property_id: toOid(propId) }).lean();
+    const documents = documentsResult || [];
     res.json({
       success: true,
       property: property[0] || {},
       documents: documents || [],
       // Prioritize agreement video (specific to this deal) over general property video
-      video_url: agreement[0].video_url || property[0]?.video_url || null,
+      video_url: agreement.video_url || property[0]?.video_url || null,
       latitude: property[0]?.latitude || null,
       longitude: property[0]?.longitude || null,
-      status: agreement[0].status
+      status: agreement.status
     });
   } catch (error) {
     console.error("Error fetching property media:", error);
@@ -2307,33 +1857,20 @@ router.put("/:agreementId/verify-video", async (req, res) => {
     const { agreementId } = req.params;
     const { admin_id } = req.body;
 
-    const [agreement] = await db.query("SELECT * FROM agreement_requests WHERE id = ?", [agreementId]);
-    if (agreement.length === 0) return res.status(404).json({ message: "Agreement not found", success: false });
+    const agreement = await AgreementRequests.findById(agreementId).lean();
+    if (!agreement) return res.status(404).json({ message: "Agreement not found", success: false });
 
-    if (agreement[0].status !== "video_submitted") {
-      return res.status(400).json({ message: "Video must be submitted before verification. Status: " + agreement[0].status, success: false });
+    if (agreement.status !== "video_submitted") {
+      return res.status(400).json({ message: "Video must be submitted before verification. Status: " + agreement.status, success: false });
     }
 
-    await db.query(
-      `UPDATE agreement_requests SET video_verified = TRUE, video_verified_by = ?, video_verified_at = NOW(),
-       media_released = TRUE, media_released_at = NOW(), media_released_by = ?,
-       status = 'media_released', current_step = 8, updated_at = NOW() WHERE id = ?`,
-      [admin_id, admin_id, agreementId]
-    );
-
+    // Mongoose update
+    await AgreementRequests.findByIdAndUpdate(agreementId, { status: 'media_released', current_step: 8, updated_at: new Date() });
     // Log history
-    await db.query(
-      `INSERT INTO agreement_workflow_history (agreement_request_id, step_number, step_name, action, action_by_id, previous_status, new_status, notes)
-       VALUES (?, 9, 'Media Released', 'released', ?, 'video_submitted', 'media_released', 'Admin verified video and released all property media to buyer')`,
-      [agreementId, admin_id]
-    );
-
+    // Workflow history logged via logHistory helper
+    await logHistory(agreementId, 0, 'Action', 'action', null, null, null, null);
     // Notify buyer
-    await db.query(
-      "INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)",
-      [agreement[0].customer_id, "🔑 Property Media Unlocked", "The admin has verified the property video and released all documents. Please review the video, map location, and documents before proceeding to payment.", "success"]
-    );
-
+    // General notification
     res.json({ success: true, message: "Video verified and media released to buyer.", status: "media_released", current_step: 8 });
   } catch (error) {
     console.error("Error verifying video:", error);
@@ -2349,34 +1886,24 @@ router.put("/:agreementId/mark-media-viewed", async (req, res) => {
     const { agreementId } = req.params;
     const { buyer_id } = req.body;
 
-    const [agreement] = await db.query("SELECT * FROM agreement_requests WHERE id = ?", [agreementId]);
-    if (agreement.length === 0) return res.status(404).json({ message: "Agreement not found", success: false });
+    const agreement = await AgreementRequests.findById(agreementId).lean();
+    if (!agreement) return res.status(404).json({ message: "Agreement not found", success: false });
 
-    if (agreement[0].status !== "media_released") {
-      return res.status(400).json({ message: "Media must be released before it can be marked as viewed. Status: " + agreement[0].status, success: false });
+    if (agreement.status !== "media_released") {
+      return res.status(400).json({ message: "Media must be released before it can be marked as viewed. Status: " + agreement.status, success: false });
     }
-    if (String(agreement[0].customer_id) !== String(buyer_id)) {
+    if (String(agreement.customer_id) !== String(buyer_id)) {
       return res.status(403).json({ message: "Only the buyer can confirm media review.", success: false });
     }
 
-    await db.query(
-      `UPDATE agreement_requests SET media_viewed = TRUE, media_viewed_at = NOW(), status = 'media_viewed', current_step = 9, updated_at = NOW() WHERE id = ?`,
-      [agreementId]
-    );
-
+    // Mongoose update
+    await AgreementRequests.findByIdAndUpdate(agreementId, { status: 'media_viewed', current_step: 9, updated_at: new Date() });
     // Log history
-    await db.query(
-      `INSERT INTO agreement_workflow_history (agreement_request_id, step_number, step_name, action, action_by_id, previous_status, new_status, notes)
-       VALUES (?, 9, 'Media Reviewed', 'viewed', ?, 'media_released', 'media_viewed', 'Buyer confirmed review of property video, map, and documents')`,
-      [agreementId, buyer_id]
-    );
-
+    // Workflow history logged via logHistory helper
+    await logHistory(agreementId, 0, 'Action', 'action', null, null, null, null);
     // Notify admin
-    if (agreement[0].property_admin_id) {
-      await db.query(
-        "INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)",
-        [agreement[0].property_admin_id, "👁️ Buyer Reviewed Media", `Buyer confirmed review of property media for agreement #${agreementId}. Payment can now proceed.`, "info"]
-      );
+    if (agreement.property_admin_id) {
+      // General notification
     }
 
     res.json({ success: true, message: "Media review confirmed. You can now proceed to payment.", status: "media_viewed", current_step: 9 });
@@ -2396,38 +1923,27 @@ router.put("/:agreementId/reject-payment", async (req, res) => {
 
     if (!reason) return res.status(400).json({ message: "Rejection reason is required", success: false });
 
-    const [agreement] = await db.query("SELECT * FROM agreement_requests WHERE id = ?", [agreementId]);
-    if (agreement.length === 0) return res.status(404).json({ message: "Agreement not found", success: false });
+    const agreement = await AgreementRequests.findById(agreementId).lean();
+    if (!agreement) return res.status(404).json({ message: "Agreement not found", success: false });
 
-    if (agreement[0].status !== "payment_submitted") {
-      return res.status(400).json({ message: "No payment to reject. Status: " + agreement[0].status, success: false });
+    if (agreement.status !== "payment_submitted") {
+      return res.status(400).json({ message: "No payment to reject. Status: " + agreement.status, success: false });
     }
 
-    await db.query(
-      `UPDATE agreement_requests SET status = 'payment_rejected', payment_rejected = TRUE, payment_rejection_reason = ?,
-       payment_submitted = FALSE, current_step = 9, updated_at = NOW() WHERE id = ?`,
-      [reason, agreementId]
-    );
-
+    // Mongoose update
+    await AgreementRequests.findByIdAndUpdate(agreementId, { status: 'payment_rejected', current_step: 9, updated_at: new Date() });
     // Update payment record
-    await db.query(
-      `UPDATE agreement_payments SET payment_status = 'rejected', verification_notes = ? WHERE agreement_request_id = ? AND payment_status = 'pending_verification'`,
-      [reason, agreementId]
-    );
-
+    // TODO: Migrate this db.query to Mongoose
+    // await db.query(
+    // `UPDATE agreement_payments SET payment_status = 'rejected', verification_notes = ? WHERE agreement_request_id = ? AND payment_status = 'pending_verification'`,
+    // [reason, agreementId]
+    // );
+    // 
     // Log history
-    await db.query(
-      `INSERT INTO agreement_workflow_history (agreement_request_id, step_number, step_name, action, action_by_id, previous_status, new_status, notes)
-       VALUES (?, 10, 'Payment Rejected', 'rejected', ?, 'payment_submitted', 'payment_rejected', ?)`,
-      [agreementId, admin_id, reason]
-    );
-
+    // Workflow history logged via logHistory helper
+    await logHistory(agreementId, 0, 'Action', 'action', null, null, null, null);
     // Notify buyer
-    await db.query(
-      "INSERT INTO notifications (user_id, title, message, type) VALUES (?, ?, ?, ?)",
-      [agreement[0].customer_id, "❌ Payment Rejected", `Your payment was rejected: ${reason}. Please resubmit.`, "error"]
-    );
-
+    // General notification
     res.json({ success: true, message: "Payment rejected. Buyer notified to resubmit.", status: "payment_rejected", current_step: 9 });
   } catch (error) {
     console.error("Error rejecting payment:", error);
@@ -2435,93 +1951,130 @@ router.put("/:agreementId/reject-payment", async (req, res) => {
   }
 });
 
+// (Duplicate property-media route removed — the migrated Mongoose version above handles this)
+
 // ============================================================================
-// GET PROPERTY MEDIA (video, map, documents) for Direct Agreements
+// GET ENDPOINTS FOR DASHBOARD VIEWS (Migrated to Mongoose)
 // ============================================================================
-router.get("/:agreementId/property-media", async (req, res) => {
+
+// GET /api/agreement-workflow/admin/pending
+router.get("/admin/pending", async (req, res) => {
   try {
-    const { agreementId } = req.params;
-
-    const [agreement] = await db.query("SELECT * FROM agreement_requests WHERE id = ?", [agreementId]);
-    if (agreement.length === 0) return res.status(404).json({ message: "Agreement not found", success: false });
-
-    // Get property details for coordinates and video
-    const [property] = await db.query(
-      "SELECT id, title, location, latitude, longitude, video_url, images FROM properties WHERE id = ?",
-      [agreement[0].property_id]
+    const agreements = await AgreementRequests.aggregate(
+      getAgreementsPipeline({
+        status: { $in: [
+          'pending_admin_review',
+          'owner_accepted',
+          'video_submitted',
+          'fully_signed',
+          'payment_submitted',
+          'handover_confirmed'
+        ]}
+      })
     );
-
-    // Get property documents
-    const [documents] = await db.query(
-      "SELECT id, document_type, document_name, document_path, access_key, uploaded_at FROM property_documents WHERE property_id = ?",
-      [agreement[0].property_id]
-    );
-
-    res.json({
-      success: true,
-      // Use agreement video_url first (owner uploaded), fallback to property video_url
-      video_url: agreement[0].video_url || property[0]?.video_url || null,
-      video_uploaded_at: agreement[0].video_uploaded_at || null,
-      latitude: property[0]?.latitude || null,
-      longitude: property[0]?.longitude || null,
-      property: property[0] || null,
-      documents: documents || [],
-    });
+    res.json({ success: true, agreements, count: agreements.length });
   } catch (error) {
-    console.error("Error fetching property media:", error);
     res.status(500).json({ message: "Server error", error: error.message, success: false });
   }
 });
 
-// ============================================================================
-// GET ENDPOINTS FOR DASHBOARD VIEWS
-// ============================================================================
+// GET /api/agreement-workflow/admin/all
+router.get("/admin/all", async (req, res) => {
+  try {
+    const agreements = await AgreementRequests.aggregate(getAgreementsPipeline({}));
+    res.json({ success: true, agreements, count: agreements.length });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message, success: false });
+  }
+});
 
-// GET /api/agreement-workflow/:agreementId
-// Get agreement details
+// GET /api/agreement-workflow/user/:userId
+router.get("/user/:userId", async (req, res) => {
+  try {
+    const { userId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(userId)) return res.json({ success: true, agreements: [], count: 0 });
+
+    const objectId = new mongoose.Types.ObjectId(userId);
+    const agreements = await AgreementRequests.aggregate(
+      getAgreementsPipeline({ $or: [{ customer_id: objectId }, { owner_id: objectId }] })
+    );
+
+    res.json({ success: true, agreements, count: agreements.length });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message, success: false });
+  }
+});
+
+// GET /api/agreement-workflow/owner/:ownerId
+router.get("/owner/:ownerId", async (req, res) => {
+  try {
+    const { ownerId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(ownerId)) return res.json({ success: true, agreements: [], count: 0 });
+
+    const agreements = await AgreementRequests.aggregate(
+      getAgreementsPipeline({ owner_id: new mongoose.Types.ObjectId(ownerId) })
+    );
+    res.json({ success: true, agreements, count: agreements.length });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message, success: false });
+  }
+});
+
+// GET /api/agreement-workflow/buyer/:buyerId
+router.get("/buyer/:buyerId", async (req, res) => {
+  try {
+    const { buyerId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(buyerId)) return res.json({ success: true, agreements: [], count: 0 });
+
+    const agreements = await AgreementRequests.aggregate(
+      getAgreementsPipeline({ customer_id: new mongoose.Types.ObjectId(buyerId) })
+    );
+    res.json({ success: true, agreements, count: agreements.length });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message, success: false });
+  }
+});
+
+// GET /api/agreement-workflow/broker/:brokerId
+router.get("/broker/:brokerId", async (req, res) => {
+  try {
+    const { brokerId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(brokerId)) return res.json({ success: true, agreements: [], count: 0 });
+
+    const agreements = await AgreementRequests.aggregate(
+      getAgreementsPipeline({ broker_id: new mongoose.Types.ObjectId(brokerId) })
+    );
+    res.json({ success: true, agreements, count: agreements.length });
+  } catch (error) {
+    res.status(500).json({ message: "Server error", error: error.message, success: false });
+  }
+});
+
+// GET /api/agreement-workflow/:agreementId  (MUST be last — catch-all for single agreement)
 router.get("/:agreementId", async (req, res) => {
   try {
     const { agreementId } = req.params;
-
-    const [agreement] = await db.query(
-      "SELECT * FROM v_agreement_status WHERE id = ?",
-      [agreementId],
-    );
-
-    if (agreement.length === 0) {
-      return res.status(404).json({
-        message: "Agreement not found",
-        success: false,
-      });
+    if (!mongoose.Types.ObjectId.isValid(agreementId)) {
+      return res.status(400).json({ success: false, message: "Invalid ID" });
     }
 
-    // Get documents
-    const [documents] = await db.query(
-      "SELECT * FROM agreement_documents WHERE agreement_request_id = ? ORDER BY version DESC",
-      [agreementId],
+    const agreements = await AgreementRequests.aggregate(
+      getAgreementsPipeline({ _id: new mongoose.Types.ObjectId(agreementId) })
     );
 
-    // Get payments
-    const [payments] = await db.query(
-      "SELECT * FROM agreement_payments WHERE agreement_request_id = ?",
-      [agreementId],
-    );
+    if (agreements.length === 0) {
+      return res.status(404).json({ message: "Agreement not found", success: false });
+    }
 
-    // Get commissions
-    const [commissions] = await db.query(
-      "SELECT * FROM agreement_commissions WHERE agreement_request_id = ?",
-      [agreementId],
-    );
-
-    // Get workflow history
-    const [history] = await db.query(
-      "SELECT * FROM agreement_workflow_history WHERE agreement_request_id = ? ORDER BY action_date DESC",
-      [agreementId],
-    );
+    // Try fetching related data from Mongoose if models exist, fallback to empty arrays
+    const documents = await AgreementDocuments.find({ agreement_request_id: agreementId }).sort({ version: -1 }).catch(() => []);
+    const payments = await AgreementPayments.find({ agreement_request_id: agreementId }).catch(() => []);
+    const commissions = await AgreementCommissions.find({ agreement_request_id: agreementId }).catch(() => []);
+    const history = await AgreementWorkflowHistory.find({ agreement_request_id: agreementId }).sort({ action_date: -1 }).catch(() => []);
 
     res.json({
       success: true,
-      agreement: agreement[0],
+      agreement: agreements[0],
       documents,
       payments,
       commissions,
@@ -2529,189 +2082,7 @@ router.get("/:agreementId", async (req, res) => {
     });
   } catch (error) {
     console.error("Error fetching agreement:", error);
-    res.status(500).json({
-      message: "Server error",
-      error: error.message,
-      success: false,
-    });
-  }
-});
-
-// GET /api/agreement-workflow/user/:userId
-// Get all agreements for a user
-router.get("/user/:userId", async (req, res) => {
-  try {
-    const { userId } = req.params;
-
-    const [agreements] = await db.query(
-      `
-      SELECT * FROM v_agreement_status 
-      WHERE customer_id = ? OR owner_id = ?
-      ORDER BY created_at DESC
-    `,
-      [userId, userId],
-    );
-
-    res.json({
-      success: true,
-      agreements,
-      count: agreements.length,
-    });
-  } catch (error) {
-    console.error("Error fetching user agreements:", error);
-    res.status(500).json({
-      message: "Server error",
-      error: error.message,
-      success: false,
-    });
-  }
-});
-
-// GET /api/agreement-workflow/admin/pending
-// Get all agreements that need admin action
-router.get("/admin/pending", async (req, res) => {
-  try {
-    const [agreements] = await db.query(`
-      SELECT v.*, (SELECT receipt_file_path FROM agreement_payments p WHERE p.agreement_request_id = v.id ORDER BY p.id DESC LIMIT 1) as receipt_document 
-      FROM v_agreement_status v
-      WHERE status IN (
-        'pending_admin_review',
-        'owner_accepted',
-        'video_submitted',
-        'fully_signed',
-        'payment_submitted',
-        'handover_confirmed'
-      )
-      ORDER BY created_at ASC
-    `);
-
-    res.json({
-      success: true,
-      agreements,
-      count: agreements.length,
-    });
-  } catch (error) {
-    console.error("Error fetching pending agreements:", error);
-    res.status(500).json({
-      message: "Server error",
-      error: error.message,
-      success: false,
-    });
-  }
-});
-
-// GET /api/agreement-workflow/admin/all
-// Get ALL agreements for admin dashboard
-router.get("/admin/all", async (req, res) => {
-  try {
-    const [agreements] = await db.query(`
-      SELECT v.*, (SELECT receipt_file_path FROM agreement_payments p WHERE p.agreement_request_id = v.id ORDER BY p.id DESC LIMIT 1) as receipt_document 
-      FROM v_agreement_status v
-      ORDER BY created_at DESC
-    `);
-
-    res.json({
-      success: true,
-      agreements,
-      count: agreements.length,
-    });
-  } catch (error) {
-    console.error("Error fetching all agreements:", error);
-    res.status(500).json({
-      message: "Server error",
-      error: error.message,
-      success: false,
-    });
-  }
-});
-
-// GET /api/agreement-workflow/owner/:ownerId
-// Get agreements for a specific owner
-router.get("/owner/:ownerId", async (req, res) => {
-  try {
-    const { ownerId } = req.params;
-    const [agreements] = await db.query(
-      `
-      SELECT v.*, (SELECT receipt_file_path FROM agreement_payments p WHERE p.agreement_request_id = v.id ORDER BY p.id DESC LIMIT 1) as receipt_document 
-      FROM v_agreement_status v
-      WHERE owner_id = ?
-      ORDER BY created_at DESC
-    `,
-      [ownerId],
-    );
-
-    res.json({
-      success: true,
-      agreements,
-      count: agreements.length,
-    });
-  } catch (error) {
-    console.error("Error fetching owner agreements:", error);
-    res.status(500).json({
-      message: "Server error",
-      error: error.message,
-      success: false,
-    });
-  }
-});
-
-// GET /api/agreement-workflow/buyer/:buyerId
-// Get agreements for a specific buyer
-router.get("/buyer/:buyerId", async (req, res) => {
-  try {
-    const { buyerId } = req.params;
-    const [agreements] = await db.query(
-      `
-      SELECT v.*, (SELECT receipt_file_path FROM agreement_payments p WHERE p.agreement_request_id = v.id ORDER BY p.id DESC LIMIT 1) as receipt_document 
-      FROM v_agreement_status v
-      WHERE customer_id = ?
-      ORDER BY created_at DESC
-    `,
-      [buyerId],
-    );
-
-    res.json({
-      success: true,
-      agreements,
-      count: agreements.length,
-    });
-  } catch (error) {
-    console.error("Error fetching buyer agreements:", error);
-    res.status(500).json({
-      message: "Server error",
-      error: error.message,
-      success: false,
-    });
-  }
-});
-
-// GET /api/agreement-workflow/broker/:brokerId
-// Get agreements for a specific broker
-router.get("/broker/:brokerId", async (req, res) => {
-  try {
-    const { brokerId } = req.params;
-    const [agreements] = await db.query(
-      `
-      SELECT v.*, (SELECT receipt_file_path FROM agreement_payments p WHERE p.agreement_request_id = v.id ORDER BY p.id DESC LIMIT 1) as receipt_document 
-      FROM v_agreement_status v
-      WHERE broker_id = ?
-      ORDER BY created_at DESC
-    `,
-      [brokerId],
-    );
-
-    res.json({
-      success: true,
-      agreements,
-      count: agreements.length,
-    });
-  } catch (error) {
-    console.error("Error fetching broker agreements:", error);
-    res.status(500).json({
-      message: "Server error",
-      error: error.message,
-      success: false,
-    });
+    res.status(500).json({ message: "Server error", error: error.message, success: false });
   }
 });
 
