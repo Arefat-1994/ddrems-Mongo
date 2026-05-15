@@ -51,7 +51,6 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
   const [selectedMediationRequest, setSelectedMediationRequest] = useState(null);
 
   const [responseMsg, setResponseMsg] = useState('');
-  const [filterType, setFilterType] = useState('all');
 
   // Documents view state - moved to top level
   const [allPropertiesWithDocs, setAllPropertiesWithDocs] = useState([]);
@@ -215,15 +214,7 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
     return colors[status] || '#6b7280';
   };
 
-  const getVerificationBadge = (status) => {
-    const badges = {
-      approved: { emoji: '✅', label: 'Approved', color: '#10b981' },
-      pending: { emoji: '⏳', label: 'Pending', color: '#f59e0b' },
-      rejected: { emoji: '❌', label: 'Rejected', color: '#ef4444' },
-      suspended: { emoji: '⏸️', label: 'Suspended', color: '#f97316' }
-    };
-    return badges[status] || badges.pending;
-  };
+
 
 
 

@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup, LayersControl, useMap } from "react-leaflet";
+import React from "react";
+import { MapContainer, TileLayer, Marker, Popup, LayersControl } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -25,7 +25,7 @@ const CoordinateDisplay = ({ lat, lng }) => (
 );
 
 const PropertyMap = ({ latitude, longitude, title, properties }) => {
-  const [mapType, setMapType] = useState('street');
+
 
   const renderLayers = () => (
     <LayersControl position="topright">

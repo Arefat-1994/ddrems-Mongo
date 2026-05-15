@@ -8,7 +8,8 @@ const Property3DViewer = ({ modelPath, propertyTitle, onClose }) => {
   const [error, setError] = useState(null);
 
   useEffect(() => {
-    if (!mountRef.current) return;
+    const currentMount = mountRef.current;
+    if (!currentMount) return;
 
     // SCENE SETUP
     const scene = new THREE.Scene();
@@ -20,9 +21,9 @@ const Property3DViewer = ({ modelPath, propertyTitle, onClose }) => {
 
     // RENDERER
     const renderer = new THREE.WebGLRenderer({ antialias: true });
-    renderer.setSize(mountRef.current.clientWidth, mountRef.current.clientHeight);
+    renderer.setSize(currentMount.clientWidth, currentMount.clientHeight);
     renderer.shadowMap.enabled = true;
-    mountRef.current.appendChild(renderer.domElement);
+    currentMount.appendChild(renderer.domElement);
 
     // CONTROLS
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -119,17 +120,17 @@ const Property3DViewer = ({ modelPath, propertyTitle, onClose }) => {
 
     // RESIZE HANDLER
     const handleResize = () => {
-      if(!mountRef.current) return;
-      camera.aspect = mountRef.current.clientWidth / mountRef.current.clientHeight;
+      if(!currentMount) return;
+      camera.aspect = currentMount.clientWidth / currentMount.clientHeight;
       camera.updateProjectionMatrix();
-      renderer.setSize(mountRef.current.clientWidth, mountRef.current.clientHeight);
+      renderer.setSize(currentMount.clientWidth, currentMount.clientHeight);
     };
     window.addEventListener('resize', handleResize);
 
     // CLEANUP
     return () => {
       window.removeEventListener('resize', handleResize);
-      if(mountRef.current) mountRef.current.removeChild(renderer.domElement);
+      if(currentMount) currentMount.removeChild(renderer.domElement);
       renderer.dispose();
     };
   }, [modelPath]);

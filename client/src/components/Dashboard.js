@@ -21,9 +21,10 @@ const Dashboard = ({ user, onLogout, setCurrentPage, setViewMapPropertyId, onSet
     suspiciousProperties: 0
   });
   const [activities, setActivities] = useState([]);
+  // eslint-disable-next-line no-unused-vars
   const [unreadMessages, setUnreadMessages] = useState(0);
+  // eslint-disable-next-line no-unused-vars
   const [notifications, setNotifications] = useState([]);
-  const [showNotifications, setShowNotifications] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();

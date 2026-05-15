@@ -22,7 +22,6 @@ const OwnerDashboardEnhanced = ({ user, onLogout, setCurrentPage, onSettingsClic
     activeAgreements: 0
   });
   const [myProperties, setMyProperties] = useState([]);
-  const [agreements, setAgreements] = useState([]);
 
   
   // UI States
@@ -44,7 +43,6 @@ const OwnerDashboardEnhanced = ({ user, onLogout, setCurrentPage, onSettingsClic
       ]);
 
       setMyProperties(propertiesRes.data);
-      setAgreements(agreementRequestsRes.data);
       // setAnnouncements(announcementsRes.data.slice(0, 5));
 
       const activeListings = propertiesRes.data.filter(p => p.status === 'active').length;
@@ -86,20 +84,7 @@ const OwnerDashboardEnhanced = ({ user, onLogout, setCurrentPage, onSettingsClic
     }
   };
 
-  const handleAgreementResponse = async (requestId, status) => {
-    try {
-      await axios.put(`http://${window.location.hostname}:5000/api/agreement-requests/${requestId}/respond`, { 
-        status,
-        responded_by: user.id,
-        response_message: status === 'accepted' ? 'Your agreement request has been accepted.' : 'Your agreement request has been rejected.'
-      });
-      alert(`Agreement request ${status} successfully!`);
-      fetchOwnerData(); // Refresh data
-    } catch (error) {
-      console.error('Error responding to agreement request:', error);
-      alert('Failed to respond to agreement request. Please try again.');
-    }
-  };
+
 
 
 

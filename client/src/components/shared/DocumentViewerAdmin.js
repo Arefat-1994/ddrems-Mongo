@@ -15,7 +15,7 @@ const DocumentViewerAdmin = ({ propertyId, property, userId, userRole, onVerific
   const [showDocumentModal, setShowDocumentModal] = useState(false);
   const [isAccordionOpen, setIsAccordionOpen] = useState(false);
   const [showAccessKeyForDoc, setShowAccessKeyForDoc] = useState(null);
-  const [isRedeciding, setIsRedeciding] = useState(false);
+
 
   const fetchDocuments = async () => {
     setLoading(true);
@@ -116,33 +116,7 @@ const DocumentViewerAdmin = ({ propertyId, property, userId, userRole, onVerific
     }
   };
 
-  const handleVerificationAction = async (action) => {
-    const confirmMessages = {
-      approved: 'Approve this property? It will become active and visible to customers.',
-      suspended: 'Suspend this property? It will be hidden from customers.',
-      rejected: 'Reject this property? It will be deactivated and hidden.'
-    };
 
-    if (!window.confirm(confirmMessages[action])) return;
-
-    try {
-      await axios.put(`${API_BASE}/properties/${propertyId}/verify`, {
-        status: action,
-        verified_by: userId,
-        notes: `${action} after document review by admin`
-      });
-      
-      alert(`Property ${action} successfully!`);
-      setShowDocumentModal(false);
-      
-      if (onVerificationAction) {
-        onVerificationAction();
-      }
-    } catch (error) {
-      console.error(`Error: ${action}`, error);
-      alert(`Failed to ${action} property`);
-    }
-  };
 
   const handleDeleteProperty = async () => {
     if (!window.confirm('PERMANENTLY DELETE this property? This action cannot be undone!')) return;
@@ -472,7 +446,7 @@ const DocumentViewerAdmin = ({ propertyId, property, userId, userRole, onVerific
                 </button>
                 <button 
                   className="btn-secondary" 
-                  onClick={() => { setShowDocumentModal(false); setIsRedeciding(false); }}
+                  onClick={() => { setShowDocumentModal(false); }}
                   style={{ padding: '10px 20px' }}
                 >
                   Close

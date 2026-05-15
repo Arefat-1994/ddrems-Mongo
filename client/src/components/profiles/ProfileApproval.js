@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import './ProfileApproval.css';
 import axios from 'axios';
 
@@ -16,6 +16,7 @@ const ProfileApproval = () => {
 
   useEffect(() => {
     fetchProfiles();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter]);
 
   const showNotification = (message, type = 'success') => {

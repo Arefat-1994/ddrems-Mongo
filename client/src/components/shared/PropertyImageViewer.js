@@ -28,6 +28,7 @@ const PropertyImageViewer = ({ images, propertyTitle, onClose }) => {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const nextImage = () => {
@@ -159,7 +160,7 @@ const PropertyImageViewer = ({ images, propertyTitle, onClose }) => {
         <img
           ref={imageRef}
           src={currentImage}
-          alt={`${propertyTitle} - Image ${currentImageIndex + 1}`}
+          alt={`${propertyTitle} - view ${currentImageIndex + 1}`}
           className="viewer-image"
           style={{
             transform: `scale(${zoom}) rotate(${rotation}deg) translate(${panX}px, ${panY}px)`,

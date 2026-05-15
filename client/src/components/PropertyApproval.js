@@ -17,7 +17,6 @@ const PropertyApproval = ({ user, onClose, onRefresh, setCurrentPage, setViewMap
   
   // AI Price Prediction
   const [aiPrediction, setAiPrediction] = useState(null);
-  const [propertyPredictions, setPropertyPredictions] = useState({}); // { propertyId: predictionData }
   const [loadingAi, setLoadingAi] = useState(false);
 
   useEffect(() => {

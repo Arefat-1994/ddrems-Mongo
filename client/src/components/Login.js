@@ -42,8 +42,7 @@ const LoginForm = ({ onLogin, onShowRegister, onBackToLanding }) => {
   const [isLocked, setIsLocked] = useState(false);
   const [lockCountdown, setLockCountdown] = useState(0);
   const [isBanned, setIsBanned] = useState(false);
-  const [isSuspicious, setIsSuspicious] = useState(false);
-  const [attemptCount, setAttemptCount] = useState(0);
+  // Suspicion logic removed to fix unused vars
 
   // Lockout countdown timer
   React.useEffect(() => {
@@ -77,16 +76,14 @@ const LoginForm = ({ onLogin, onShowRegister, onBackToLanding }) => {
       });
       
       // Success — reset everything
-      setAttemptCount(0);
       setIsLocked(false);
-      setIsSuspicious(false);
       setIsBanned(false);
       onLogin(response.data.token, response.data.user);
     } catch (err) {
       const data = err.response?.data;
       const status = err.response?.status;
 
-      if (data?.attempts) setAttemptCount(data.attempts);
+
 
       if (status === 429 && data?.locked) {
         // Locked out
@@ -97,7 +94,6 @@ const LoginForm = ({ onLogin, onShowRegister, onBackToLanding }) => {
         setIsBanned(true);
         setError(`🛑 ${data.message}`);
       } else if (data?.suspicious) {
-        setIsSuspicious(true);
         setError(`🚨 ${data.message}`);
       } else if (status === 403) {
         setError('⏳ ' + (data?.message || 'Your account is pending activation.'));
