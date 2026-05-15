@@ -14,7 +14,7 @@ const ProfileApprovalGuard = ({ user, children, setCurrentPage }) => {
         }
 
         const response = await axios.get(
-          `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/profile-approval/check-approval/${user.id}`
+          `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/profile-approval/check-approval/${user.id}`
         );
 
         setApprovalStatus(response.data);

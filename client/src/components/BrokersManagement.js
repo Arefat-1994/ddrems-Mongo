@@ -30,7 +30,7 @@ const BrokersManagement = ({ onBack }) => {
   const fetchBrokers = async () => {
     setLoading(true);
     try {
-      const response = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/brokers`);
+      const response = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/brokers`);
       setBrokers(response.data);
     } catch (error) {
       console.error('Error fetching brokers:', error);
@@ -65,7 +65,7 @@ const BrokersManagement = ({ onBack }) => {
     e.preventDefault();
     try {
       // Create user account
-      const userResponse = await axios.post(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/auth/register`, {
+      const userResponse = await axios.post(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/auth/register`, {
         name: addForm.name,
         email: addForm.email,
         phone: addForm.phone,
@@ -74,7 +74,7 @@ const BrokersManagement = ({ onBack }) => {
       });
 
       // Create broker profile
-      await axios.post(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/brokers`, {
+      await axios.post(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/brokers`, {
         user_id: userResponse.data.userId,
         full_name: addForm.full_name,
         phone: addForm.phone,
@@ -98,7 +98,7 @@ const BrokersManagement = ({ onBack }) => {
   const handleEditBroker = async (e) => {
     e.preventDefault();
     try {
-      const API_BASE = `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api`;
+      const API_BASE = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api`;
 
       // 1. Update User Account
       await axios.put(`${API_BASE}/users/update/${selectedBroker.user_id}`, {

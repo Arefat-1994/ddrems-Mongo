@@ -39,11 +39,11 @@ const Dashboard = ({ user, onLogout, setCurrentPage, setViewMapPropertyId, onSet
 
   const fetchUnreadMessages = async () => {
     try {
-      const response = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/messages/unread/${user.id}`);
+      const response = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/messages/unread/${user.id}`);
       setUnreadMessages(response.data.count || 0);
       
       // Also fetch recent notifications
-      const notifResponse = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/messages/notifications/${user.id}`);
+      const notifResponse = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/messages/notifications/${user.id}`);
       setNotifications(notifResponse.data.notifications || []);
     } catch (error) {
       console.error('Error fetching unread messages:', error);
@@ -56,31 +56,31 @@ const Dashboard = ({ user, onLogout, setCurrentPage, setViewMapPropertyId, onSet
     try {
       // 1. Fetch main stats
       try {
-        const statsRes = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/dashboard/stats`);
+        const statsRes = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/dashboard/stats`);
         setStats(prev => ({ ...prev, ...statsRes.data }));
       } catch (err) { console.error('Stats error:', err); }
 
       // 2. Get pending approvals count
       try {
-        const pendingRes = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/properties/pending-verification`);
+        const pendingRes = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/properties/pending-verification`);
         setStats(prev => ({ ...prev, pendingApprovals: pendingRes.data.length }));
       } catch (err) { console.error('Approvals error:', err); }
 
       // 3. Get pending profiles count
       try {
-        const pendingProfilesRes = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/profiles/pending`);
+        const pendingProfilesRes = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/profiles/pending`);
         setStats(prev => ({ ...prev, pendingProfiles: pendingProfilesRes.data.total }));
       } catch (err) { console.error('Profiles error:', err); }
 
       // 4. Get activities
       try {
-        const activitiesRes = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/dashboard/activities`);
+        const activitiesRes = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/dashboard/activities`);
         setActivities(activitiesRes.data);
       } catch (err) { console.error('Activities error:', err); }
 
       // 5. Get suspicious properties count
       try {
-        const suspRes = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/suspicious-activity/count`);
+        const suspRes = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/suspicious-activity/count`);
         setStats(prev => ({ ...prev, suspiciousProperties: suspRes.data.count || 0 }));
       } catch (err) { console.log('Suspicious count unavailable:', err.message); }
 

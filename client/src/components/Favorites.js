@@ -11,7 +11,7 @@ const Favorites = ({ user, onLogout, onSettingsClick }) => {
     setLoading(true);
     try {
       const res = await axios.get(
-        `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/favorites/${user.id}`,
+        `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/favorites/${user.id}`,
       );
       setFavorites(res.data);
     } catch (e) {
@@ -28,7 +28,7 @@ const Favorites = ({ user, onLogout, onSettingsClick }) => {
   const remove = async (propertyId) => {
     try {
       await axios.delete(
-        `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/favorites/${user.id}/${propertyId}`,
+        `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/favorites/${user.id}/${propertyId}`,
       );
       setFavorites((prev) => prev.filter((f) => f.property_id !== propertyId));
     } catch (e) {

@@ -89,7 +89,7 @@ function App() {
     try {
       const token = localStorage.getItem('token');
       if (!token || !user?.id) return;
-      const res = await fetch(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/users/${user.id}`);
+      const res = await fetch(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/users/${user.id}`);
       if (res.ok) {
         const freshData = await res.json();
         const updatedUser = {

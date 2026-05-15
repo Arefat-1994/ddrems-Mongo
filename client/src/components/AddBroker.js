@@ -64,7 +64,7 @@ const AddBroker = ({ onClose, onSuccess }) => {
 
     try {
       console.log('Sending broker creation request:', formData);
-      const response = await axios.post(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/brokers/create-account`, formData);
+      const response = await axios.post(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/brokers/create-account`, formData);
       console.log('Response:', response.data);
       
       if (response.data.success && response.data.user_id) {

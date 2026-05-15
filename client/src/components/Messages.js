@@ -32,7 +32,7 @@ const Messages = ({ user, onLogout, onSettingsClick }) => {
 
   const fetchMessages = async () => {
     try {
-      const response = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/messages/user/${user.id}?userId=${user.id}`);
+      const response = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/messages/user/${user.id}?userId=${user.id}`);
       if (response.data.success !== false) {
         // Handle new API response format
         const messagesData = response.data.messages || response.data;
@@ -82,7 +82,7 @@ const Messages = ({ user, onLogout, onSettingsClick }) => {
 
   const fetchUnreadCount = async () => {
     try {
-      const response = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/messages/unread/${user.id}?userId=${user.id}`);
+      const response = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/messages/unread/${user.id}?userId=${user.id}`);
       const count = response.data.count || 0;
       setUnreadCount(count);
     } catch (error) {
@@ -93,7 +93,7 @@ const Messages = ({ user, onLogout, onSettingsClick }) => {
 
   const fetchMessageThread = async (messageId) => {
     try {
-      const response = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/messages/${messageId}/thread?userId=${user.id}`);
+      const response = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/messages/${messageId}/thread?userId=${user.id}`);
       if (response.data.success !== false) {
         setMessageThread(response.data);
       }
@@ -106,7 +106,7 @@ const Messages = ({ user, onLogout, onSettingsClick }) => {
     setSelectedMessage(message);
     if (!message.is_read) {
       try {
-        await axios.put(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/messages/read/${message.id}?userId=${user.id}`);
+        await axios.put(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/messages/read/${message.id}?userId=${user.id}`);
         setMessages(messages.map(m => 
           m.id === message.id ? { ...m, is_read: 1 } : m
         ));
@@ -119,7 +119,7 @@ const Messages = ({ user, onLogout, onSettingsClick }) => {
 
   const handleMarkAllRead = async () => {
     try {
-      await axios.put(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/messages/read-all/${user.id}?userId=${user.id}`);
+      await axios.put(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/messages/read-all/${user.id}?userId=${user.id}`);
       setMessages(messages.map(m => ({ ...m, is_read: 1 })));
       setUnreadCount(0);
     } catch (error) {
@@ -130,7 +130,7 @@ const Messages = ({ user, onLogout, onSettingsClick }) => {
   const handleDeleteMessage = async (messageId) => {
     if (window.confirm('Are you sure you want to delete this message?')) {
       try {
-        await axios.delete(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/messages/${messageId}?userId=${user.id}`);
+        await axios.delete(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/messages/${messageId}?userId=${user.id}`);
         setMessages(messages.filter(m => m.id !== messageId));
         setSelectedMessage(null);
       } catch (error) {
@@ -150,7 +150,7 @@ const Messages = ({ user, onLogout, onSettingsClick }) => {
   const handleEditSubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.put(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/messages/${selectedMessage.id}?userId=${user.id}`, editForm);
+      await axios.put(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/messages/${selectedMessage.id}?userId=${user.id}`, editForm);
       setMessages(messages.map(m => 
         m.id === selectedMessage.id 
           ? { ...m, subject: editForm.subject, message: editForm.message }
@@ -178,7 +178,7 @@ const Messages = ({ user, onLogout, onSettingsClick }) => {
   const handleReplySubmit = async (e) => {
     e.preventDefault();
     try {
-      await axios.post(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/messages/${selectedMessage.id}/reply`, {
+      await axios.post(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/messages/${selectedMessage.id}/reply`, {
         subject: replyForm.subject,
         message: replyForm.message
       }, {

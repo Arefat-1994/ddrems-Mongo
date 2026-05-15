@@ -5,7 +5,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './SiteCheckManager.css';
 
-const API_BASE = `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api`;
+const API_BASE = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api`;
 
 // Fix leaflet icons
 delete L.Icon.Default.prototype._getIconUrl;
@@ -591,7 +591,7 @@ const SiteCheckManager = ({ user, setCurrentPage, initialPropertyId }) => {
                     <div key={check.id} className="sc-check-item">
                       <div className="sc-check-item-photo">
                         {check.photo_url ? (
-                          <img src={check.photo_url.startsWith('http') ? check.photo_url : `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}${check.photo_url}`} alt="Site" />
+                          <img src={check.photo_url.startsWith('http') ? check.photo_url : `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}${check.photo_url}`} alt="Site" />
                         ) : (
                           <span style={{ fontSize: '24px' }}>📷</span>
                         )}

@@ -3,7 +3,7 @@ import axios from 'axios';
 import './LandingPage.css';
 import BrandLogo from './shared/BrandLogo';
 
-const API_BASE = `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}`;
+const API_BASE = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}`;
 
 const LandingPage = ({ onNavigateToLogin, onNavigateToRegister }) => {
   const [allProperties, setAllProperties] = useState([]);

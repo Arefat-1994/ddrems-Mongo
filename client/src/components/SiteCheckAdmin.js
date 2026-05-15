@@ -5,7 +5,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './SiteCheckAdmin.css';
 
-const API_BASE = `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api`;
+const API_BASE = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api`;
 
 // Fix leaflet icons
 delete L.Icon.Default.prototype._getIconUrl;
@@ -259,7 +259,7 @@ const SiteCheckAdmin = ({ user }) => {
                   <div className="sca-check-photo">
                     {check.photo_url ? (
                       <>
-                        <img src={check.photo_url.startsWith('http') ? check.photo_url : `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}${check.photo_url}`} alt="Site check" />
+                        <img src={check.photo_url.startsWith('http') ? check.photo_url : `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}${check.photo_url}`} alt="Site check" />
                         <div className="timestamp-overlay">
                           📅 {new Date(check.photo_timestamp || check.created_at).toLocaleString()}
                         </div>
@@ -371,7 +371,7 @@ const SiteCheckAdmin = ({ user }) => {
                       <td>
                         <div style={{ display: 'flex', gap: '6px', alignItems: 'center', flexWrap: 'wrap' }}>
                           <a
-                            href={doc.document_url?.startsWith('http') ? doc.document_url : `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}${doc.document_url}`}
+                            href={doc.document_url?.startsWith('http') ? doc.document_url : `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}${doc.document_url}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="sca-doc-preview-btn"

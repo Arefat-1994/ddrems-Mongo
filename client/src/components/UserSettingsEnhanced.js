@@ -69,13 +69,13 @@ const UserSettingsEnhanced = ({ user, onLogout, onRefreshUser }) => {
       console.log('Fetching settings for user:', user.id);
       
       // Fetch user preferences
-      const prefsResponse = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/user-settings/${user.id}`);
+      const prefsResponse = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/user-settings/${user.id}`);
       console.log('Settings loaded:', prefsResponse.data);
       setPreferences(prefsResponse.data);
       
       // Fetch 2FA settings
       try {
-        const twoFAResponse = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/user-settings/${user.id}/two-factor`);
+        const twoFAResponse = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/user-settings/${user.id}/two-factor`);
         console.log('2FA Settings loaded:', twoFAResponse.data);
         setTwoFactorSettings(twoFAResponse.data);
       } catch (err) {
@@ -136,7 +136,7 @@ const UserSettingsEnhanced = ({ user, onLogout, onRefreshUser }) => {
   const fetchActivityLogs = async () => {
     try {
       setLogsLoading(true);
-      const response = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/user-settings/${user.id}/activity-logs`);
+      const response = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/user-settings/${user.id}/activity-logs`);
       setActivityLogs(response.data);
     } catch (error) {
       console.error('Error fetching activity logs:', error);
@@ -148,7 +148,7 @@ const UserSettingsEnhanced = ({ user, onLogout, onRefreshUser }) => {
   const fetchActiveSessions = async () => {
     try {
       setSessionsLoading(true);
-      const response = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/user-settings/${user.id}/sessions`);
+      const response = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/user-settings/${user.id}/sessions`);
       setActiveSessions(response.data);
     } catch (error) {
       console.error('Error fetching active sessions:', error);
@@ -159,7 +159,7 @@ const UserSettingsEnhanced = ({ user, onLogout, onRefreshUser }) => {
 
   const handleTerminateSession = async (sessionId) => {
     try {
-      await axios.delete(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/user-settings/${user.id}/sessions/${sessionId}`);
+      await axios.delete(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/user-settings/${user.id}/sessions/${sessionId}`);
       fetchActiveSessions();
       setMessage('✅ Session terminated successfully');
     } catch (error) {
@@ -169,7 +169,7 @@ const UserSettingsEnhanced = ({ user, onLogout, onRefreshUser }) => {
 
   const handleTerminateAllOtherSessions = async () => {
     try {
-      await axios.delete(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/user-settings/${user.id}/sessions`);
+      await axios.delete(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/user-settings/${user.id}/sessions`);
       fetchActiveSessions();
       setMessage('✅ All other sessions terminated');
     } catch (error) {
@@ -179,7 +179,7 @@ const UserSettingsEnhanced = ({ user, onLogout, onRefreshUser }) => {
 
   const handleGlobalCloseSessions = async () => {
     try {
-      await axios.post(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/system/sessions/close-all`, {}, { headers: { 'x-user-role': user.role } });
+      await axios.post(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/system/sessions/close-all`, {}, { headers: { 'x-user-role': user.role } });
       setMessage('✅ ALL platform sessions closed recursively');
     } catch (error) {
       setMessage('❌ Error closing all sessions');
@@ -213,11 +213,11 @@ const UserSettingsEnhanced = ({ user, onLogout, onRefreshUser }) => {
       console.log('Saving settings for user:', user.id);
       
       // Save preferences
-      await axios.post(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/user-settings/${user.id}`, preferences);
+      await axios.post(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/user-settings/${user.id}`, preferences);
       
       // Save 2FA settings
       if (twoFactorSettings) {
-        await axios.post(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/user-settings/${user.id}/two-factor`, twoFactorSettings);
+        await axios.post(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/user-settings/${user.id}/two-factor`, twoFactorSettings);
       }
       
       setMessage('✅ Settings saved successfully!');
@@ -258,7 +258,7 @@ const UserSettingsEnhanced = ({ user, onLogout, onRefreshUser }) => {
       const formData = new FormData();
       formData.append('photo', file);
 
-      const response = await axios.post(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/users/upload-photo/${user.id}`, formData, {
+      const response = await axios.post(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/users/upload-photo/${user.id}`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
@@ -402,7 +402,7 @@ const UserSettingsEnhanced = ({ user, onLogout, onRefreshUser }) => {
         }
         
         // Verify OTP
-        const response = await axios.post(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/user-settings/${user.id}/verify-otp`, {
+        const response = await axios.post(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/user-settings/${user.id}/verify-otp`, {
           otpCode: otpCode,
           generatedOTP: generatedOTP
         });
@@ -430,7 +430,7 @@ const UserSettingsEnhanced = ({ user, onLogout, onRefreshUser }) => {
         }
         
         // Save password-based 2FA
-        await axios.post(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/user-settings/${user.id}/setup-password-2fa`, {
+        await axios.post(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/user-settings/${user.id}/setup-password-2fa`, {
           securityPassword: securityPassword
         });
         
@@ -453,7 +453,7 @@ const UserSettingsEnhanced = ({ user, onLogout, onRefreshUser }) => {
     try {
       setSaving(true);
       
-      await axios.post(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/user-settings/${user.id}/disable-2fa`, {});
+      await axios.post(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/user-settings/${user.id}/disable-2fa`, {});
       
       handleTwoFactorChange('twoFactorEnabled', false);
       setMessage('✅ Two-Factor Authentication disabled');
@@ -483,7 +483,7 @@ const UserSettingsEnhanced = ({ user, onLogout, onRefreshUser }) => {
 
     try {
       setSaving(true);
-      await axios.post(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/auth/change-password`, {
+      await axios.post(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/auth/change-password`, {
         userId: user.id,
         currentPassword,
         newPassword
@@ -1027,7 +1027,7 @@ const UserSettingsEnhanced = ({ user, onLogout, onRefreshUser }) => {
                   }}>
                     {user?.profile_image && !imageError ? (
                       <img 
-                        src={`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}${user.profile_image}`} 
+                        src={`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}${user.profile_image}`} 
                         alt="Profile" 
                         style={{ width: '100%', height: '100%', objectFit: 'cover' }}
                         onError={() => setImageError(true)}
@@ -1097,7 +1097,7 @@ const UserSettingsEnhanced = ({ user, onLogout, onRefreshUser }) => {
                        }
                        try {
                          setSaving(true);
-                         await axios.put(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/users/${user.id}`, {
+                         await axios.put(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/users/${user.id}`, {
                            name: profileName
                          });
                          setMessage('✅ Profile updated successfully!');
@@ -1316,12 +1316,12 @@ const UserSettingsEnhanced = ({ user, onLogout, onRefreshUser }) => {
                     <div className="action-buttons">
                       <button className="restart-btn" onClick={() => {
                         if(window.confirm('Are you sure you want to RESTART the system?')) {
-                          axios.post(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/system/restart`, {}, { headers: { 'x-user-role': user.role } });
+                          axios.post(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/system/restart`, {}, { headers: { 'x-user-role': user.role } });
                         }
                       }}>🔄 Restart System</button>
                       <button className="shutdown-btn" onClick={() => {
                         if(window.confirm('Are you sure you want to SHUTDOWN the system? This will stop all services.')) {
-                          axios.post(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/system/shutdown`, {}, { headers: { 'x-user-role': user.role } });
+                          axios.post(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/system/shutdown`, {}, { headers: { 'x-user-role': user.role } });
                         }
                       }}>🛑 Shutdown System</button>
                       <button className="close-all-sessions-btn" onClick={() => {

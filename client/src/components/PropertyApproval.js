@@ -26,7 +26,7 @@ const PropertyApproval = ({ user, onClose, onRefresh, setCurrentPage, setViewMap
 
   const fetchPendingProperties = async () => {
     try {
-      const response = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/properties/pending-verification`);
+      const response = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/properties/pending-verification`);
       const properties = response.data;
       setPendingProperties(properties);
     } catch (error) {
@@ -52,7 +52,7 @@ const PropertyApproval = ({ user, onClose, onRefresh, setCurrentPage, setViewMap
   const fetchSiteCheckStatus = async (propertyId) => {
     setLoadingSiteCheck(true);
     try {
-      const response = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/site-check/verification-status/${propertyId}`);
+      const response = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/site-check/verification-status/${propertyId}`);
       setSiteCheckStatus(response.data);
     } catch (err) {
       console.error('Error fetching site check status:', err);
@@ -67,7 +67,7 @@ const PropertyApproval = ({ user, onClose, onRefresh, setCurrentPage, setViewMap
     setAiPrediction(null);
     try {
       const locationName = property.location ? property.location.split(',')[0].trim() : 'Dire Dawa';
-      const response = await axios.post(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/ai/predict-property`, {
+      const response = await axios.post(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/ai/predict-property`, {
         latitude: property.latitude,
         longitude: property.longitude,
         location_name: locationName,
@@ -116,7 +116,7 @@ const PropertyApproval = ({ user, onClose, onRefresh, setCurrentPage, setViewMap
         fullNotes += `\n[Site Check: NOT COMPLETED OR NOT APPROVED]`;
       }
 
-      await axios.put(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/properties/${selectedProperty.id}/verify`, {
+      await axios.put(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/properties/${selectedProperty.id}/verify`, {
         status: decision,
         verified_by: user.id,
         notes: fullNotes.trim(),

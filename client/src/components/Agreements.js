@@ -53,7 +53,7 @@ const Agreements = ({ user, onLogout, onSettingsClick }) => {
             let currentBrokerId = user.id;
             if (user.role === 'broker') {
                 try {
-                    const brokerRes = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/brokers/user/${user.id}`);
+                    const brokerRes = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/brokers/user/${user.id}`);
                     currentBrokerId = brokerRes.data.id;
                 } catch (err) { console.error('Error fetching broker record:', err); }
             }

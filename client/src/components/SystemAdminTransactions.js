@@ -3,7 +3,7 @@ import axios from "axios";
 import * as XLSX from "xlsx";
 import "./SystemAdminTransactions.css";
 
-const API = `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api`;
+const API = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api`;
 
 const SystemAdminTransactions = () => {
   const [data, setData] = useState({ sale: [], rent: [], summary: {} });

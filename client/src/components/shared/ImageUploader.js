@@ -96,7 +96,7 @@ const ImageUploader = ({ propertyId, uploadedBy, onUploadComplete }) => {
           formData.append('image_type', viewType === 'front' ? 'main' : viewType);
           if (uploadedBy) formData.append('uploaded_by', uploadedBy);
           
-          const API_BASE = process.env.REACT_APP_API_URL || `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api`;
+          const API_BASE = process.env.REACT_APP_API_URL || `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api`;
           const response = await fetch(`${API_BASE}/property-images/upload`, {
             method: 'POST',
             body: formData

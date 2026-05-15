@@ -50,7 +50,7 @@ const PropertyUploaderModal = ({ user, onClose, onSuccess }) => {
     setAiPrediction(null);
 
     try {
-      const API_BASE = `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api`;
+      const API_BASE = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api`;
       // Extract location name from the full address
       const locationName = propertyForm.location
         ? propertyForm.location.split(',')[0].trim()
@@ -105,7 +105,7 @@ const PropertyUploaderModal = ({ user, onClose, onSuccess }) => {
 
     setSearchLoading(true);
     try {
-      const API_BASE = `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api`;
+      const API_BASE = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api`;
       const response = await axios.get(`${API_BASE}/users/search?role=owner&q=${query}`);
       setOwnerResults(response.data);
       setShowOwnerResults(true);
@@ -153,10 +153,10 @@ const PropertyUploaderModal = ({ user, onClose, onSuccess }) => {
       let response;
       if (newPropertyId) {
         // Update existing property
-        response = await axios.put(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/properties/${newPropertyId}`, payload);
+        response = await axios.put(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/properties/${newPropertyId}`, payload);
       } else {
         // Create new property
-        response = await axios.post(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/properties`, payload);
+        response = await axios.post(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/properties`, payload);
         setNewPropertyId(response.data.id);
       }
 
@@ -180,9 +180,9 @@ const PropertyUploaderModal = ({ user, onClose, onSuccess }) => {
   const fetchPreviewData = async () => {
     try {
       const [propertyRes, imagesRes, docsRes] = await Promise.all([
-        axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/properties/${newPropertyId}`),
-        axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/property-images/property/${newPropertyId}`),
-        axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/property-documents/property/${newPropertyId}`).catch(() => ({ data: [] }))
+        axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/properties/${newPropertyId}`),
+        axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/property-images/property/${newPropertyId}`),
+        axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/property-documents/property/${newPropertyId}`).catch(() => ({ data: [] }))
       ]);
       setPreviewProperty(propertyRes.data);
       setPreviewImages(imagesRes.data);
@@ -202,7 +202,7 @@ const PropertyUploaderModal = ({ user, onClose, onSuccess }) => {
     try {
       // Set status to pending for admin approval — only send fields the PUT route expects
       const { title, description, price, location, type, broker_id, bedrooms, bathrooms, area, listing_type, latitude, longitude, model_3d_path } = previewProperty || {};
-      await axios.put(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/properties/${newPropertyId}`, {
+      await axios.put(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/properties/${newPropertyId}`, {
         title, description, price, location, type, broker_id,
         bedrooms, bathrooms, area, listing_type, latitude, longitude, model_3d_path,
         status: 'pending'

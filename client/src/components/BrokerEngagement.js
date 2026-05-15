@@ -4,7 +4,7 @@ import { jsPDF } from "jspdf";
 import html2canvas from "html2canvas";
 import "./BrokerEngagement.css";
 
-const API = `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/broker-engagement`;
+const API = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/broker-engagement`;
 
 // Helper: detect rental engagement
 const isRentalEng = (eng) => eng?.engagement_type === 'rent';
@@ -29,7 +29,7 @@ const getDocumentUrl = (path) => {
     return `data:image/jpeg;base64,${path}`; // Fallback
   }
 
-  return `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}${path.startsWith("/") ? "" : "/"}${path}`;
+  return `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}${path.startsWith("/") ? "" : "/"}${path}`;
 };
 
 // Commission & Fee Calculation Helpers
@@ -190,14 +190,14 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
 
   const fetchProperties = useCallback(async () => {
     try {
-      const res = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/properties/active`);
+      const res = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/properties/active`);
       setProperties(res.data || []);
     } catch (err) { console.error(err); }
   }, []);
 
   const fetchBankAccounts = useCallback(async () => {
     try {
-      const res = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/bank-accounts/active`);
+      const res = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/bank-accounts/active`);
       setBankAccounts(res.data || []);
     } catch (err) { console.error(err); }
   }, []);
@@ -219,7 +219,7 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
 
   const fetchBookingInfo = useCallback(async (propertyId) => {
     try {
-      const res = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/broker-bookings?property_id=${propertyId}&status=reserved`);
+      const res = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/broker-bookings?property_id=${propertyId}&status=reserved`);
       if (res.data && res.data.length > 0) {
         setBookingInfo(res.data[0]);
       } else {
@@ -230,7 +230,7 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
 
   const fetchUserInfo = useCallback(async (userId) => {
     try {
-      const res = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/users/${userId}`);
+      const res = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/users/${userId}`);
       setUserInfoData(res.data);
       setShowUserInfoModal(true);
     } catch (err) {
@@ -2572,7 +2572,7 @@ const BrokerEngagement = ({ user, openEngagement, initialPropertyId, onLogout })
                 margin: '0 auto 16px', boxShadow: '0 4px 16px rgba(0,0,0,0.1)', overflow: 'hidden'
               }}>
                 {userInfoData.profile_image ? (
-                  <img src={`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}${userInfoData.profile_image}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <img src={`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}${userInfoData.profile_image}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : (userInfoData.name?.charAt(0)?.toUpperCase() || 'U')}
               </div>
               <h3 style={{ margin: '0 0 4px', fontSize: '18px', color: '#1e293b' }}>{userInfoData.name}</h3>

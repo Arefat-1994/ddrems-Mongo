@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import axios from 'axios';
 
-const API = `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/mpesa`;
+const API = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/mpesa`;
 
 const MpesaPayment = ({ agreement, user, onSuccess, onCancel }) => {
   const [phone, setPhone] = useState(user?.phone || '');

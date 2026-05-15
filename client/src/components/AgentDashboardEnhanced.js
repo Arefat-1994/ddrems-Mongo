@@ -20,7 +20,7 @@ const InProgressView = ({ user, onLogout, setCurrentPage, onBack }) => {
     const fetchEngagements = async () => {
       setLoading(true);
       try {
-        const res = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/broker-engagement/broker/${user.id}`);
+        const res = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/broker-engagement/broker/${user.id}`);
         const all = res.data.engagements || [];
         // Filter to only in-progress (not completed/cancelled/declined)
         const inProgress = all.filter(e => !['completed', 'cancelled', 'declined', 'rejected', 'broker_declined'].includes(e.status));
@@ -237,7 +237,7 @@ const AgentDashboardEnhanced = ({ user, onLogout, setCurrentPage, onSettingsClic
       // 1. Fetch Stats from Commissions API for accurate data
       let summaryData = { total_deals: 0, deal_commission: 0, total_earned: 0 };
       try {
-        const summaryRes = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/commissions/broker/${user.id}/summary`);
+        const summaryRes = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/commissions/broker/${user.id}/summary`);
         summaryData = summaryRes.data || summaryData;
       } catch (err) {
         console.error('Error fetching commission summary:', err);
@@ -246,7 +246,7 @@ const AgentDashboardEnhanced = ({ user, onLogout, setCurrentPage, onSettingsClic
       // 2. Fetch Engagements for granular status tracking
       let allEng = [];
       try {
-        const engRes = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/broker-engagement/broker/${user.id}`);
+        const engRes = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/broker-engagement/broker/${user.id}`);
         allEng = engRes.data.engagements || [];
       } catch (err) {
         console.error('Error fetching engagements:', err);
@@ -259,7 +259,7 @@ const AgentDashboardEnhanced = ({ user, onLogout, setCurrentPage, onSettingsClic
       // 3. Fetch System-wide Active properties for "Market Opportunity"
       let activeCount = 0;
       try {
-        const activeRes = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/properties/active`);
+        const activeRes = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/properties/active`);
         activeCount = (activeRes.data || []).length;
       } catch (err) {}
 
@@ -275,18 +275,18 @@ const AgentDashboardEnhanced = ({ user, onLogout, setCurrentPage, onSettingsClic
 
       // 4. Fetch Messages & Announcements
       try {
-        const messagesRes = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/messages/user/${user.id}`);
+        const messagesRes = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/messages/user/${user.id}`);
         setMessages(messagesRes.data.slice(0, 5));
       } catch (error) { setMessages([]); }
 
       try {
-        const announcementsRes = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/announcements`);
+        const announcementsRes = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/announcements`);
         setAnnouncements(announcementsRes.data.slice(0, 3));
       } catch (error) { setAnnouncements([]); }
 
       // 5. Fetch Agreements
       try {
-        const agreementsRes = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/agreements/broker/${user.id}`);
+        const agreementsRes = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/agreements/broker/${user.id}`);
         setAgreements(agreementsRes.data || []);
       } catch (error) { setAgreements([]); }
 

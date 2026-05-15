@@ -15,7 +15,7 @@ const BrokerApplicationsAdmin = () => {
   const fetchApplications = async () => {
     try {
       setLoading(true);
-      const response = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/broker-applications`);
+      const response = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/broker-applications`);
       setApplications(response.data);
       setError(null);
     } catch (err) {
@@ -30,7 +30,7 @@ const BrokerApplicationsAdmin = () => {
     if (!window.confirm('Are you sure you want to approve this application? An account will be created automatically.')) return;
     
     try {
-      await axios.post(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/broker-applications/${id}/approve`);
+      await axios.post(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/broker-applications/${id}/approve`);
       alert('Application approved successfully! Account has been created and email sent.');
       setSelectedApp(null);
       fetchApplications();
@@ -44,7 +44,7 @@ const BrokerApplicationsAdmin = () => {
     if (!window.confirm('Are you sure you want to reject this application?')) return;
     
     try {
-      await axios.post(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/broker-applications/${id}/reject`);
+      await axios.post(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/broker-applications/${id}/reject`);
       alert('Application rejected.');
       setSelectedApp(null);
       fetchApplications();
@@ -58,7 +58,7 @@ const BrokerApplicationsAdmin = () => {
     if (!window.confirm('Are you sure you want to PERMANENTLY DELETE this application record?')) return;
     
     try {
-      await axios.delete(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/broker-applications/${id}`);
+      await axios.delete(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/broker-applications/${id}`);
       alert('Application record deleted.');
       fetchApplications();
     } catch (err) {
@@ -70,7 +70,7 @@ const BrokerApplicationsAdmin = () => {
   const getDocUrl = (url) => {
     if (!url) return '#';
     if (url.startsWith('http')) return url;
-    return `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}${url}`;
+    return `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}${url}`;
   };
 
   if (loading) return <div style={{padding: '40px', textAlign: 'center'}}>⏳ Loading applications...</div>;

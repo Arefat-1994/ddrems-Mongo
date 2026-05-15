@@ -44,7 +44,7 @@ const MyBookings = ({ user, setCurrentPage }) => {
   const fetchBookings = useCallback(async () => {
     try {
       setLoading(true);
-      const API_BASE = `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api`;
+      const API_BASE = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api`;
       const endpoint = user.role === 'broker' 
         ? `${API_BASE}/broker-bookings?broker_id=${user.id}`
         : `${API_BASE}/broker-bookings?customer_id=${user.id}`;
@@ -65,7 +65,7 @@ const MyBookings = ({ user, setCurrentPage }) => {
   const handleCancel = async (bookingId) => {
     if (!window.confirm("Are you sure you want to cancel or remove this booking?")) return;
     try {
-      await axios.put(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/broker-bookings/${bookingId}/cancel`);
+      await axios.put(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/broker-bookings/${bookingId}/cancel`);
       fetchBookings();
     } catch (error) {
       console.error('Error cancelling booking:', error);
@@ -76,7 +76,7 @@ const MyBookings = ({ user, setCurrentPage }) => {
   const handleDelete = async (bookingId) => {
     if (!window.confirm("Are you sure you want to permanently delete this booking record?")) return;
     try {
-      await axios.delete(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/broker-bookings/${bookingId}`);
+      await axios.delete(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/broker-bookings/${bookingId}`);
       fetchBookings();
     } catch (error) {
       console.error('Error deleting booking:', error);
@@ -88,7 +88,7 @@ const MyBookings = ({ user, setCurrentPage }) => {
     setViewingProperty(propertyId);
     setLoadingProperty(true);
     try {
-      const res = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/properties/${propertyId}`);
+      const res = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/properties/${propertyId}`);
       setPropertyDetails(res.data);
     } catch (error) {
       console.error('Error fetching property details:', error);
