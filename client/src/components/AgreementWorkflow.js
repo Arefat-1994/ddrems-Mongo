@@ -5,7 +5,7 @@ import html2canvas from "html2canvas";
 import "./AgreementWorkflow.css";
 import PageHeader from "./PageHeader";
 
-const API = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/agreement-workflow`;
+const API = `${window.API_URL}/agreement-workflow`;
 
 // Helper: detect rental agreement reliably
 const isRental = (agr) => agr?.agreement_type === 'rent' || agr?.agreement_type === 'rental' || agr?.property_listing_type === 'rent';
@@ -31,7 +31,7 @@ const getDocumentUrl = (path) => {
     return `data:image/jpeg;base64,${path}`; // Fallback
   }
 
-  return `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}${path.startsWith("/") ? "" : "/"}${path}`;
+  return `${window.API_BASE}${path.startsWith("/") ? "" : "/"}${path}`;
 };
 
 
@@ -183,7 +183,7 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
   const fetchActiveProperties = useCallback(async () => {
     try {
       const res = await axios.get(
-        `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/properties/active`,
+        `${window.API_URL}/properties/active`,
       );
       setActiveProperties(res.data || []);
       return res.data || [];
@@ -195,7 +195,7 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
 
   const fetchBankAccounts = useCallback(async () => {
     try {
-      const res = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/bank-accounts/active`);
+      const res = await axios.get(`${window.API_URL}/bank-accounts/active`);
       setBankAccounts(res.data.accounts || res.data || []);
     } catch (err) {
       console.error("Error fetching bank accounts:", err);

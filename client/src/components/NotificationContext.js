@@ -16,7 +16,7 @@ export const useSocketEvent = (eventName, callback) => {
   }, [socket, eventName, callback]);
 };
 
-const SOCKET_URL = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}`;
+const SOCKET_URL = `${window.API_BASE}`;
 
 export const NotificationProvider = ({ children, userId }) => {
   const [notifications, setNotifications] = useState([]);

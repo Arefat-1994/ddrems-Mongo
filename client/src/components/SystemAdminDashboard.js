@@ -27,7 +27,7 @@ import BankAccountsAdmin from './BankAccountsAdmin';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
-const API_BASE = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api`;
+const API_BASE = `${window.API_URL}`;
 
 const SystemAdminDashboard = ({ user, onLogout, setCurrentPage, initialView, onSettingsClick }) => {
   const [currentView, setCurrentView] = useState(initialView || 'dashboard'); // dashboard, profileApproval, users
@@ -656,7 +656,7 @@ const NotificationComposer = ({ onClose, adminId }) => {
       return;
     }
     try {
-      const res = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/users/search?q=${val}`);
+      const res = await axios.get(`${window.API_URL}/users/search?q=${val}`);
       setUsers(res.data || []);
     } catch (err) {
       console.error('Search failed:', err);
@@ -673,7 +673,7 @@ const NotificationComposer = ({ onClose, adminId }) => {
     setLoading(true);
     try {
       // Send in-app notification
-      await axios.post(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/notifications`, {
+      await axios.post(`${window.API_URL}/notifications`, {
         user_id: selectedUser.id,
         title,
         message,
@@ -682,7 +682,7 @@ const NotificationComposer = ({ onClose, adminId }) => {
 
       // Send email if selected
       if (sendEmail && selectedUser.email) {
-        await axios.post(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/system/send-custom-email`, {
+        await axios.post(`${window.API_URL}/system/send-custom-email`, {
           to: selectedUser.email,
           subject: title,
           body: message,

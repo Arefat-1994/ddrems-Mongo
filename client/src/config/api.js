@@ -1,4 +1,24 @@
-// API Configuration
-export const API_BASE_URL = process.env.REACT_APP_API_URL || '${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}';
+const getBaseUrl = () => {
+  // 1. Explicit environment variable (highest priority)
+  if (process.env.REACT_APP_API_URL) {
+    return process.env.REACT_APP_API_URL.replace(/\/api\/?$/, '');
+  }
 
-export default API_BASE_URL;
+  // 2. Production detection
+  const isProd = window.location.hostname.includes('vercel.app') || 
+                 window.location.hostname.includes('onrender.com') ||
+                 window.location.protocol === 'https:';
+  
+  if (isProd) {
+    return 'https://ddrems-mongo.onrender.com';
+  }
+
+  // 3. Local development fallback
+  return `http://${window.location.hostname}:5000`;
+};
+
+const BASE_URL = getBaseUrl();
+
+export const API_URL = `${BASE_URL}/api`;
+export const SOCKET_URL = BASE_URL;
+export default API_URL;

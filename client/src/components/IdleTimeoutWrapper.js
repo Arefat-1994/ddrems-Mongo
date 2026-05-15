@@ -23,7 +23,7 @@ const IdleTimeoutWrapper = ({ user, onLogout, currentPage, children }) => {
 
     const fetchTimeout = async () => {
       try {
-        const res = await fetch(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/user-settings/${user.id}`);
+        const res = await fetch(`${window.API_URL}/user-settings/${user.id}`);
         if (res.ok) {
           const data = await res.json();
           const timeout = data.idle_timeout || data.idleTimeout || 5;

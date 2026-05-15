@@ -16,7 +16,7 @@ const BankAccountsAdmin = ({ user, onLogout, setCurrentPage, setCurrentView }) =
   const fetchAccounts = async () => {
     try {
       setLoading(true);
-      const res = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/bank-accounts`);
+      const res = await axios.get(`${window.API_URL}/bank-accounts`);
       setAccounts(res.data);
     } catch (error) {
       console.error('Failed to fetch bank accounts:', error);
@@ -29,9 +29,9 @@ const BankAccountsAdmin = ({ user, onLogout, setCurrentPage, setCurrentView }) =
     e.preventDefault();
     try {
       if (editingId) {
-        await axios.put(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/bank-accounts/${editingId}`, formData);
+        await axios.put(`${window.API_URL}/bank-accounts/${editingId}`, formData);
       } else {
-        await axios.post(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/bank-accounts`, formData);
+        await axios.post(`${window.API_URL}/bank-accounts`, formData);
       }
       setShowModal(false);
       fetchAccounts();
@@ -43,7 +43,7 @@ const BankAccountsAdmin = ({ user, onLogout, setCurrentPage, setCurrentView }) =
   const handleDelete = async (id) => {
     if (window.confirm("Are you sure you want to delete this account?")) {
       try {
-        await axios.delete(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/bank-accounts/${id}`);
+        await axios.delete(`${window.API_URL}/bank-accounts/${id}`);
         fetchAccounts();
       } catch (error) {
         alert('Failed to delete bank account');
@@ -54,7 +54,7 @@ const BankAccountsAdmin = ({ user, onLogout, setCurrentPage, setCurrentView }) =
   const toggleStatus = async (account) => {
     try {
       const newStatus = account.status === 'active' ? 'inactive' : 'active';
-      await axios.put(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/bank-accounts/${account._id}`, { status: newStatus });
+      await axios.put(`${window.API_URL}/bank-accounts/${account._id}`, { status: newStatus });
       fetchAccounts();
     } catch (error) {
       alert('Failed to update status');

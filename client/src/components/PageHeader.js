@@ -6,7 +6,7 @@ export const UserProfilePill = ({ user, onSettingsClick }) => {
   const getProfileImageUrl = (path) => {
     if (!path) return null;
     if (path.startsWith('data:') || path.startsWith('http')) return path;
-    return `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/${path.replace(/\\/g, '/').replace(/^\/+/, '')}`;
+    return `${window.API_BASE}/${path.replace(/\\/g, '/').replace(/^\/+/, '')}`;
   };
 
   const imgUrl = getProfileImageUrl(user?.profile_image);

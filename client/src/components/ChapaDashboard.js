@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import PageHeader from './PageHeader';
 
-const API = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api`;
+const API = `${window.API_URL}`;
 const CHAPA_GREEN = '#85BB65';
 
 export default function ChapaDashboard({ user, onLogout, onSettingsClick, tx_ref, agreementId, sourceType, setCurrentPage }) {

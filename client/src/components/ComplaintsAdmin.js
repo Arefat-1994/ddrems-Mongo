@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import './ComplaintsAdmin.css';
 
-const API_BASE = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api`;
+const API_BASE = `${window.API_URL}`;
 
 const ComplaintsAdmin = ({ user }) => {
   const [complaints, setComplaints] = useState([]);

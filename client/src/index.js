@@ -1,6 +1,17 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
+// Global API Configuration
+const getBaseUrl = () => {
+  if (process.env.REACT_APP_API_URL) return process.env.REACT_APP_API_URL.replace(/\/api\/?$/, '');
+  const isProd = window.location.hostname.includes('vercel.app') || 
+                 window.location.hostname.includes('onrender.com') ||
+                 window.location.protocol === 'https:';
+  return isProd ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`;
+};
+window.API_BASE = getBaseUrl();
+window.API_URL = `${window.API_BASE}/api`;
+
 import App from './App';
 import reportWebVitals from './reportWebVitals';
 

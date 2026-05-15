@@ -78,7 +78,7 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage, onSettingsC
 
   const fetchCustomerData = async () => {
     setLoading(true);
-    const API = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api`;
+    const API = `${window.API_URL}`;
     let hadError = false;
 
     // Each request is fully independent — one failure never blocks the rest
@@ -150,7 +150,7 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage, onSettingsC
     setLoading(false);
   };
 
-  const API = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api`;
+  const API = `${window.API_URL}`;
 
   const validateBookingField = (name, value) => {
     let error = '';

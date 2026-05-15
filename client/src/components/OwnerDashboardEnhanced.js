@@ -38,8 +38,8 @@ const OwnerDashboardEnhanced = ({ user, onLogout, setCurrentPage, onSettingsClic
   const fetchOwnerData = async () => {
     try {
       const [propertiesRes, agreementRequestsRes] = await Promise.all([
-        axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/properties/owner/${user.id}`),
-        axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/agreement-requests/owner/${user.id}`)
+        axios.get(`${window.API_URL}/properties/owner/${user.id}`),
+        axios.get(`${window.API_URL}/agreement-requests/owner/${user.id}`)
       ]);
 
       setMyProperties(propertiesRes.data);
@@ -75,7 +75,7 @@ const OwnerDashboardEnhanced = ({ user, onLogout, setCurrentPage, onSettingsClic
   const deleteProperty = async (propertyId) => {
     if (!window.confirm('Are you sure you want to delete this property?')) return;
     try {
-      await axios.delete(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/properties/${propertyId}`);
+      await axios.delete(`${window.API_URL}/properties/${propertyId}`);
       alert('Property deleted successfully');
       fetchOwnerData();
     } catch (error) {

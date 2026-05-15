@@ -19,7 +19,7 @@ const Announcements = ({ user, onLogout, onSettingsClick }) => {
 
   const fetchAnnouncements = async () => {
     try {
-      const response = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/announcements`);
+      const response = await axios.get(`${window.API_URL}/announcements`);
       setAnnouncements(response.data);
     } catch (error) {
       console.error('Error fetching announcements:', error);
@@ -49,9 +49,9 @@ const Announcements = ({ user, onLogout, onSettingsClick }) => {
     e.preventDefault();
     try {
       if (editingId) {
-        await axios.put(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/announcements/${editingId}`, formData);
+        await axios.put(`${window.API_URL}/announcements/${editingId}`, formData);
       } else {
-        await axios.post(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/announcements`, formData);
+        await axios.post(`${window.API_URL}/announcements`, formData);
       }
       fetchAnnouncements();
       setShowModal(false);
@@ -77,7 +77,7 @@ const Announcements = ({ user, onLogout, onSettingsClick }) => {
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this announcement?')) {
       try {
-        await axios.delete(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/announcements/${id}`);
+        await axios.delete(`${window.API_URL}/announcements/${id}`);
         fetchAnnouncements();
       } catch (error) {
         console.error('Error deleting announcement:', error);

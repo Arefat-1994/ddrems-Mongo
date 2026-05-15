@@ -51,7 +51,7 @@ const DocumentUploader = ({ propertyId, uploadedBy, onUploadComplete }) => {
         size: `${(selectedFile.size / 1024).toFixed(2)} KB`
       });
 
-      const API_BASE = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api`;
+      const API_BASE = `${window.API_URL}`;
       const response = await axios.post(`${API_BASE}/property-documents`, {
         property_id: propertyId,
         document_name: documentName,

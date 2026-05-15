@@ -5,7 +5,7 @@ import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import './MapPropertyViewer.css';
 
-const API_BASE = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api`;
+const API_BASE = `${window.API_URL}`;
 
 // Fix missing marker icons in leaflet
 delete L.Icon.Default.prototype._getIconUrl;

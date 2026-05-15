@@ -50,7 +50,7 @@ const SettingsPage = ({ user, onLogout }) => {
 
       // Fetch preferences
       try {
-        const prefsRes = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/user-settings/${user.id}`);
+        const prefsRes = await axios.get(`${window.API_URL}/user-settings/${user.id}`);
         if (prefsRes.data) {
           setTheme(prefsRes.data.theme || 'light');
           setPrimaryColor(prefsRes.data.primaryColor || '#667eea');
@@ -70,7 +70,7 @@ const SettingsPage = ({ user, onLogout }) => {
 
       // Fetch 2FA settings
       try {
-        const twoFARes = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/user-settings/${user.id}/two-factor`);
+        const twoFARes = await axios.get(`${window.API_URL}/user-settings/${user.id}/two-factor`);
         if (twoFARes.data) {
           setTwoFactorEnabled(twoFARes.data.twoFactorEnabled || false);
           setTwoFactorMethod(twoFARes.data.twoFactorMethod || 'otp');
@@ -97,7 +97,7 @@ const SettingsPage = ({ user, onLogout }) => {
       }
 
       // Save preferences
-      await axios.post(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/user-settings/${user.id}`, {
+      await axios.post(`${window.API_URL}/user-settings/${user.id}`, {
         theme,
         primaryColor,
         accentColor,
@@ -112,7 +112,7 @@ const SettingsPage = ({ user, onLogout }) => {
       });
 
       // Save 2FA settings
-      await axios.post(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/user-settings/${user.id}/two-factor`, {
+      await axios.post(`${window.API_URL}/user-settings/${user.id}/two-factor`, {
         twoFactorEnabled,
         twoFactorMethod
       });
@@ -144,7 +144,7 @@ const SettingsPage = ({ user, onLogout }) => {
           return;
         }
 
-        const response = await axios.post(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/user-settings/${user.id}/verify-otp`, {
+        const response = await axios.post(`${window.API_URL}/user-settings/${user.id}/verify-otp`, {
           otpCode,
           generatedOTP
         });
@@ -172,7 +172,7 @@ const SettingsPage = ({ user, onLogout }) => {
           return;
         }
 
-        await axios.post(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/user-settings/${user.id}/setup-password-2fa`, {
+        await axios.post(`${window.API_URL}/user-settings/${user.id}/setup-password-2fa`, {
           securityPassword
         });
 
@@ -194,7 +194,7 @@ const SettingsPage = ({ user, onLogout }) => {
   const handleDisable2FA = async () => {
     try {
       setSaving(true);
-      await axios.post(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/user-settings/${user.id}/disable-2fa`, {});
+      await axios.post(`${window.API_URL}/user-settings/${user.id}/disable-2fa`, {});
       setTwoFactorEnabled(false);
       setMessage('✅ Two-Factor Authentication disabled');
       setTimeout(() => setMessage(''), 3000);

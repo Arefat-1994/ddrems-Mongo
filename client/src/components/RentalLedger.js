@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import axios from "axios";
 import "./RentalLedger.css";
 
-const API = process.env.REACT_APP_API_URL || `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api`;
+const API = process.env.REACT_APP_API_URL || `${window.API_URL}`;
 
 // ── Helper: human-readable schedule label ──
 const scheduleLabel = (s) => {
@@ -56,7 +56,7 @@ const RentalLedger = ({ user }) => {
 
   const fetchBankAccounts = useCallback(async () => {
     try {
-      const res = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/bank-accounts/active`);
+      const res = await axios.get(`${window.API_URL}/bank-accounts/active`);
       setBankAccounts(res.data || []);
     } catch (err) { console.error(err); }
   }, []);

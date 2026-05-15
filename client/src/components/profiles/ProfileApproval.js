@@ -11,7 +11,7 @@ const ProfileApproval = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [notification, setNotification] = useState(null); // { message, type }
 
-  const API_BASE = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api`;
+  const API_BASE = `${window.API_URL}`;
   const adminUser = JSON.parse(localStorage.getItem('user'));
 
   useEffect(() => {

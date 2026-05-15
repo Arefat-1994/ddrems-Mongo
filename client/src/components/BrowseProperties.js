@@ -52,7 +52,7 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack, hideHeader 
 
   const fetchFavorites = async () => {
     try {
-      const response = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/favorites/${user.id}`);
+      const response = await axios.get(`${window.API_URL}/favorites/${user.id}`);
       setFavorites(response.data);
     } catch (error) {
       console.error('Error fetching favorites:', error);
@@ -65,7 +65,7 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack, hideHeader 
 
   const addToFavorites = async (propertyId) => {
     try {
-      await axios.post(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/favorites`, {
+      await axios.post(`${window.API_URL}/favorites`, {
         user_id: user.id,
         property_id: propertyId
       });
@@ -79,7 +79,7 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack, hideHeader 
 
   const removeFavorite = async (propertyId) => {
     try {
-      await axios.delete(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/favorites/${user.id}/${propertyId}`);
+      await axios.delete(`${window.API_URL}/favorites/${user.id}/${propertyId}`);
       alert('Removed from favorites');
       fetchFavorites();
     } catch (error) {
@@ -90,7 +90,7 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack, hideHeader 
 
   const fetchApprovedProperties = async () => {
     try {
-      const response = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/properties/active?t=` + Date.now());
+      const response = await axios.get(`${window.API_URL}/properties/active?t=` + Date.now());
       const activeProperties = response.data.filter(property => property.status === 'active');
       setProperties(activeProperties);
       
@@ -111,7 +111,7 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack, hideHeader 
   const fetchAuditForProperty = async (property) => {
     try {
       const locationName = property.location ? property.location.split(',')[0].trim() : 'Dire Dawa';
-      const response = await axios.post(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/ai/predict-property`, {
+      const response = await axios.post(`${window.API_URL}/ai/predict-property`, {
         latitude: property.latitude,
         longitude: property.longitude,
         location_name: locationName,
@@ -137,7 +137,7 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack, hideHeader 
   const fetchRequests = async () => {
     try {
       const roleType = user.role === 'broker' ? 'broker' : 'customer';
-      const agreementRes = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/agreement-requests/${roleType}/${user.id}`);
+      const agreementRes = await axios.get(`${window.API_URL}/agreement-requests/${roleType}/${user.id}`);
       setAgreementRequests(agreementRes.data);
     } catch (error) {
       console.error('Error fetching requests:', error);
@@ -146,7 +146,7 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack, hideHeader 
 
   const fetchClients = async () => {
     try {
-      const res = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/broker-engagement/broker/${user.id}/customers`);
+      const res = await axios.get(`${window.API_URL}/broker-engagement/broker/${user.id}/customers`);
       setClients(res.data.customers || []);
     } catch (error) {
       console.error('Error fetching clients:', error);
@@ -205,7 +205,7 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack, hideHeader 
 
     try {
       setActionLoading(true);
-      await axios.post(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/broker-bookings`, {
+      await axios.post(`${window.API_URL}/broker-bookings`, {
         property_id: selectedProperty.id,
         broker_id: user.role === 'broker' ? user.id : null,
         customer_id: user.role === 'user' ? user.id : (selectedClientId || null),
@@ -233,7 +233,7 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack, hideHeader 
 
   const openImageViewer = async (property) => {
     try {
-      const response = await axios.get(`${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api/property-images/${property.id}`);
+      const response = await axios.get(`${window.API_URL}/property-images/${property.id}`);
       const images = response.data.map(img => img.image_url);
       if (images.length === 0 && property.main_image) {
         images.push(property.main_image);

@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import './DocumentViewer.css';
 import axios from 'axios';
 
-const API_BASE = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api`;
+const API_BASE = `${window.API_URL}`;
 
 const DocumentViewer = ({ propertyId, userId }) => {
   const [documents, setDocuments] = useState([]);

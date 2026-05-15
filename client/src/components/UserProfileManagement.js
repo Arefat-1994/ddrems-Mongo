@@ -15,7 +15,7 @@ const UserProfileManagement = ({ user, onLogout, onSettingsClick }) => {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const API_BASE = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api`;
+  const API_BASE = `${window.API_URL}`;
 
   const fetchUsers = useCallback(async () => {
     try {

@@ -66,7 +66,7 @@ const Properties = ({ user, onLogout, viewMode = "all", setCurrentPage, setViewM
 
   const fetchFavorites = async () => {
     try {
-      const API_BASE = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api`;
+      const API_BASE = `${window.API_URL}`;
       const res = await axios.get(
         `${API_BASE}/favorites/${user.id}`,
       );
@@ -82,7 +82,7 @@ const Properties = ({ user, onLogout, viewMode = "all", setCurrentPage, setViewM
   const toggleFavorite = async (propertyId) => {
     if (isFavorite(propertyId)) {
       try {
-        const API_BASE = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api`;
+        const API_BASE = `${window.API_URL}`;
         await axios.delete(
           `${API_BASE}/favorites/${user.id}/${propertyId}`,
         );
@@ -94,7 +94,7 @@ const Properties = ({ user, onLogout, viewMode = "all", setCurrentPage, setViewM
       }
     } else {
       try {
-        const API_BASE = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api`;
+        const API_BASE = `${window.API_URL}`;
         await axios.post(`${API_BASE}/favorites`, {
           user_id: user.id,
           property_id: propertyId,
@@ -109,17 +109,17 @@ const Properties = ({ user, onLogout, viewMode = "all", setCurrentPage, setViewM
   const fetchUserRequests = async () => {
     try {
       if (user?.role === "user") {
-        const API_BASE = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api`;
+        const API_BASE = `${window.API_URL}`;
         const agreementRes = await axios.get(
             `${API_BASE}/agreement-requests/customer/${user.id}`,
         );
         setAgreementRequests(agreementRes.data);
       } else if (user?.role === "owner") {
-        const API_BASE = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api`;
+        const API_BASE = `${window.API_URL}`;
         const agreementRes = await axios.get(`${API_BASE}/agreements/owner/${user.id}`);
         setAgreementRequests(agreementRes.data);
       } else if (user?.role === "broker") {
-        const API_BASE = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api`;
+        const API_BASE = `${window.API_URL}`;
         const agreementRes = await axios.get(`${API_BASE}/agreements/broker/${user.id}`);
         setAgreementRequests(agreementRes.data);
       }
@@ -130,7 +130,7 @@ const Properties = ({ user, onLogout, viewMode = "all", setCurrentPage, setViewM
 
   const fetchProperties = async () => {
     try {
-      const API_BASE = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api`;
+      const API_BASE = `${window.API_URL}`;
       let endpoint = `${API_BASE}/properties`;
 
       if (
@@ -169,7 +169,7 @@ const Properties = ({ user, onLogout, viewMode = "all", setCurrentPage, setViewM
     setShowViewModal(true);
     setAiPrediction(null);
     try {
-      const API_BASE = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api`;
+      const API_BASE = `${window.API_URL}`;
       const response = await axios.get(
         `${API_BASE}/properties/${property.id}`,
       );
@@ -185,7 +185,7 @@ const Properties = ({ user, onLogout, viewMode = "all", setCurrentPage, setViewM
   const fetchAiPrediction = async (property) => {
     setAiPredictionLoading(true);
     try {
-      const API_BASE = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api`;
+      const API_BASE = `${window.API_URL}`;
       const locationName = (property.location || '').split(',')[0].trim();
       const response = await axios.post(`${API_BASE}/ai/predict-property`, {
         latitude: parseFloat(property.latitude) || 9.6009,
@@ -212,7 +212,7 @@ const Properties = ({ user, onLogout, viewMode = "all", setCurrentPage, setViewM
     if (!window.confirm("Are you sure you want to delete this property?"))
       return;
     try {
-      const API_BASE = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api`;
+      const API_BASE = `${window.API_URL}`;
       await axios.delete(`${API_BASE}/properties/${propertyId}`);
       alert("Property deleted successfully");
       fetchProperties();
@@ -278,7 +278,7 @@ const Properties = ({ user, onLogout, viewMode = "all", setCurrentPage, setViewM
 
     try {
       setActionLoading(true);
-      const API_BASE = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api`;
+      const API_BASE = `${window.API_URL}`;
       await axios.post(`${API_BASE}/broker-bookings`, {
         property_id: selectedProperty.id,
         broker_id: user.role === 'broker' ? user.id : null,

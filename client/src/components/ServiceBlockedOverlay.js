@@ -50,7 +50,7 @@ const ServiceBlockedOverlay = ({ user, currentPage, onLogout }) => {
 
     const checkStatus = async () => {
       try {
-        const API = `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/api`;
+        const API = `${window.API_URL}`;
         
         // Check system schedule
         try {

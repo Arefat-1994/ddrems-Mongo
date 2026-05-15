@@ -49,7 +49,7 @@ const Property3DViewer = ({ modelPath, propertyTitle, onClose }) => {
         const loader = new GLTFLoader();
         
         // Ensure path is absolute for localhost
-        const fullPath = modelPath.startsWith('http') ? modelPath : `${process.env.REACT_APP_API_URL || (window.location.hostname.includes('vercel.app') ? 'https://ddrems-mongo.onrender.com' : `http://${window.location.hostname}:5000`)}/${modelPath}`;
+        const fullPath = modelPath.startsWith('http') ? modelPath : `${window.API_BASE}/${modelPath}`;
         
         loader.load(
           fullPath,
