@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import './PropertyAdminDashboard.css'; // Reuse existing styles
 
-const API_BASE = `http://${window.location.hostname}:5000/api`;
+const API_BASE = `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api`;
 
 const BookedLists = ({ user, showNotification }) => {
   const [brokerHolds, setBrokerHolds] = useState([]);

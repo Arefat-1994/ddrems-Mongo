@@ -26,7 +26,7 @@ ChartJS.register(
   Title
 );
 
-const API_BASE = `http://${window.location.hostname}:5000/api`;
+const API_BASE = `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api`;
 
 const Reports = ({ user, onLogout, onBack }) => {
   const [stats, setStats] = useState(null);

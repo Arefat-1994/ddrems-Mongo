@@ -26,9 +26,9 @@ const BrokerRequests = ({ user, onLogout }) => {
         try {
             setLoading(true);
             const [propRes, agrRes, hireRes] = await Promise.all([
-                axios.get(`http://${window.location.hostname}:5000/api/property-requests/broker/${user.id}`).catch(() => ({ data: [] })),
-                axios.get(`http://${window.location.hostname}:5000/api/agreement-requests/broker/${user.id}`).catch(() => ({ data: [] })),
-                axios.get(`http://${window.location.hostname}:5000/api/broker-engagement/broker/${user.id}`).catch(() => ({ data: { engagements: [] } }))
+                axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/property-requests/broker/${user.id}`).catch(() => ({ data: [] })),
+                axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/agreement-requests/broker/${user.id}`).catch(() => ({ data: [] })),
+                axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/broker-engagement/broker/${user.id}`).catch(() => ({ data: { engagements: [] } }))
             ]);
             setRequests(propRes.data);
             setAgreementRequests(agrRes.data);
@@ -50,13 +50,13 @@ const BrokerRequests = ({ user, onLogout }) => {
             let endpoint, method = 'put', data = { status, responded_by: user.id };
             
             if (type === 'property') {
-                endpoint = `http://${window.location.hostname}:5000/api/property-requests/${requestId}/respond`;
+                endpoint = `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/property-requests/${requestId}/respond`;
                 data.response_message = status === 'accepted' ? 'Agreement approved by broker' : 'Agreement rejected by broker';
             } else if (type === 'agreement') {
-                endpoint = `http://${window.location.hostname}:5000/api/agreement-requests/${requestId}/respond`;
+                endpoint = `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/agreement-requests/${requestId}/respond`;
                 data.response_message = status === 'accepted' ? 'Agreement approved by broker' : 'Agreement rejected by broker';
             } else if (type === 'hire') {
-                endpoint = `http://${window.location.hostname}:5000/api/broker-engagement/${requestId}/broker-accept`;
+                endpoint = `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/broker-engagement/${requestId}/broker-accept`;
                 data = { broker_id: user.id, decision: status === 'accepted' ? 'accept' : 'decline' };
                 if (status === 'rejected') data.decline_reason = 'Rejected by broker';
             }
@@ -81,7 +81,7 @@ const BrokerRequests = ({ user, onLogout }) => {
         
         setSendingMessage(true);
         try {
-            await axios.post(`http://${window.location.hostname}:5000/api/messages`, {
+            await axios.post(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/messages`, {
                 sender_id: user.id,
                 receiver_id: messageData.recipientId,
                 subject: messageData.subject || 'Broker Message',
@@ -100,7 +100,7 @@ const BrokerRequests = ({ user, onLogout }) => {
 
     const viewCustomerProfile = async (customerId) => {
         try {
-            const res = await axios.get(`http://${window.location.hostname}:5000/api/users/${customerId}`);
+            const res = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/users/${customerId}`);
             setSelectedCustomer(res.data);
             setShowProfileModal(true);
         } catch (error) {
@@ -345,7 +345,7 @@ const BrokerRequests = ({ user, onLogout }) => {
                     <div className="modal-content" style={{ background: 'white', padding: '30px', borderRadius: '20px', maxWidth: '500px', width: '90%', boxShadow: '0 20px 25px -5px rgba(0,0,0,0.1)' }}>
                         <div style={{ textAlign: 'center', marginBottom: '20px' }}>
                             <div style={{ width: '100px', height: '100px', background: '#f1f5f9', borderRadius: '50%', margin: '0 auto 15px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '40px', overflow: 'hidden' }}>
-                                {selectedCustomer.profile_image ? <img src={`http://${window.location.hostname}:5000${selectedCustomer.profile_image}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : '👤'}
+                                {selectedCustomer.profile_image ? <img src={`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}${selectedCustomer.profile_image}`} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : '👤'}
                             </div>
                             <h2 style={{ margin: 0, fontSize: '24px', color: '#1e293b' }}>{selectedCustomer.name}</h2>
                             <p style={{ margin: '5px 0 0', color: '#64748b' }}>{selectedCustomer.email}</p>

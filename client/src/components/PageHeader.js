@@ -6,7 +6,7 @@ export const UserProfilePill = ({ user, onSettingsClick }) => {
   const getProfileImageUrl = (path) => {
     if (!path) return null;
     if (path.startsWith('data:') || path.startsWith('http')) return path;
-    return `http://${window.location.hostname}:5000/${path.replace(/\\/g, '/').replace(/^\/+/, '')}`;
+    return `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/${path.replace(/\\/g, '/').replace(/^\/+/, '')}`;
   };
 
   const imgUrl = getProfileImageUrl(user?.profile_image);

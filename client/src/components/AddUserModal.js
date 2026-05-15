@@ -13,7 +13,7 @@ const AddUserModal = ({ onClose, onSuccess, initialRole }) => {
   const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
-  const API_BASE = `http://${window.location.hostname}:5000/api`;
+  const API_BASE = `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api`;
 
   const validateForm = () => {
     const newErrors = {};

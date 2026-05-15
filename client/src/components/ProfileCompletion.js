@@ -45,7 +45,7 @@ const ProfileCompletion = ({ user, onLogout, setCurrentPage }) => {
   const fetchCompletionStatus = async () => {
     try {
       const response = await axios.get(
-        `http://${window.location.hostname}:5000/api/profile-approval/completion-status/${user?.id}`
+        `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/profile-approval/completion-status/${user?.id}`
       );
       setCompletionStatus(response.data);
     } catch (error) {
@@ -64,7 +64,7 @@ const ProfileCompletion = ({ user, onLogout, setCurrentPage }) => {
   const updateCompletionStatus = async (updates) => {
     try {
       const response = await axios.post(
-        `http://${window.location.hostname}:5000/api/profile-approval/update-completion/${user?.id}`,
+        `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/profile-approval/update-completion/${user?.id}`,
         updates
       );
       setCompletionStatus(prev => ({
@@ -114,7 +114,7 @@ const ProfileCompletion = ({ user, onLogout, setCurrentPage }) => {
   const submitForApproval = async () => {
     try {
       const response = await axios.post(
-        `http://${window.location.hostname}:5000/api/profile-approval/submit-for-approval/${user?.id}`,
+        `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/profile-approval/submit-for-approval/${user?.id}`,
         { notes: 'Profile submitted for admin approval' }
       );
       setSubmitted(true);

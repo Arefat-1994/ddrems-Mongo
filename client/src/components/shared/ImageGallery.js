@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './ImageGallery.css';
 import axios from 'axios';
 
-const API_BASE = `http://${window.location.hostname}:5000/api`;
+const API_BASE = `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api`;
 
 const ImageGallery = ({ propertyId, canDelete, onDelete }) => {
   const [images, setImages] = useState([]);

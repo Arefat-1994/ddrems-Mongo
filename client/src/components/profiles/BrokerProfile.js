@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import './UnifiedProfile.css';
 import axios from 'axios';
 
-const API_BASE = `http://${window.location.hostname}:5000/api`;
+const API_BASE = `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api`;
 
 const BrokerProfile = ({ user, onComplete }) => {
   const [profile, setProfile] = useState(null);
@@ -49,7 +49,7 @@ const BrokerProfile = ({ user, onComplete }) => {
     if (path.startsWith('data:')) return path;
     if (path.startsWith('http')) return path;
     const cleanPath = path.toString().replace(/\\/g, '/').replace(/^\/+/, '');
-    return `http://${window.location.hostname}:5000/${cleanPath}`;
+    return `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/${cleanPath}`;
   };
 
   const fetchProfile = useCallback(async () => {
@@ -244,11 +244,11 @@ const BrokerProfile = ({ user, onComplete }) => {
       const fullPhoneNumber = `${selectedCountryCode}${formData.phone_number}`;
 
       if (profile) {
-        await axios.put(`http://${window.location.hostname}:5000/api/profiles/broker/${profile.id}`, { ...formData, phone_number: fullPhoneNumber });
+        await axios.put(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/profiles/broker/${profile.id}`, { ...formData, phone_number: fullPhoneNumber });
         
         // If in edit mode, submit the edit request
         if (editMode && editRequest) {
-          await axios.post(`http://${window.location.hostname}:5000/api/edit-requests/${editRequest.id}/submit`, {
+          await axios.post(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/edit-requests/${editRequest.id}/submit`, {
             user_id: user.id,
             profile_type: 'broker',
             updated_data: { ...formData, phone_number: fullPhoneNumber }
@@ -262,7 +262,7 @@ const BrokerProfile = ({ user, onComplete }) => {
           alert('✅ Profile updated successfully!');
         }
       } else {
-        await axios.post(`http://${window.location.hostname}:5000/api/profiles/broker`, {
+        await axios.post(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/profiles/broker`, {
           ...formData,
           phone_number: fullPhoneNumber,
           user_id: user.id

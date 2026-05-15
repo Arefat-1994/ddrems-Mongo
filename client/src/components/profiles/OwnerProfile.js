@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './UnifiedProfile.css';
 import axios from 'axios';
 
-const API_BASE = `http://${window.location.hostname}:5000/api`;
+const API_BASE = `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api`;
 
 const OwnerProfile = ({ user, onComplete }) => {
   const [profile, setProfile] = useState(null);
@@ -48,7 +48,7 @@ const OwnerProfile = ({ user, onComplete }) => {
     if (path.startsWith('data:')) return path;
     if (path.startsWith('http')) return path;
     const cleanPath = path.replace(/\\/g, '/').replace(/^\/+/, '');
-    return `http://${window.location.hostname}:5000/${cleanPath}`;
+    return `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/${cleanPath}`;
   };
 
   useEffect(() => {

@@ -53,7 +53,7 @@ const MessageNotificationWidget = ({ userId, onNavigateToMessages }) => {
     if (!userId) return;
     try {
       setLoading(true);
-      const API = `http://${window.location.hostname}:5000/api`;
+      const API = `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api`;
       const response = await axios.get(`${API}/messages/unread/${userId}`);
       const newCount = response.data.count || 0;
       

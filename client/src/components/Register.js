@@ -191,7 +191,7 @@ const Register = ({ onBackToLogin }) => {
     try {
       const fullPhoneNumber = `${selectedCountryCode}${formData.phone}`;
       
-      await axios.post(`http://${window.location.hostname}:5000/api/auth/register`, {
+      await axios.post(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/auth/register`, {
         name: formData.name,
         email: formData.email,
         phone: fullPhoneNumber,

@@ -19,7 +19,7 @@ const AgreementManagement = ({ user, onLogout, onSettingsClick, hideHeader = fal
   const [selectedDocument, setSelectedDocument] = useState(null);
   const [showDocumentViewer, setShowDocumentViewer] = useState(false);
 
-  const API_BASE = `http://${window.location.hostname}:5000/api`;
+  const API_BASE = `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api`;
 
   useEffect(() => {
     fetchAgreements();
@@ -1121,7 +1121,7 @@ const AgreementManagement = ({ user, onLogout, onSettingsClick, hideHeader = fal
                         <p>📄 Document File</p>
                         <p>{selectedDocument.document_path}</p>
                         <a
-                          href={`http://${window.location.hostname}:5000${selectedDocument.document_path}`}
+                          href={`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}${selectedDocument.document_path}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="btn-primary"
@@ -1134,7 +1134,7 @@ const AgreementManagement = ({ user, onLogout, onSettingsClick, hideHeader = fal
                       ) ? (
                       <div className="document-image-preview">
                         <img
-                          src={`http://${window.location.hostname}:5000${selectedDocument.document_path}`}
+                          src={`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}${selectedDocument.document_path}`}
                           alt="Document"
                         />
                       </div>
@@ -1142,7 +1142,7 @@ const AgreementManagement = ({ user, onLogout, onSettingsClick, hideHeader = fal
                       <div className="document-file-preview">
                         <p>📎 File: {selectedDocument.document_path}</p>
                         <a
-                          href={`http://${window.location.hostname}:5000${selectedDocument.document_path}`}
+                          href={`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}${selectedDocument.document_path}`}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="btn-primary"
@@ -1179,7 +1179,7 @@ const AgreementManagement = ({ user, onLogout, onSettingsClick, hideHeader = fal
               </button>
               {selectedDocument.document_path && (
                 <a
-                  href={`http://${window.location.hostname}:5000${selectedDocument.document_path}`}
+                  href={`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}${selectedDocument.document_path}`}
                   download
                   className="btn-primary"
                 >

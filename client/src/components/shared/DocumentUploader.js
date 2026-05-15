@@ -51,7 +51,7 @@ const DocumentUploader = ({ propertyId, uploadedBy, onUploadComplete }) => {
         size: `${(selectedFile.size / 1024).toFixed(2)} KB`
       });
 
-      const API_BASE = `http://${window.location.hostname}:5000/api`;
+      const API_BASE = `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api`;
       const response = await axios.post(`${API_BASE}/property-documents`, {
         property_id: propertyId,
         document_name: documentName,

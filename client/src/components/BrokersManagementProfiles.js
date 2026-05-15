@@ -14,7 +14,7 @@ const BrokersManagementProfiles = ({ user, onLogout }) => {
   const [loading, setLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  const API_BASE = `http://${window.location.hostname}:5000/api`;
+  const API_BASE = `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api`;
 
   const fetchBrokers = useCallback(async () => {
     try {

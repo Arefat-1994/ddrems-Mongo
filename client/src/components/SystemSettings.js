@@ -86,14 +86,14 @@ const SystemSettings = ({ user, onLogout, onSettingsClick }) => {
 
   const fetchLoginAttempts = async () => {
     try {
-      const res = await axios.get(`http://${window.location.hostname}:5000/api/auth/login-attempts`);
+      const res = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/auth/login-attempts`);
       setLoginAttempts(res.data);
     } catch (e) { console.error('Error fetching login attempts:', e); }
   };
 
   const handleUnbanUser = async (userId) => {
     try {
-      await axios.post(`http://${window.location.hostname}:5000/api/auth/unban/${userId}`, { adminId: user?.id });
+      await axios.post(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/auth/unban/${userId}`, { adminId: user?.id });
       setSuccessMessage('✅ User account has been reactivated successfully!');
       fetchLoginAttempts();
       setTimeout(() => setSuccessMessage(''), 3000);
@@ -105,21 +105,21 @@ const SystemSettings = ({ user, onLogout, onSettingsClick }) => {
 
   const fetchServiceControls = async () => {
     try {
-      const res = await axios.get(`http://${window.location.hostname}:5000/api/service-control`);
+      const res = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/service-control`);
       setServiceControls(res.data);
     } catch (e) { console.error('Error fetching service controls:', e); }
   };
 
   const fetchSchedule = async () => {
     try {
-      const res = await axios.get(`http://${window.location.hostname}:5000/api/service-control/schedule`);
+      const res = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/service-control/schedule`);
       setSchedule(res.data);
     } catch (e) { console.error('Error fetching schedule:', e); }
   };
 
   const handleAddServiceControl = async () => {
     try {
-      await axios.post(`http://${window.location.hostname}:5000/api/service-control`, {
+      await axios.post(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/service-control`, {
         target_role: scRole, service_name: scService, is_disabled: true,
         display_message: scMessage, status_type: scStatusType,
         estimated_restore: scEstRestore || null, disabled_by: user?.id
@@ -132,7 +132,7 @@ const SystemSettings = ({ user, onLogout, onSettingsClick }) => {
 
   const handleToggleServiceControl = async (ctrl) => {
     try {
-      await axios.post(`http://${window.location.hostname}:5000/api/service-control`, {
+      await axios.post(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/service-control`, {
         ...ctrl, is_disabled: !ctrl.is_disabled, disabled_by: user?.id
       });
       fetchServiceControls();
@@ -141,7 +141,7 @@ const SystemSettings = ({ user, onLogout, onSettingsClick }) => {
 
   const handleDeleteServiceControl = async (id) => {
     try {
-      await axios.delete(`http://${window.location.hostname}:5000/api/service-control/${id}`);
+      await axios.delete(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/service-control/${id}`);
       setSuccessMessage('✅ Service control removed');
       fetchServiceControls();
       setTimeout(() => setSuccessMessage(''), 3000);
@@ -150,7 +150,7 @@ const SystemSettings = ({ user, onLogout, onSettingsClick }) => {
 
   const handleSaveSchedule = async () => {
     try {
-      await axios.post(`http://${window.location.hostname}:5000/api/service-control/schedule`, { ...schedule, modified_by: user?.id });
+      await axios.post(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/service-control/schedule`, { ...schedule, modified_by: user?.id });
       setSuccessMessage('✅ Schedule saved!');
       setTimeout(() => setSuccessMessage(''), 3000);
     } catch (e) { setErrorMessage('❌ Failed to save schedule'); setTimeout(() => setErrorMessage(''), 3000); }
@@ -158,7 +158,7 @@ const SystemSettings = ({ user, onLogout, onSettingsClick }) => {
 
   const handleForceToggle = async (close) => {
     try {
-      await axios.post(`http://${window.location.hostname}:5000/api/service-control/schedule/force-toggle`, {
+      await axios.post(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/service-control/schedule/force-toggle`, {
         force_closed: close, force_closed_message: schedule?.force_closed_message || 'System closed by administrator.', modified_by: user?.id
       });
       setSuccessMessage(close ? '🔒 System force-closed' : '🔓 System opened');
@@ -180,7 +180,7 @@ const SystemSettings = ({ user, onLogout, onSettingsClick }) => {
 
   const fetchSettings = async () => {
     try {
-      const response = await axios.get(`http://${window.location.hostname}:5000/api/system-settings`);
+      const response = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/system-settings`);
       setSettings(response.data);
       setLoading(false);
     } catch (error) {
@@ -199,7 +199,7 @@ const SystemSettings = ({ user, onLogout, onSettingsClick }) => {
   const saveSettings = async () => {
     setSaving(true);
     try {
-      await axios.post(`http://${window.location.hostname}:5000/api/system-settings`, settings);
+      await axios.post(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/system-settings`, settings);
       setSuccessMessage('✅ Settings saved successfully!');
       setTimeout(() => setSuccessMessage(''), 3000);
     } catch (error) {
@@ -219,7 +219,7 @@ const SystemSettings = ({ user, onLogout, onSettingsClick }) => {
   const confirmSystemAction = async () => {
     setSaving(true);
     try {
-      await axios.post(`http://${window.location.hostname}:5000/api/system-settings/action/${confirmAction}`);
+      await axios.post(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/system-settings/action/${confirmAction}`);
       setSuccessMessage(`✅ System ${confirmAction} successfully!`);
       if (confirmAction === 'shutdown') {
         setTimeout(() => onLogout(), 2000);

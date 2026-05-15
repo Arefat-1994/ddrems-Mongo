@@ -78,7 +78,7 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage, onSettingsC
 
   const fetchCustomerData = async () => {
     setLoading(true);
-    const API = `http://${window.location.hostname}:5000/api`;
+    const API = `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api`;
     let hadError = false;
 
     // Each request is fully independent — one failure never blocks the rest
@@ -150,7 +150,7 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage, onSettingsC
     setLoading(false);
   };
 
-  const API = `http://${window.location.hostname}:5000/api`;
+  const API = `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api`;
 
   const validateBookingField = (name, value) => {
     let error = '';

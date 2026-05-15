@@ -8,7 +8,7 @@ const EditRequestsAdmin = () => {
   const [filter, setFilter] = useState('pending');
   const [selectedFields, setSelectedFields] = useState({});
 
-  const API_BASE = `http://${window.location.hostname}:5000/api`;
+  const API_BASE = `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api`;
 
   useEffect(() => {
     fetchRequests();

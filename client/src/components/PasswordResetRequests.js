@@ -8,7 +8,7 @@ const PasswordResetRequests = ({ user, onLogout, onSettingsClick }) => {
 
   const fetchRequests = async () => {
     try {
-      const response = await axios.get(`http://${window.location.hostname}:5000/api/auth/password-requests`);
+      const response = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/auth/password-requests`);
       setRequests(response.data);
     } catch (error) {
       console.error('Error fetching password reset requests:', error);
@@ -27,7 +27,7 @@ const PasswordResetRequests = ({ user, onLogout, onSettingsClick }) => {
     }
 
     try {
-      await axios.post(`http://${window.location.hostname}:5000/api/auth/admin/reset-password`, {
+      await axios.post(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/auth/admin/reset-password`, {
         requestId,
         adminId: user.id
       });

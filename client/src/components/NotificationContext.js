@@ -16,7 +16,7 @@ export const useSocketEvent = (eventName, callback) => {
   }, [socket, eventName, callback]);
 };
 
-const SOCKET_URL = `http://${window.location.hostname}:5000`;
+const SOCKET_URL = `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}`;
 
 export const NotificationProvider = ({ children, userId }) => {
   const [notifications, setNotifications] = useState([]);

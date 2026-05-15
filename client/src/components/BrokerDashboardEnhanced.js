@@ -38,11 +38,11 @@ const BrokerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
     setLoading(true);
     try {
       // Fetch broker profile
-      const profileRes = await axios.get(`http://${window.location.hostname}:5000/api/profiles/broker/${user.id}`);
+      const profileRes = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/profiles/broker/${user.id}`);
       setBrokerProfile(profileRes.data);
 
       // Fetch incoming requests
-      const agreementsRes = await axios.get(`http://${window.location.hostname}:5000/api/agreement-requests/broker/${user.id}`);
+      const agreementsRes = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/agreement-requests/broker/${user.id}`);
 
       const combined = [
         ...agreementsRes.data.map(r => ({ ...r, request_type: 'agreement' }))
@@ -60,35 +60,35 @@ const BrokerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
       setStats(calculatedStats);
 
       // Fetch notifications
-      const notifRes = await axios.get(`http://${window.location.hostname}:5000/api/notifications/user/${user.id}`);
+      const notifRes = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/notifications/user/${user.id}`);
       setNotifications(notifRes.data.slice(0, 5));
 
       // Fetch Commissions (with resilient error handling)
       try {
-        const commRes = await axios.get(`http://${window.location.hostname}:5000/api/commissions/broker/${user.id}`);
+        const commRes = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/commissions/broker/${user.id}`);
         setCommissions(Array.isArray(commRes.data) ? commRes.data : []);
       } catch (commErr) { console.warn('Commission fetch failed:', commErr.message); }
 
       try {
-        const summaryRes = await axios.get(`http://${window.location.hostname}:5000/api/commissions/broker/${user.id}/summary`);
+        const summaryRes = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/commissions/broker/${user.id}/summary`);
         setCommSummary(summaryRes.data || { total_paid: 0, total_pending: 0, total_amount: 0 });
       } catch (sumErr) { console.warn('Summary fetch failed:', sumErr.message); }
 
       // Fetch Broker Engagements for Agreements tab
       try {
-        const engRes = await axios.get(`http://${window.location.hostname}:5000/api/broker-engagement/broker/${user.id}`);
+        const engRes = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/broker-engagement/broker/${user.id}`);
         setBrokerEngagements(engRes.data.engagements || []);
       } catch (engErr) { console.warn('Engagements fetch failed:', engErr.message); }
 
       // Fetch Customers
       try {
-        const custRes = await axios.get(`http://${window.location.hostname}:5000/api/broker-engagement/broker/${user.id}/customers`);
+        const custRes = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/broker-engagement/broker/${user.id}/customers`);
         setCustomers(custRes.data.customers || []);
       } catch (custErr) { console.warn('Customers fetch failed:', custErr.message); }
 
       // Fetch Broker Holds
       try {
-        const holdsRes = await axios.get(`http://${window.location.hostname}:5000/api/broker-bookings?broker_id=${user.id}`);
+        const holdsRes = await axios.get(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/broker-bookings?broker_id=${user.id}`);
         setBrokerHolds(holdsRes.data);
       } catch (err) { console.warn('Holds fetch failed:', err.message); }
 
@@ -111,7 +111,7 @@ const BrokerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
 
   const handleAcceptRequest = async (requestId) => {
     try {
-      await axios.put(`http://${window.location.hostname}:5000/api/agreement-requests/${requestId}/respond`, {
+      await axios.put(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/agreement-requests/${requestId}/respond`, {
         status: 'accepted',
         responded_by: user.id,
         response_message: 'Request accepted'
@@ -128,7 +128,7 @@ const BrokerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
     if (!reason) return;
 
     try {
-      await axios.put(`http://${window.location.hostname}:5000/api/agreement-requests/${requestId}/respond`, {
+      await axios.put(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/agreement-requests/${requestId}/respond`, {
         status: 'rejected',
         responded_by: user.id,
         response_message: reason

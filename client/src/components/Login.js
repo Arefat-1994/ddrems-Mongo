@@ -70,7 +70,7 @@ const LoginForm = ({ onLogin, onShowRegister, onBackToLanding }) => {
     setLoading(true);
 
     try {
-      const response = await axios.post(`http://${window.location.hostname}:5000/api/auth/login`, {
+      const response = await axios.post(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/auth/login`, {
         email,
         password
       });
@@ -116,12 +116,12 @@ const LoginForm = ({ onLogin, onShowRegister, onBackToLanding }) => {
     try {
       if (resetStep === 1) {
         // Request OTP
-        const res = await axios.post(`http://${window.location.hostname}:5000/api/auth/forgot-password`, { email: resetEmail });
+        const res = await axios.post(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/auth/forgot-password`, { email: resetEmail });
         setResetMessage(res.data.message);
         setResetStep(2);
       } else {
         // Verify OTP
-        const res = await axios.post(`http://${window.location.hostname}:5000/api/auth/verify-otp`, { email: resetEmail, otp: otpCode });
+        const res = await axios.post(`${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/auth/verify-otp`, { email: resetEmail, otp: otpCode });
         setResetMessage(res.data.message);
         setTimeout(() => {
           setShowForgotModal(false);

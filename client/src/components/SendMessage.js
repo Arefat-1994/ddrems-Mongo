@@ -3,7 +3,7 @@ import './SendMessage.css';
 import PageHeader from './PageHeader';
 import axios from 'axios';
 
-const API_BASE = `http://${window.location.hostname}:5000/api`;
+const API_BASE = `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api`;
 
 const SendMessage = ({ user, onLogout, onSettingsClick }) => {
   const [users, setUsers] = useState([]);

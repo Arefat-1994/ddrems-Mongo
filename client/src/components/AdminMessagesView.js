@@ -29,7 +29,7 @@ const AdminMessagesView = ({ user, onClose }) => {
     setLoading(true);
     try {
       const response = await axios.get(
-        `http://${window.location.hostname}:5000/api/messages/admin/conversations/${user.id}`
+        `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/messages/admin/conversations/${user.id}`
       );
       setConversations(response.data.conversations || []);
     } catch (error) {
@@ -43,7 +43,7 @@ const AdminMessagesView = ({ user, onClose }) => {
     setLoading(true);
     try {
       const response = await axios.get(
-        `http://${window.location.hostname}:5000/api/messages/admin/history/${user.id}`
+        `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/messages/admin/history/${user.id}`
       );
       setHistory(response.data.all_messages || []);
     } catch (error) {
@@ -57,7 +57,7 @@ const AdminMessagesView = ({ user, onClose }) => {
     setLoading(true);
     try {
       const response = await axios.get(
-        `http://${window.location.hostname}:5000/api/messages/admin/conversation/${user.id}/${otherUserId}`
+        `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/messages/admin/conversation/${user.id}/${otherUserId}`
       );
       setThreadMessages(response.data.messages || []);
       setThreadReplies(response.data.replies || []);
@@ -77,7 +77,7 @@ const AdminMessagesView = ({ user, onClose }) => {
 
     try {
       await axios.post(
-        `http://${window.location.hostname}:5000/api/messages/${messageId}/reply`,
+        `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api/messages/${messageId}/reply`,
         {
           subject: replySubject,
           message: replyText,

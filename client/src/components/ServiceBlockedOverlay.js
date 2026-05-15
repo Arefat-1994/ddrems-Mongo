@@ -50,7 +50,7 @@ const ServiceBlockedOverlay = ({ user, currentPage, onLogout }) => {
 
     const checkStatus = async () => {
       try {
-        const API = `http://${window.location.hostname}:5000/api`;
+        const API = `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api`;
         
         // Check system schedule
         try {

@@ -18,7 +18,7 @@ import SystemAdminTransactions from './SystemAdminTransactions';
 import MpesaDashboard from './MpesaDashboard';
 import BookedLists from './BookedLists';
 
-const API_BASE = `http://${window.location.hostname}:5000/api`;
+const API_BASE = `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api`;
 
 const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapPropertyId, initialView, onSettingsClick }) => {
   const [currentView, setCurrentView] = useState(initialView || 'dashboard'); // dashboard, approval, reports, documents, users, messages, send-message, transactions

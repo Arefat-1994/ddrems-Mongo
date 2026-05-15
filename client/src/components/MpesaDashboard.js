@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import PageHeader from './PageHeader';
 
-const API = `http://${window.location.hostname}:5000/api`;
+const API = `${process.env.REACT_APP_API_URL || `http://${window.location.hostname}:5000`}/api`;
 const GREEN = '#00a651';
 
 export default function MpesaDashboard({ user, onLogout, onSettingsClick }) {
