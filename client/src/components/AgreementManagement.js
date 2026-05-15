@@ -449,11 +449,11 @@ const AgreementManagement = ({ user, onLogout, onSettingsClick, hideHeader = fal
           </div>
         ) : (
           <div style={{ display: 'grid', gap: '16px' }}>
-            {filteredAgreements.map((agreement) => {
+            {filteredAgreements.map((agreement, idx) => {
               const badge = getStatusBadge(agreement.status);
               const progress = getStepProgress(agreement.status);
               return (
-                <div key={agreement.id} style={{
+                <div key={agreement.id || `agreement-${idx}`} style={{
                   background: '#fff',
                   border: '1px solid #e2e8f0',
                   borderRadius: '12px',
@@ -820,8 +820,8 @@ const AgreementManagement = ({ user, onLogout, onSettingsClick, hideHeader = fal
                     <div className="detail-section">
                       <h3>📄 Property Documents</h3>
                       <div className="documents-list">
-                        {propertyDocuments.map((doc) => (
-                          <div key={doc.id} className="document-item">
+                        {propertyDocuments.map((doc, idx) => (
+                          <div key={doc.id || `prop-doc-${idx}`} className="document-item">
                             <span className="doc-icon">
                               {getDocumentIcon(doc.document_type)}
                             </span>
@@ -849,8 +849,8 @@ const AgreementManagement = ({ user, onLogout, onSettingsClick, hideHeader = fal
                     <div className="detail-section">
                       <h3>📋 Agreement Documents</h3>
                       <div className="documents-list">
-                        {agreementDocuments.map((doc) => (
-                          <div key={doc.id} className="document-item">
+                        {agreementDocuments.map((doc, idx) => (
+                          <div key={doc.id || `agr-doc-${idx}`} className="document-item">
                             <span className="doc-icon">
                               {getDocumentIcon(doc.document_type)}
                             </span>

@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import axios from 'axios';
 import './LandingPage.css';
+import BrandLogo from './shared/BrandLogo';
 
 const API_BASE = `http://${window.location.hostname}:5000`;
 
@@ -258,7 +259,7 @@ const LandingPage = ({ onNavigateToLogin, onNavigateToRegister }) => {
       {/* Navigation */}
       <nav className="landing-navbar">
         <div className="nav-logo">
-          🏢 DIRE DAWA <span>REAL ESTATE</span>
+          <BrandLogo size="small" showSlogan={false} colorMode="dark" />
         </div>
         <div className="nav-links">
           <a className="active" href="#hero">Home</a>
@@ -578,7 +579,7 @@ const LandingPage = ({ onNavigateToLogin, onNavigateToRegister }) => {
         <div className="footer-grid">
           <div className="footer-col">
             <div className="footer-logo">
-              🏢 DIRE DAWA <span>REAL ESTATE</span>
+              <BrandLogo size="small" showSlogan={false} colorMode="dark" />
             </div>
             <p>Your trusted partner for finding verified properties in Dire Dawa, Ethiopia.</p>
             <div className="social-icons">

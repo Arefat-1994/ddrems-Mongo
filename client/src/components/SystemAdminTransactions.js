@@ -48,6 +48,13 @@ const SystemAdminTransactions = () => {
     return Number(tx.commission || 0).toLocaleString();
   };
 
+  const safeFormatDate = (dateStr) => {
+    if (!dateStr) return '—';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return '—';
+    return d.toLocaleDateString();
+  };
+
   // Filter application
   const isInDateRange = (dateStr) => {
     if (!dateFrom && !dateTo) return true;
@@ -95,7 +102,7 @@ const SystemAdminTransactions = () => {
         "System Commission (ETB)": t.commission,
         "Broker Commission (ETB)": t.broker_commission,
         "Net Amount (ETB)": t.net_amount,
-        "Date": new Date(t.date).toLocaleDateString(),
+        "Date": safeFormatDate(t.date),
         "Status": t.status,
         "Payment Method": t.payment_method
       }));
@@ -114,7 +121,7 @@ const SystemAdminTransactions = () => {
         "System Commission (ETB)": t.commission,
         "Broker Commission (ETB)": t.broker_commission,
         "Transfer Type": t.transfer_type,
-        "Date": new Date(t.date).toLocaleDateString(),
+        "Date": safeFormatDate(t.date),
         "Status": t.status,
         "Payment Method": t.payment_method
       }));
@@ -340,7 +347,7 @@ const SystemAdminTransactions = () => {
                       <td>{Number(tx.sale_amount).toLocaleString()} ETB</td>
                       <td>{calculateCommissionForDisplay(tx)} ETB</td>
                       <td>{Number(tx.broker_commission || 0).toLocaleString()} ETB</td>
-                      <td>{new Date(tx.date).toLocaleDateString()}</td>
+                      <td>{safeFormatDate(tx.date)}</td>
                       <td><span className={`status-badge ${tx.status}`}>{tx.status}</span></td>
                       <td className="action-btns">
                         <button onClick={() => setSelectedTx(tx)} className="btn-sm btn-outline">Details</button>
@@ -385,7 +392,7 @@ const SystemAdminTransactions = () => {
                       <td>{Number(tx.rent_amount).toLocaleString()} ETB</td>
                       <td>{Number(tx.commission).toLocaleString()} ETB</td>
                       <td>{Number(tx.broker_commission || 0).toLocaleString()} ETB</td>
-                      <td>{new Date(tx.date).toLocaleDateString()}</td>
+                      <td>{safeFormatDate(tx.date)}</td>
                       <td><span className="status-badge completed">Completed</span></td>
                       <td className="action-btns">
                         <button onClick={() => setSelectedTx(tx)} className="btn-sm btn-outline">Details</button>
@@ -436,7 +443,7 @@ const SystemAdminTransactions = () => {
                       <td>{inst.tenant_name || 'N/A'}</td>
                       <td>{inst.owner_name || 'N/A'}</td>
                       <td><strong>{Number(inst.amount || 0).toLocaleString()} ETB</strong></td>
-                      <td>{inst.due_date ? new Date(inst.due_date).toLocaleDateString() : '—'}</td>
+                      <td>{safeFormatDate(inst.due_date)}</td>
                       <td>
                         <span className={`status-badge ${inst.status}`} style={{
                           background: inst.status === 'paid' ? '#d1fae5' : inst.status === 'overdue' ? '#fee2e2' : inst.status === 'submitted' ? '#dbeafe' : '#f1f5f9',
@@ -446,7 +453,7 @@ const SystemAdminTransactions = () => {
                           {inst.status === 'paid' ? '✅' : inst.status === 'overdue' ? '🔴' : inst.status === 'submitted' ? '📤' : '⏳'} {(inst.status || 'pending').charAt(0).toUpperCase() + (inst.status || '').slice(1)}
                         </span>
                       </td>
-                      <td>{inst.paid_at ? new Date(inst.paid_at).toLocaleDateString() : '—'}</td>
+                      <td>{safeFormatDate(inst.paid_at)}</td>
                       <td>{inst.transaction_reference || '—'}</td>
                     </tr>
                   ))}

@@ -1493,6 +1493,7 @@ router.get("/:id", async (req, res) => {
         status: 1, engagement_type: 1, current_offer: 1, agreed_price: 1,
         commission_percentage: 1, agreed_commission_pct: 1, system_fee_payer: 1,
         created_at: 1, updated_at: 1, finalized_at: 1, completed_at: 1,
+        payment_method: 1, payment_reference: 1, payment_receipt: 1,
         buyer_name: '$buyer.name', buyer_email: '$buyer.email',
         broker_name: '$broker.name', broker_email: '$broker.email',
         owner_name: '$owner.name', owner_email: '$owner.email',
@@ -1667,7 +1668,7 @@ router.get("/buyer/:buyerId", async (req, res) => {
         buyer_authorization: 1, buyer_auth_counter_price: 1,
         rental_duration_months: 1, payment_schedule: 1, security_deposit: 1,
         buyer_handover_confirmed: 1, owner_handover_confirmed: 1,
-        payment_method: 1, payment_reference: 1,
+        payment_method: 1, payment_reference: 1, payment_receipt: 1,
         broker_name: '$broker.name', owner_name: '$owner.name',
         property_title: '$property.title', property_price: '$property.price',
         property_location: '$property.location'
@@ -1708,7 +1709,7 @@ router.get("/broker/:brokerId", async (req, res) => {
         buyer_authorization: 1, buyer_auth_counter_price: 1,
         rental_duration_months: 1, payment_schedule: 1, security_deposit: 1,
         buyer_handover_confirmed: 1, owner_handover_confirmed: 1,
-        payment_method: 1, payment_reference: 1,
+        payment_method: 1, payment_reference: 1, payment_receipt: 1,
         buyer_name: '$buyer.name', owner_name: '$owner.name',
         property_title: '$property.title', property_price: '$property.price',
         property_location: '$property.location'
@@ -1749,7 +1750,7 @@ router.get("/owner/:ownerId", async (req, res) => {
         buyer_authorization: 1, buyer_auth_counter_price: 1,
         rental_duration_months: 1, payment_schedule: 1, security_deposit: 1,
         buyer_handover_confirmed: 1, owner_handover_confirmed: 1,
-        payment_method: 1, payment_reference: 1,
+        payment_method: 1, payment_reference: 1, payment_receipt: 1,
         buyer_name: '$buyer.name', broker_name: '$broker.name',
         property_title: '$property.title', property_price: '$property.price',
         property_location: '$property.location'
@@ -1791,7 +1792,7 @@ router.get("/admin/all", async (req, res) => {
         buyer_authorization: 1, buyer_auth_counter_price: 1,
         rental_duration_months: 1, payment_schedule: 1, security_deposit: 1,
         buyer_handover_confirmed: 1, owner_handover_confirmed: 1,
-        payment_method: 1, payment_reference: 1,
+        payment_method: 1, payment_reference: 1, payment_receipt: 1,
         buyer_name: '$buyer.name', broker_name: '$broker.name', owner_name: '$owner.name',
         property_title: '$property.title', property_price: '$property.price',
         property_location: '$property.location'

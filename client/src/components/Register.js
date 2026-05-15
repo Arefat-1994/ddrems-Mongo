@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import './Register.css';
 import axios from 'axios';
+import BrandLogo from './shared/BrandLogo';
 
 const Register = ({ onBackToLogin }) => {
   const [formData, setFormData] = useState({
@@ -216,14 +217,7 @@ const Register = ({ onBackToLogin }) => {
     <div className="register-container" style={{ background: "url('/hero-bg.png') no-repeat center center fixed", backgroundSize: 'cover' }}>
       <div className="register-card">
         <div className="register-header">
-          <img src={require('../logo.svg').default || require('../logo.svg')} alt="DDREMS Logo" className="auth-logo" onError={(e) => { e.target.style.display = 'none'; }} />
-          <h1 className="auth-title">DDREMS</h1>
-          <p className="auth-subtitle">Dire Dawa Real Estate Management System</p>
-          <div className="auth-slogan-container">
-            <span className="auth-slogan-line"></span>
-            <p className="auth-slogan">Experiencing the excellence of the live</p>
-            <span className="auth-slogan-line"></span>
-          </div>
+          <BrandLogo size="large" showSlogan={true} />
           <h2 className="auth-heading">Create Account</h2>
         </div>
 

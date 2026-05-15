@@ -1,0 +1,128 @@
+.brand-logo-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  max-width: 100%;
+  margin-bottom: 25px;
+  user-select: none;
+}
+
+.brand-logo-main {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-logo-container.vertical .brand-logo-main {
+  flex-direction: column;
+  gap: 8px;
+}
+
+.brand-icon-wrapper {
+  width: 44px;
+  height: 44px;
+  color: #f97316; /* Primary Orange */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.brand-icon-wrapper svg {
+  width: 100%;
+  height: 100%;
+}
+
+.brand-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 100%;
+}
+
+.brand-text-row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 8px 12px;
+  width: 100%;
+  text-align: center;
+}
+
+.brand-name-orange {
+  font-size: 28px;
+  font-weight: 900;
+  color: #f97316;
+  letter-spacing: 0.5px;
+}
+
+.brand-name-sky {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: 0.5px;
+  color: #00a8e8; /* Water-Sky Blue */
+}
+
+.brand-slogan {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 12px;
+  width: 100%;
+}
+
+.slogan-line {
+  height: 1px;
+  background: #e2e8f0;
+  flex: 1;
+  max-width: 60px;
+}
+
+.brand-slogan p {
+  font-size: 13px;
+  color: #3b82f6; /* Slogan Blue */
+  font-style: italic;
+  font-weight: 600;
+  margin: 0;
+  white-space: nowrap;
+}
+
+/* Size Variants */
+.brand-logo-container.large .brand-name-orange,
+.brand-logo-container.large .brand-name-sky {
+  font-size: 32px;
+}
+
+.brand-logo-container.large .brand-icon-wrapper {
+  width: 60px;
+  height: 60px;
+}
+
+.brand-logo-container.small .brand-name-orange,
+.brand-logo-container.small .brand-name-sky {
+  font-size: 16px;
+}
+
+.brand-logo-container.small .brand-icon-wrapper {
+  width: 24px;
+  height: 24px;
+}
+
+.brand-logo-container.small .brand-slogan {
+  display: none;
+}
+
+@media (max-width: 480px) {
+  .brand-name-orange, .brand-name-main {
+    font-size: 22px;
+  }
+  .brand-logo-container.large .brand-name-orange,
+  .brand-logo-container.large .brand-name-main {
+    font-size: 26px;
+  }
+  .brand-slogan p {
+    font-size: 11px;
+  }
+}

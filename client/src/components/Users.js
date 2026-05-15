@@ -9,6 +9,7 @@ const Users = ({ user, onLogout, initialRole, onSettingsClick }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [roleFilter, setRoleFilter] = useState(initialRole || 'all');
   const [viewMode, setViewMode] = useState('all'); // 'all' or 'banned'
+  const [profileCompletionMap, setProfileCompletionMap] = useState({}); // { userId: { completed: bool, profile: obj|null } }
 
   // Update filter if initialRole changes (e.g. navigation from sidebar)
   useEffect(() => {
@@ -30,10 +31,43 @@ const Users = ({ user, onLogout, initialRole, onSettingsClick }) => {
     try {
       const response = await axios.get(`${API_BASE}/users`);
       setUsers(response.data);
+      // Fetch profile completion status for all non-admin users
+      fetchProfileCompletionData(response.data);
     } catch (error) {
       console.error('Error fetching users:', error);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [API_BASE]);
+
+  // Check profile completion for all relevant users
+  const fetchProfileCompletionData = async (userList) => {
+    const profileMap = {};
+    const relevantUsers = userList.filter(u => ['user', 'customer', 'owner', 'broker'].includes((u.role || '').toLowerCase()));
+    
+    await Promise.all(relevantUsers.map(async (u) => {
+      const role = (u.role || '').toLowerCase();
+      let profileType = role;
+      if (role === 'user' || role === 'customer') profileType = 'customer';
+      
+      try {
+        const res = await axios.get(`${API_BASE}/profiles/${profileType}/${u.id}`);
+        const profile = res.data;
+        // Check if profile has required fields filled
+        const hasFullName = !!profile.full_name;
+        const hasPhone = !!profile.phone_number;
+        const hasProfilePhoto = !!profile.profile_photo;
+        const hasIdDocument = !!profile.id_document;
+        const isComplete = hasFullName && hasPhone && hasProfilePhoto && hasIdDocument;
+        
+        profileMap[u.id] = { completed: isComplete, profile: profile, profileType };
+      } catch (err) {
+        // No profile found = not completed
+        profileMap[u.id] = { completed: false, profile: null, profileType };
+      }
+    }));
+    
+    setProfileCompletionMap(profileMap);
+  };
 
   useEffect(() => {
     fetchUsers();
@@ -132,33 +166,44 @@ const Users = ({ user, onLogout, initialRole, onSettingsClick }) => {
   };
 
   const handleToggleProfileApproval = async (u) => {
+    // Check if profile is fully completed first
+    const profileInfo = profileCompletionMap[u.id];
+    if (!profileInfo || !profileInfo.completed) {
+      alert('⚠️ Cannot approve this user. Their profile is not fully completed.\n\nThe user must fill in all required profile fields (Full Name, Phone Number, Profile Photo, ID Document) before approval.');
+      return;
+    }
+
     const newStatus = u.profile_approved ? false : true;
     const action = newStatus ? 'approve' : 'unapprove';
     if (!window.confirm(`${action.charAt(0).toUpperCase() + action.slice(1)} ${u.name}'s detailed profile? This will grant them FULL system access.`)) return;
 
     try {
       console.log(`[Users] Toggling profile approval for ${u.id} to ${newStatus}`);
-      await axios.put(`${API_BASE}/users/update/${u.id}`, {
-        profile_approved: newStatus
-      });
       
-      // Also update the role-specific profile status if it exists
+      // Use the profiles API to properly sync both tables
       const role = (u.role || '').toLowerCase();
       let profileType = role;
       if (role === 'user' || role === 'customer') profileType = 'customer';
       else if (role === 'owner') profileType = 'owner';
       else if (role === 'broker') profileType = 'broker';
       
-      if (profileType && newStatus) {
-        try {
-          // Find profile ID first
-          const profileRes = await axios.get(`${API_BASE}/profiles/${profileType}/${u.id}`);
-          if (profileRes.data && profileRes.data.id) {
-            await axios.post(`${API_BASE}/profiles/approve/${profileType}/${profileRes.data.id}`, { adminId: user.id });
-          }
-        } catch (err) {
-          console.warn('Could not sync profile table status:', err.message);
+      if (profileType && profileInfo.profile) {
+        const profileId = profileInfo.profile.id || profileInfo.profile._id;
+        if (newStatus) {
+          // Approve via profiles API (syncs both profile table and users table)
+          await axios.post(`${API_BASE}/profiles/approve/${profileType}/${profileId}`, { adminId: user.id });
+        } else {
+          // Unapprove - update users table and profile table
+          await axios.put(`${API_BASE}/users/update/${u.id}`, { profile_approved: false });
+          await axios.post(`${API_BASE}/profiles/change-status/${profileType}/${profileId}`, {
+            newStatus: 'pending',
+            adminId: user.id,
+            reason: 'Unapproved by admin from users management'
+          });
         }
+      } else {
+        // Fallback: just update the users table
+        await axios.put(`${API_BASE}/users/update/${u.id}`, { profile_approved: newStatus });
       }
 
       alert(`✅ Profile ${action}d successfully!`);
@@ -167,6 +212,68 @@ const Users = ({ user, onLogout, initialRole, onSettingsClick }) => {
       console.error('Error toggling profile approval:', error);
       const msg = error.response?.data?.message || error.message;
       alert(`❌ Failed to update profile: ${msg}`);
+    }
+  };
+
+  const handleRejectProfile = async (u) => {
+    const reason = window.prompt(`Enter rejection reason for ${u.name}:`);
+    if (reason === null) return; // User cancelled
+    if (!reason.trim()) {
+      alert('⚠️ Please provide a rejection reason.');
+      return;
+    }
+    
+    try {
+      const profileInfo = profileCompletionMap[u.id];
+      const role = (u.role || '').toLowerCase();
+      let profileType = role;
+      if (role === 'user' || role === 'customer') profileType = 'customer';
+      
+      if (profileInfo && profileInfo.profile) {
+        const profileId = profileInfo.profile.id || profileInfo.profile._id;
+        await axios.post(`${API_BASE}/profiles/reject/${profileType}/${profileId}`, {
+          adminId: user.id,
+          rejectionReason: reason
+        });
+      } else {
+        await axios.put(`${API_BASE}/users/update/${u.id}`, { profile_approved: false, status: 'rejected' });
+      }
+      alert(`✅ Profile rejected successfully.`);
+      fetchUsers();
+    } catch (error) {
+      console.error('Error rejecting profile:', error);
+      alert(`❌ Failed to reject profile: ${error.response?.data?.message || error.message}`);
+    }
+  };
+
+  const handleSuspendProfile = async (u) => {
+    const reason = window.prompt(`Enter suspension reason for ${u.name}:`);
+    if (reason === null) return;
+    if (!reason.trim()) {
+      alert('⚠️ Please provide a suspension reason.');
+      return;
+    }
+    
+    try {
+      const profileInfo = profileCompletionMap[u.id];
+      const role = (u.role || '').toLowerCase();
+      let profileType = role;
+      if (role === 'user' || role === 'customer') profileType = 'customer';
+      
+      if (profileInfo && profileInfo.profile) {
+        const profileId = profileInfo.profile.id || profileInfo.profile._id;
+        await axios.post(`${API_BASE}/profiles/suspend/${profileType}/${profileId}`, {
+          adminId: user.id,
+          reason: reason
+        });
+      } else {
+        await axios.put(`${API_BASE}/users/update/${u.id}`, { status: 'suspended' });
+      }
+      alert(`✅ Profile suspended successfully.`);
+      fetchUsers();
+    } catch (error) {
+      console.error('Error suspending profile:', error);
+      alert(`❌ Failed to suspend profile: ${error.response?.data?.message || error.message}`);
     }
   };
 
@@ -347,7 +454,28 @@ const Users = ({ user, onLogout, initialRole, onSettingsClick }) => {
                   </div>
                 </td>
                 <td style={{ padding: '16px', color: '#64748b', fontSize: '13px' }}>
-                  {new Date(u.created_at).toLocaleDateString()}
+                  {(() => {
+                    if (u.created_at) {
+                      const d = new Date(u.created_at);
+                      if (!isNaN(d.getTime())) return d.toLocaleDateString();
+                    }
+                    // Fallback: extract timestamp from MongoDB ObjectId
+                    if (u._id && typeof u._id === 'string' && u._id.length === 24) {
+                      try {
+                        const ts = parseInt(u._id.substring(0, 8), 16) * 1000;
+                        const d = new Date(ts);
+                        if (!isNaN(d.getTime())) return d.toLocaleDateString();
+                      } catch (e) { /* ignore */ }
+                    }
+                    if (u.id && typeof u.id === 'string' && u.id.length === 24) {
+                      try {
+                        const ts = parseInt(u.id.substring(0, 8), 16) * 1000;
+                        const d = new Date(ts);
+                        if (!isNaN(d.getTime())) return d.toLocaleDateString();
+                      } catch (e) { /* ignore */ }
+                    }
+                    return 'N/A';
+                  })()}
                 </td>
                 <td style={{ padding: '16px' }}>
                   <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
@@ -358,10 +486,31 @@ const Users = ({ user, onLogout, initialRole, onSettingsClick }) => {
                       <button onClick={() => handleToggleAccountApproval(u)}
                         style={{ padding: '7px 11px', background: '#ecfdf5', border: '1px solid #6ee7b7', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', color: '#047857', fontWeight: '600' }}>✅ Activate Account</button>
                     ) : (
-                      !u.profile_approved && (
-                        <button onClick={() => handleToggleProfileApproval(u)}
-                          style={{ padding: '7px 11px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: '8px', cursor: 'pointer', fontSize: '13px', color: '#166534', fontWeight: '600' }}>📄 Approve Profile</button>
-                      )
+                      !u.profile_approved && !['admin', 'system_admin', 'property_admin'].includes(u.role) && (() => {
+                        const profileInfo = profileCompletionMap[u.id];
+                        const isProfileComplete = profileInfo && profileInfo.completed;
+                        return (
+                          <div style={{ position: 'relative', display: 'inline-block' }}>
+                            <button 
+                              onClick={() => isProfileComplete ? handleToggleProfileApproval(u) : alert('⚠️ Cannot approve: Profile is not fully completed.\n\nThe user must fill in all required profile fields (Full Name, Phone Number, Profile Photo, ID Document) before approval.')}
+                              style={{ 
+                                padding: '7px 11px', 
+                                background: isProfileComplete ? '#f0fdf4' : '#f3f4f6', 
+                                border: `1px solid ${isProfileComplete ? '#86efac' : '#d1d5db'}`, 
+                                borderRadius: '8px', 
+                                cursor: isProfileComplete ? 'pointer' : 'not-allowed', 
+                                fontSize: '13px', 
+                                color: isProfileComplete ? '#166534' : '#9ca3af', 
+                                fontWeight: '600',
+                                opacity: isProfileComplete ? 1 : 0.7
+                              }}
+                              title={isProfileComplete ? 'Approve this user profile' : 'Profile not fully completed - cannot approve'}
+                            >
+                              {isProfileComplete ? '📄 Approve Profile' : '🚫 Profile Incomplete'}
+                            </button>
+                          </div>
+                        );
+                      })()
                     )}
 
                     <button onClick={() => handleEdit(u)}
@@ -535,7 +684,7 @@ const Users = ({ user, onLogout, initialRole, onSettingsClick }) => {
             </div>
 
             {/* Modal Actions */}
-            <div style={{ padding: '20px 30px', background: '#f8fafc', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+            <div style={{ padding: '20px 30px', background: '#f8fafc', borderTop: '1px solid #f1f5f9', display: 'flex', justifyContent: 'flex-end', gap: '12px', flexWrap: 'wrap' }}>
               <button onClick={() => setShowViewModal(false)} style={{ padding: '10px 25px', background: 'white', border: '1px solid #e2e8f0', borderRadius: '10px', fontSize: '14px', fontWeight: '600', cursor: 'pointer', color: '#475569' }}>Close Window</button>
 
               <button
@@ -543,12 +692,37 @@ const Users = ({ user, onLogout, initialRole, onSettingsClick }) => {
                 style={{ padding: '10px 25px', background: '#f59e0b', color: 'white', border: 'none', borderRadius: '10px', fontSize: '14px', fontWeight: '600', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(245, 158, 11, 0.4)' }}
               >✏️ Edit Account Info</button>
 
-              {!selectedUser?.profile_approved && userProfile && (
-                <button
-                  onClick={() => { handleToggleProfileApproval(selectedUser); setShowViewModal(false); }}
-                  style={{ padding: '10px 25px', background: '#10b981', color: 'white', border: 'none', borderRadius: '10px', fontSize: '14px', fontWeight: '600', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(16, 185, 129, 0.4)' }}
-                >✅ Approve Profile Now</button>
-              )}
+              {!selectedUser?.profile_approved && !['admin', 'system_admin', 'property_admin'].includes(selectedUser?.role) && (() => {
+                const profileInfo = profileCompletionMap[selectedUser?.id];
+                const isProfileComplete = profileInfo && profileInfo.completed;
+                return (
+                  <>
+                    {isProfileComplete && userProfile ? (
+                      <>
+                        <button
+                          onClick={() => { handleToggleProfileApproval(selectedUser); setShowViewModal(false); }}
+                          style={{ padding: '10px 25px', background: '#10b981', color: 'white', border: 'none', borderRadius: '10px', fontSize: '14px', fontWeight: '600', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(16, 185, 129, 0.4)' }}
+                        >✅ Approve Profile</button>
+                        <button
+                          onClick={() => { handleRejectProfile(selectedUser); setShowViewModal(false); }}
+                          style={{ padding: '10px 25px', background: '#ef4444', color: 'white', border: 'none', borderRadius: '10px', fontSize: '14px', fontWeight: '600', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(239, 68, 68, 0.4)' }}
+                        >❌ Reject Profile</button>
+                        <button
+                          onClick={() => { handleSuspendProfile(selectedUser); setShowViewModal(false); }}
+                          style={{ padding: '10px 25px', background: '#f97316', color: 'white', border: 'none', borderRadius: '10px', fontSize: '14px', fontWeight: '600', cursor: 'pointer', boxShadow: '0 4px 6px -1px rgba(249, 115, 22, 0.4)' }}
+                        >⏸️ Suspend Profile</button>
+                      </>
+                    ) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '10px', padding: '10px 20px', background: '#fef3c7', border: '1px solid #fde68a', borderRadius: '10px' }}>
+                        <span style={{ fontSize: '18px' }}>⚠️</span>
+                        <span style={{ fontSize: '13px', color: '#92400e', fontWeight: '600' }}>
+                          {!userProfile ? 'Profile not submitted yet — cannot approve' : 'Profile incomplete — cannot approve'}
+                        </span>
+                      </div>
+                    )}
+                  </>
+                );
+              })()}
             </div>
           </div>
         </div>

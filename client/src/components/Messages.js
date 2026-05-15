@@ -228,6 +228,21 @@ const Messages = ({ user, onLogout, onSettingsClick }) => {
     return true;
   });
 
+  // Safe date formatter to prevent 'Invalid Date'
+  const safeFormatDate = (dateStr) => {
+    if (!dateStr) return 'N/A';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return 'N/A';
+    return d.toLocaleDateString() + ' ' + d.toLocaleTimeString();
+  };
+
+  const safeFormatDateFull = (dateStr) => {
+    if (!dateStr) return 'N/A';
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return 'N/A';
+    return d.toLocaleString();
+  };
+
   return (
     <div className="messages-page">
       <PageHeader
@@ -296,7 +311,7 @@ const Messages = ({ user, onLogout, onSettingsClick }) => {
                 </div>
                 <p className="message-preview">{message.message ? (message.message.length > 60 ? message.message.substring(0, 60) + '...' : message.message) : 'No content'}</p>
                 <span className="message-date">
-                  {new Date(message.created_at).toLocaleDateString()} {new Date(message.created_at).toLocaleTimeString()}
+                  {safeFormatDate(message.created_at || message.createdAt)}
                 </span>
               </div>
             ))}
@@ -462,7 +477,7 @@ const Messages = ({ user, onLogout, onSettingsClick }) => {
               
               <div className="message-footer">
                 <span className="message-timestamp">
-                  Received: {new Date(selectedMessage.created_at).toLocaleString()}
+                  Received: {safeFormatDateFull(selectedMessage.created_at || selectedMessage.createdAt)}
                 </span>
               </div>
             </div>
@@ -557,7 +572,7 @@ const Messages = ({ user, onLogout, onSettingsClick }) => {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
                     <span style={{ fontWeight: '600', color: '#1e293b' }}>{version.version}</span>
                     <span style={{ fontSize: '12px', color: '#64748b' }}>
-                      {new Date(version.edited_at).toLocaleString()}
+                      {safeFormatDateFull(version.edited_at)}
                     </span>
                   </div>
                   <div style={{ marginBottom: '10px' }}>
@@ -658,7 +673,7 @@ const Messages = ({ user, onLogout, onSettingsClick }) => {
                     </span>
                   </div>
                   <span style={{ fontSize: '12px', color: '#64748b' }}>
-                    {new Date(messageThread.main_message.created_at).toLocaleString()}
+                    {safeFormatDateFull(messageThread.main_message.created_at || messageThread.main_message.createdAt)}
                   </span>
                 </div>
                 <div style={{ marginBottom: '10px' }}>
@@ -689,7 +704,7 @@ const Messages = ({ user, onLogout, onSettingsClick }) => {
                           </span>
                         </div>
                         <span style={{ fontSize: '12px', color: '#64748b' }}>
-                          {new Date(reply.created_at).toLocaleString()}
+                          {safeFormatDateFull(reply.created_at || reply.createdAt)}
                         </span>
                       </div>
                       <div style={{ marginBottom: '10px' }}>

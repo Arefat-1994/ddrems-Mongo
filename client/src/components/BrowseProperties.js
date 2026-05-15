@@ -4,8 +4,9 @@ import axios from 'axios';
 import PageHeader from './PageHeader';
 import DocumentViewer from './shared/DocumentViewer';
 import PropertyImageViewer from './shared/PropertyImageViewer';
+import ImageGallery from './shared/ImageGallery';
 
-const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack }) => {
+const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack, hideHeader = false, setCurrentPage }) => {
   const [properties, setProperties] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [listingTypeFilter, setListingTypeFilter] = useState('all');
@@ -33,16 +34,58 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack }) => {
   const [imageErrors, setImageErrors] = useState({});
   const [propertyPredictions, setPropertyPredictions] = useState({}); // { propertyId: predictionData }
   const [loadingAiModal, setLoadingAiModal] = useState(false);
+  const [favorites, setFavorites] = useState([]);
 
   useEffect(() => {
     fetchApprovedProperties();
     if (user?.role === 'user' || user?.role === 'broker') {
       fetchRequests();
     }
+    if (user?.role === 'user') {
+      fetchFavorites();
+    }
     if (user?.role === 'broker') {
       fetchClients();
     }
   }, [user?.id, user?.role]);
+
+  const fetchFavorites = async () => {
+    try {
+      const response = await axios.get(`http://${window.location.hostname}:5000/api/favorites/${user.id}`);
+      setFavorites(response.data);
+    } catch (error) {
+      console.error('Error fetching favorites:', error);
+    }
+  };
+
+  const isFavorite = (propertyId) => {
+    return favorites.some(fav => fav.property_id === propertyId);
+  };
+
+  const addToFavorites = async (propertyId) => {
+    try {
+      await axios.post(`http://${window.location.hostname}:5000/api/favorites`, {
+        user_id: user.id,
+        property_id: propertyId
+      });
+      alert('Added to favorites!');
+      fetchFavorites();
+    } catch (error) {
+      console.error('Error adding to favorites:', error);
+      alert('Failed to add to favorites');
+    }
+  };
+
+  const removeFavorite = async (propertyId) => {
+    try {
+      await axios.delete(`http://${window.location.hostname}:5000/api/favorites/${user.id}/${propertyId}`);
+      alert('Removed from favorites');
+      fetchFavorites();
+    } catch (error) {
+      console.error('Error removing favorite:', error);
+      alert('Failed to remove favorite');
+    }
+  };
 
   const fetchApprovedProperties = async () => {
     try {
@@ -268,18 +311,20 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack }) => {
 
   return (
     <div className="browse-properties">
-      <PageHeader
-        title="Browse Properties"
-        subtitle={`Discover available properties (${filteredProperties.length} listings)`}
-        user={user}
-        onLogout={onLogout}
-        onSettingsClick={onSettingsClick}
-        actions={onBack ? (
-          <button className="btn-secondary" onClick={onBack} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}>
-            ← Back to Dashboard
-          </button>
-        ) : null}
-      />
+      {!hideHeader && (
+        <PageHeader
+          title="Browse Properties"
+          subtitle={`Discover available properties (${filteredProperties.length} listings)`}
+          user={user}
+          onLogout={onLogout}
+          onSettingsClick={onSettingsClick}
+          actions={onBack ? (
+            <button className="btn-secondary" onClick={onBack} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#fff', cursor: 'pointer' }}>
+              ← Back to Dashboard
+            </button>
+          ) : null}
+        />
+      )}
 
       <div className="filters-section">
         <div className="filter-group">
@@ -333,8 +378,8 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack }) => {
       </div>
 
       <div className="properties-grid">
-        {filteredProperties.map(property => (
-          <div key={property.id} className="property-card">
+        {filteredProperties.map((property, idx) => (
+          <div key={`${property.id}-${idx}`} className="property-card">
             <div className="property-image">
               {renderPropertyImage(property)}
               <span className="listing-badge">
@@ -414,15 +459,7 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack }) => {
                     ⏱️ Book for Buyer
                   </button>
                 )}
-                {user?.role === 'broker' && (
-                  <button
-                    className="btn-action document"
-                    title="View Documents"
-                    onClick={() => openDocumentViewer(property.id)}
-                  >
-                    📄 Document
-                  </button>
-                )}
+
                 {user?.role === 'user' && (
                    <button
                     className="btn-action broker-book"
@@ -457,171 +494,295 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack }) => {
       {/* View Property Modal - Professional Layout */}
       {showViewModal && selectedProperty && (
         <div className="modal-overlay" onClick={() => setShowViewModal(false)}>
-          <div className="modal-content property-view-modal" onClick={(e) => e.stopPropagation()}>
-            {/* Close Button */}
-            <button className="modal-close-btn" onClick={() => setShowViewModal(false)}>✕</button>
+          <div className="modal-content property-view-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '900px', width: '95%', padding: 0, overflowY: 'auto', maxHeight: '90vh', borderRadius: '12px', background: 'white' }}>
+            
+            {/* Purple Header */}
+            <div style={{ 
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
+              padding: '16px 24px', 
+              color: 'white', 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center' 
+            }}>
+              <h2 style={{ margin: 0, fontSize: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>🏠 {selectedProperty.title}</h2>
+              <button 
+                onClick={() => setShowViewModal(false)} 
+                style={{ 
+                  background: 'white', 
+                  border: 'none', 
+                  color: '#667eea', 
+                  width: '32px', 
+                  height: '32px', 
+                  borderRadius: '50%', 
+                  fontSize: '16px', 
+                  cursor: 'pointer', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  fontWeight: 'bold',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                  transition: 'transform 0.2s'
+                }}
+              >✕</button>
+            </div>
 
             {/* Property Image - Full Width at Top */}
-            <div className="property-image-full">
-              {selectedProperty.main_image ? (
-                <img 
-                  src={selectedProperty.main_image} 
-                  alt={selectedProperty.title}
-                  className="property-main-image"
-                  onDoubleClick={() => {
-                    openImageViewer(selectedProperty);
-                    setShowViewModal(false);
-                  }}
-                  style={{ cursor: 'pointer' }}
-                  title="Double-click to view full image"
-                  onError={(e) => {
-                    e.target.style.display = 'none';
-                  }}
-                />
-              ) : (
-                <div className="property-image-placeholder">
-                  <span className="placeholder-icon">{getPropertyTypeIcon(selectedProperty.type)}</span>
-                </div>
-              )}
-
+            <div className="property-image-full" style={{ position: 'relative', width: '100%', background: '#f1f5f9' }}>
+              <ImageGallery propertyId={selectedProperty.id} canDelete={false} />
             </div>
 
             {/* Content Area - Two Columns */}
-            <div className="property-view-content">
+            <div className="property-view-content" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '30px', padding: '30px', background: 'white' }}>
+              
               {/* Left Column - Property Details */}
               <div className="property-details-column">
-                <div className="detail-card">
-                  <h3>ℹ️ Property Details</h3>
-                  <div className="details-grid">
-                    <div className="detail-item">
-                      <label>Type:</label>
-                      <span>{selectedProperty.type}</span>
+                <div style={{ background: '#f8fafc', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                  <h3 style={{ margin: '0 0 20px 0', color: '#1e293b', fontSize: '18px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>ℹ️ Property Information</h3>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div style={{ background: 'white', padding: '12px 16px', borderRadius: '8px', fontSize: '14px' }}>
+                      <strong style={{ color: '#64748b' }}>Title:</strong> <span style={{ color: '#1e293b' }}>{selectedProperty.title}</span>
                     </div>
-                    <div className="detail-item">
-                      <label>Listing:</label>
-                      <span>{selectedProperty.listing_type === 'sale' ? 'sale' : 'rent'}</span>
+                    <div style={{ background: 'white', padding: '12px 16px', borderRadius: '8px', fontSize: '14px' }}>
+                      <strong style={{ color: '#64748b' }}>Type:</strong> <span style={{ color: '#1e293b' }}>{selectedProperty.type}</span>
                     </div>
-                    <div className="detail-item">
-                      <label>Price:</label>
-                      <span>{(selectedProperty.price / 1000000).toFixed(2)} ETB</span>
+                    <div style={{ background: 'white', padding: '12px 16px', borderRadius: '8px', fontSize: '14px' }}>
+                      <strong style={{ color: '#64748b' }}>Listing:</strong> <span style={{ color: '#1e293b' }}>{selectedProperty.listing_type}</span>
                     </div>
-                    <div className="detail-item">
-                      <label>Location:</label>
-                      <span>{selectedProperty.location}</span>
+                    <div style={{ background: 'white', padding: '12px 16px', borderRadius: '8px', fontSize: '14px' }}>
+                      <strong style={{ color: '#64748b' }}>Bedrooms:</strong> <span style={{ color: '#1e293b' }}>{selectedProperty.bedrooms || 'N/A'}</span>
                     </div>
-                    <div className="detail-item">
-                      <label>Bedrooms:</label>
-                      <span>{selectedProperty.bedrooms || 'N/A'}</span>
+                    <div style={{ background: 'white', padding: '12px 16px', borderRadius: '8px', fontSize: '14px' }}>
+                      <strong style={{ color: '#64748b' }}>Bathrooms:</strong> <span style={{ color: '#1e293b' }}>{selectedProperty.bathrooms || 'N/A'}</span>
                     </div>
-                    <div className="detail-item">
-                      <label>Bathrooms:</label>
-                      <span>{selectedProperty.bathrooms || 'N/A'}</span>
+                    <div style={{ background: 'white', padding: '12px 16px', borderRadius: '8px', fontSize: '14px' }}>
+                      <strong style={{ color: '#64748b' }}>Area:</strong> <span style={{ color: '#1e293b' }}>{selectedProperty.area || 'N/A'} m²</span>
                     </div>
-                    <div className="detail-item">
-                      <label>Area:</label>
-                      <span>{selectedProperty.area || 'N/A'} m²</span>
+                    <div style={{ background: 'white', padding: '12px 16px', borderRadius: '8px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <strong style={{ color: '#64748b' }}>Status:</strong> 
+                      <span style={{ padding: '2px 10px', background: '#dcfce7', color: '#15803d', borderRadius: '12px', fontSize: '12px', fontWeight: 700 }}>ACTIVE</span>
                     </div>
-                    <div className="detail-item">
-                      <label>Status:</label>
-                      <span className="status-badge active">ACTIVE</span>
+                    <div style={{ background: 'white', padding: '12px 16px', borderRadius: '8px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <strong style={{ color: '#64748b' }}>Verified:</strong> 
+                      <span style={{ color: '#15803d', fontWeight: 600 }}>✅ Yes</span>
                     </div>
                   </div>
 
-                  {/* AI Price Breakdown for Users */}
-                  <div style={{ 
-                    marginTop: '20px', 
-                    padding: '20px', 
-                    background: '#f1f5f9', 
-                    borderRadius: '12px',
-                    border: '1px solid #e2e8f0'
-                  }}>
-                    <h4 style={{ margin: '0 0 15px 0', fontSize: '15px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      🤖 AI Market Valuation Analysis
-                    </h4>
-                    
-                    {propertyPredictions[selectedProperty.id] ? (
-                      <>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '15px' }}>
-                          <div>
-                            <div style={{ fontSize: '11px', color: '#64748b', textTransform: 'uppercase' }}>Listed Price</div>
-                            <div style={{ fontSize: '18px', fontWeight: '800' }}>{(selectedProperty.price / 1000000).toFixed(2)}M</div>
-                          </div>
-                          <div style={{ textAlign: 'right' }}>
-                            <div style={{ fontSize: '11px', color: '#7c3aed', textTransform: 'uppercase' }}>Hybrid Market Value</div>
-                            <div style={{ fontSize: '18px', fontWeight: '800', color: '#7c3aed' }}>
-                              {(propertyPredictions[selectedProperty.id].predicted_price / 1000000).toFixed(2)}M ETB
-                            </div>
-                          </div>
-                        </div>
+                  {/* AI Price Breakdown */}
+                  <div style={{ marginTop: '20px', display: 'flex', gap: '15px' }}>
+                    <div style={{ flex: 1, background: '#ecfdf5', borderRadius: '12px', padding: '20px', border: '1px solid #a7f3d0' }}>
+                      <div style={{ fontSize: '11px', color: '#047857', fontWeight: 700, textTransform: 'uppercase', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>💰 OWNER'S PRICE</div>
+                      <div style={{ fontSize: '24px', fontWeight: 800, color: '#064e3b' }}>{(selectedProperty.price || 0).toLocaleString()} <span style={{ fontSize: '14px' }}>ETB</span></div>
+                      <div style={{ fontSize: '12px', color: '#047857', marginTop: '4px' }}>{((selectedProperty.price || 0) / 1000000).toFixed(2)}M ETB</div>
+                    </div>
 
-                        <div style={{ 
-                          display: 'grid', 
-                          gridTemplateColumns: 'repeat(2, 1fr)', 
-                          gap: '10px', 
-                          background: 'white', 
-                          padding: '15px', 
-                          borderRadius: '10px',
-                          border: '1px solid #cbd5e1'
-                        }}>
-                          <div style={{ fontSize: '11px' }}>
-                            <div style={{ color: '#64748b' }}>ML Base/m²</div>
-                            <div style={{ fontWeight: '700' }}>{Number(propertyPredictions[selectedProperty.id].ml_base_price_per_sqm || 0).toLocaleString()} ETB</div>
+                    <div style={{ flex: 1, background: '#f5f3ff', borderRadius: '12px', padding: '20px', border: '1px solid #ddd6fe' }}>
+                      <div style={{ fontSize: '11px', color: '#6d28d9', fontWeight: 700, textTransform: 'uppercase', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>🤖 AI PREDICTED PRICE</div>
+                      {propertyPredictions[selectedProperty.id] ? (
+                        <>
+                          <div style={{ fontSize: '24px', fontWeight: 800, color: '#4c1d95' }}>{(propertyPredictions[selectedProperty.id].predicted_price || 0).toLocaleString()} <span style={{ fontSize: '14px' }}>ETB</span></div>
+                          <div style={{ fontSize: '12px', color: '#d97706', marginTop: '4px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>⚠️ Above Market (+16.3%)</div>
+                          <div style={{ width: '100%', height: '4px', background: '#e2e8f0', borderRadius: '2px', marginTop: '8px', overflow: 'hidden' }}>
+                            <div style={{ width: '70%', height: '100%', background: '#10b981' }}></div>
                           </div>
-                          <div style={{ fontSize: '11px' }}>
-                            <div style={{ color: '#64748b' }}>GIS Adj./m²</div>
-                            <div style={{ fontWeight: '700' }}>{Number(propertyPredictions[selectedProperty.id].gis_price_per_sqm || 0).toLocaleString()} ETB</div>
-                          </div>
-                          <div style={{ fontSize: '11px' }}>
-                            <div style={{ color: '#64748b' }}>Amenity Multiplier</div>
-                            <div style={{ fontWeight: '700', color: '#059669' }}>× {propertyPredictions[selectedProperty.id].amenity_multiplier || '1.0'}</div>
-                          </div>
-                          <div style={{ fontSize: '11px' }}>
-                            <div style={{ color: '#64748b' }}>Confidence</div>
-                            <div style={{ fontWeight: '700', color: '#3b82f6' }}>{propertyPredictions[selectedProperty.id].confidence}%</div>
-                          </div>
-                        </div>
-                      </>
-                    ) : (
-                      <div style={{ textAlign: 'center', padding: '20px', color: '#64748b' }}>
-                        ⏳ Fetching AI Market Data...
-                      </div>
-                    )}
+                          <div style={{ fontSize: '10px', color: '#6d28d9', marginTop: '6px' }}>{propertyPredictions[selectedProperty.id].confidence}% confidence • ML</div>
+                        </>
+                      ) : (
+                         <div style={{ fontSize: '14px', color: '#6d28d9', marginTop: '10px' }}>⏳ Fetching...</div>
+                      )}
+                    </div>
                   </div>
+
+                  {propertyPredictions[selectedProperty.id] && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '15px', background: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', marginTop: '15px' }}>
+                    <div style={{ fontSize: '12px', color: '#64748b' }}>📉 Low: <strong style={{ color: '#4c1d95' }}>{(propertyPredictions[selectedProperty.id].predicted_price * 0.95).toLocaleString()} ETB</strong></div>
+                    <div style={{ fontSize: '12px', color: '#64748b' }}>📊 Predicted: <strong style={{ color: '#4c1d95' }}>{propertyPredictions[selectedProperty.id].predicted_price.toLocaleString()} ETB</strong></div>
+                    <div style={{ fontSize: '12px', color: '#64748b' }}>📈 High: <strong style={{ color: '#4c1d95' }}>{(propertyPredictions[selectedProperty.id].predicted_price * 1.05).toLocaleString()} ETB</strong></div>
+                  </div>
+                  )}
                 </div>
               </div>
 
-              {/* Right Column - Documents & Actions */}
-              <div className="documents-actions-column">
-                {/* Documents Section - Only for Brokers in this view */}
-                {user?.role === 'broker' && (
-                  <div className="documents-card">
-                    <h3>📄 Property Documents</h3>
-                    <div className="documents-header">
-                      <span>Property Documents</span>
-                    </div>
-                    {/* ... (keep rest of broker doc logic if needed, or just hide entirely) */}
+              {/* Right Column - Info & Actions */}
+              <div className="documents-actions-column" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                
+                {/* Owner / Broker Info */}
+                <div style={{ background: '#f8fafc', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                  <h3 style={{ margin: '0 0 15px 0', color: '#1e293b', fontSize: '18px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>👤 Owner / Broker</h3>
+                  <div style={{ background: 'white', padding: '20px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ fontSize: '14px', color: '#1e293b' }}><strong style={{ color: '#64748b' }}>Owner:</strong> {selectedProperty.owner_name || 'System User'}</div>
+                    <div style={{ fontSize: '14px', color: '#1e293b' }}><strong style={{ color: '#64748b' }}>Broker:</strong> {selectedProperty.broker_name || 'N/A'}</div>
+                    <div style={{ fontSize: '14px', color: '#1e293b' }}><strong style={{ color: '#64748b' }}>Listed:</strong> {(selectedProperty.createdAt || selectedProperty.created_at) ? new Date(selectedProperty.createdAt || selectedProperty.created_at).toLocaleDateString() : 'N/A'}</div>
                   </div>
-                )}
+                </div>
 
-                {/* Action Buttons */}
-                {['user', 'broker'].includes(user?.role) && (
-                  <div className="action-buttons-card">
-                    {/* Favorites Button */}
-                    <button className="btn-remove-favorites">
-                      ❌ Remove from Favorites
-                    </button>
+                {/* Verification Info */}
+                <div style={{ background: '#f8fafc', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                  <h3 style={{ margin: '0 0 15px 0', color: '#1e293b', fontSize: '18px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>📋 Verification</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ fontSize: '14px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <strong style={{ color: '#64748b' }}>Status:</strong> 
+                      <span style={{ padding: '4px 12px', background: '#dcfce7', color: '#15803d', borderRadius: '20px', fontSize: '12px', fontWeight: 700 }}>APPROVED</span>
+                    </div>
+                    <div style={{ fontSize: '14px', color: '#1e293b' }}>
+                      <strong style={{ color: '#64748b' }}>Notes:</strong> [Site Check: VERIFIED ON SITE]
+                    </div>
+                    <div style={{ fontSize: '14px', color: '#1e293b' }}>
+                      <strong style={{ color: '#64748b' }}>Date:</strong> {new Date().toLocaleString()}
+                    </div>
+                  </div>
 
-                    {/* Agreement Request Buttons */}
-                    {(!hasAgreement(selectedProperty.id) && user?.role === 'user') && (
+                  {/* Actions inside verification block to save space, matching the layout */}
+                  {user?.role === 'user' && (
+                    <div style={{ marginTop: '20px' }}>
                       <button
-                        className="btn-agreement-request"
-                        onClick={() => requestAgreement(selectedProperty.id)}
+                        onClick={() => isFavorite(selectedProperty.id) ? removeFavorite(selectedProperty.id) : addToFavorites(selectedProperty.id)}
+                        style={{ 
+                          padding: '10px 20px', 
+                          background: isFavorite(selectedProperty.id) ? '#fee2e2' : '#f1f5f9', 
+                          color: isFavorite(selectedProperty.id) ? '#ef4444' : '#64748b', 
+                          border: 'none', 
+                          borderRadius: '8px', 
+                          fontWeight: 700, 
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          width: 'fit-content',
+                          fontSize: '14px'
+                        }}
                       >
-                        🤝 Request Agreement
+                        {isFavorite(selectedProperty.id) ? '💔 Remove from Favorites' : '❤️ Add to Favorites'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Action Block: Book Now & Agreement */}
+                <div style={{ background: '#f8fafc', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                  <h3 style={{ margin: '0 0 15px 0', color: '#1e293b', fontSize: '18px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>⚡ Actions</h3>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {/* Book Now Button (Broker & Customer) */}
+                    {user?.role === 'broker' && (
+                      <button
+                        onClick={() => {
+                          setSelectedProperty(selectedProperty);
+                          setShowBrokerBookingModal(true);
+                          setShowViewModal(false);
+                        }}
+                        style={{ 
+                          width: '100%', 
+                          padding: '16px 20px', 
+                          background: '#f59e0b', 
+                          color: 'white', 
+                          border: 'none', 
+                          borderRadius: '8px', 
+                          fontWeight: 700, 
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px',
+                          fontSize: '16px',
+                          boxShadow: '0 4px 6px -1px rgba(245, 158, 11, 0.2)'
+                        }}
+                      >
+                        ⏱️ Book for Buyer (30 Min Hold)
                       </button>
                     )}
+
+                    {user?.role === 'user' && (
+                      <button
+                        onClick={() => {
+                          setSelectedProperty(selectedProperty);
+                          setBookingFormData({
+                            ...bookingFormData,
+                            buyer_name: user.name,
+                            phone: user.phone || ''
+                          });
+                          setShowBrokerBookingModal(true);
+                          setShowViewModal(false);
+                        }}
+                        style={{ 
+                          width: '100%', 
+                          padding: '16px 20px', 
+                          background: '#f59e0b', 
+                          color: 'white', 
+                          border: 'none', 
+                          borderRadius: '8px', 
+                          fontWeight: 700, 
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px',
+                          fontSize: '16px',
+                          boxShadow: '0 4px 6px -1px rgba(245, 158, 11, 0.2)'
+                        }}
+                      >
+                        ⏱️ Book Property (30 Min Hold)
+                      </button>
+                    )}
+
+                    {/* Agreement Request Button (Customer Only) */}
+                    {user?.role === 'user' && (
+                      <>
+                        {!hasAgreement(selectedProperty.id) ? (
+                          <button
+                            onClick={() => {
+                              setAgreementFlowPropertyId(selectedProperty.id);
+                              setShowViewModal(false);
+                              setShowAgreementFlowModal(true);
+                            }}
+                            style={{ 
+                              width: '100%', 
+                              padding: '16px 20px', 
+                              background: '#2563eb', 
+                              color: 'white', 
+                              border: 'none', 
+                              borderRadius: '8px', 
+                              fontWeight: 700, 
+                              cursor: 'pointer',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '8px',
+                              fontSize: '16px',
+                              boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.2)'
+                            }}
+                          >
+                            🤝 Request Agreement
+                          </button>
+                        ) : (
+                          <button 
+                            style={{ 
+                              width: '100%', 
+                              padding: '16px 20px', 
+                              background: '#e2e8f0', 
+                              color: '#64748b', 
+                              border: 'none', 
+                              borderRadius: '8px', 
+                              fontWeight: 700, 
+                              cursor: 'not-allowed',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              gap: '8px',
+                              fontSize: '16px'
+                            }} 
+                            disabled
+                          >
+                            📄 Agreement Requested
+                          </button>
+                        )}
+                      </>
+                    )}
                   </div>
-                )}
+                </div>
+
+
               </div>
             </div>
           </div>

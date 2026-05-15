@@ -133,31 +133,27 @@ const CommissionTracking = ({ user, onLogout, onSettingsClick, onBack }) => {
 
       {/* Summary Stats Cards */}
       <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px', marginTop: '20px' }}>
-        <div style={{ background: 'linear-gradient(135deg, #059669, #10b981)', padding: '24px', borderRadius: '14px', color: '#fff' }}>
-          <div style={{ fontSize: '12px', opacity: 0.85, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>💰 Deal Commission</div>
-          <div style={{ fontSize: '28px', fontWeight: '800' }}>{Number(summary.deal_commission || 0).toLocaleString()}</div>
-          <div style={{ fontSize: '13px', opacity: 0.9 }}>ETB</div>
+        <div style={{ background: '#f59e0b', padding: '16px 20px', borderRadius: '12px', color: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+          <div style={{ fontSize: '11px', opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px', fontWeight: '600' }}>💰 Deal Commission</div>
+          <div style={{ fontSize: '24px', fontWeight: '800' }}>{Number(summary.deal_commission || 0).toLocaleString()} <span style={{ fontSize: '14px', fontWeight: '500' }}>ETB</span></div>
         </div>
 
-        <div style={{ background: 'linear-gradient(135deg, #8b5cf6, #a855f7)', padding: '24px', borderRadius: '14px', color: '#fff', position: 'relative', overflow: 'hidden' }}>
-          <div style={{ position: 'absolute', top: 5, right: 5, fontSize: '40px', opacity: 0.15 }}>🎁</div>
+        <div style={{ background: '#f59e0b', padding: '16px 20px', borderRadius: '12px', color: '#fff', position: 'relative', overflow: 'hidden', display: 'flex', flexDirection: 'column', justifyContent: 'center', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+          <div style={{ position: 'absolute', top: -5, right: -5, fontSize: '30px', opacity: 0.2 }}>🎁</div>
           <div style={{ position: 'relative', zIndex: 1 }}>
-            <div style={{ fontSize: '12px', opacity: 0.85, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>🎁 Bonus Earned</div>
-            <div style={{ fontSize: '28px', fontWeight: '800' }}>{Number(summary.bonus_earned || 0).toLocaleString()}</div>
-            <div style={{ fontSize: '13px', opacity: 0.9 }}>ETB</div>
+            <div style={{ fontSize: '11px', opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px', fontWeight: '600' }}>🎁 Bonus Earned</div>
+            <div style={{ fontSize: '24px', fontWeight: '800' }}>{Number(summary.bonus_earned || 0).toLocaleString()} <span style={{ fontSize: '14px', fontWeight: '500' }}>ETB</span></div>
           </div>
         </div>
 
-        <div style={{ background: 'linear-gradient(135deg, #2563eb, #3b82f6)', padding: '24px', borderRadius: '14px', color: '#fff' }}>
-          <div style={{ fontSize: '12px', opacity: 0.85, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>💵 Total Earnings</div>
-          <div style={{ fontSize: '28px', fontWeight: '800' }}>{Number(summary.total_earned || 0).toLocaleString()}</div>
-          <div style={{ fontSize: '14px', opacity: 0.9 }}>ETB (Deals + Bonuses)</div>
+        <div style={{ background: '#f59e0b', padding: '16px 20px', borderRadius: '12px', color: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+          <div style={{ fontSize: '11px', opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px', fontWeight: '600' }}>💵 Total Earnings</div>
+          <div style={{ fontSize: '24px', fontWeight: '800' }}>{Number(summary.total_earned || 0).toLocaleString()} <span style={{ fontSize: '14px', fontWeight: '500' }}>ETB</span></div>
         </div>
 
-        <div style={{ background: 'linear-gradient(135deg, #f59e0b, #fbbf24)', padding: '24px', borderRadius: '14px', color: '#fff' }}>
-          <div style={{ fontSize: '12px', opacity: 0.85, textTransform: 'uppercase', letterSpacing: '1px', marginBottom: '8px' }}>⏳ Projected Pipeline</div>
-          <div style={{ fontSize: '28px', fontWeight: '800' }}>{Number(summary.projected_earnings || 0).toLocaleString()}</div>
-          <div style={{ fontSize: '14px', opacity: 0.9 }}>ETB ({summary.pending_deals || 0} deals)</div>
+        <div style={{ background: '#f59e0b', padding: '16px 20px', borderRadius: '12px', color: '#fff', display: 'flex', flexDirection: 'column', justifyContent: 'center', boxShadow: '0 4px 6px rgba(0,0,0,0.05)' }}>
+          <div style={{ fontSize: '11px', opacity: 0.9, textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px', fontWeight: '600' }}>⏳ Projected Pipeline</div>
+          <div style={{ fontSize: '24px', fontWeight: '800' }}>{Number(summary.projected_earnings || 0).toLocaleString()} <span style={{ fontSize: '14px', fontWeight: '500' }}>ETB</span></div>
         </div>
       </div>
 

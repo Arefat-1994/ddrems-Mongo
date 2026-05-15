@@ -156,8 +156,22 @@ router.post('/add', async (req, res) => {
   try {
     const { name, email, phone, password, role } = req.body;
 
-    if (!name || !email || !role) {
-      return res.status(400).json({ message: 'Name, email, and role are required' });
+    if (!name || name.trim().length < 3) return res.status(400).json({ message: 'Full name must be at least 3 characters' });
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ message: 'Please provide a valid email address' });
+    
+    if (phone) {
+      const cleanPhone = phone.replace(/\s/g, '');
+      if (!/^(\+251|0)9[0-9]{8}$/.test(cleanPhone)) {
+        return res.status(400).json({ message: 'Please provide a valid Ethiopian phone number' });
+      }
+    }
+
+    if (password && password.length < 6) {
+      return res.status(400).json({ message: 'Password must be at least 6 characters long' });
+    }
+
+    if (!role) {
+      return res.status(400).json({ message: 'User role is required' });
     }
 
     const existing = await Users.findOne({ email });

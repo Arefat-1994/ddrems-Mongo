@@ -27,9 +27,9 @@ const Sidebar = ({
     if (user?.role === "admin" || user?.role === "system_admin") {
       return [
         ...baseItems,
-        { id: "properties", icon: "🏠", label: "Properties" },
-        { id: "map-view", icon: "🗺️", label: "Map View" },
+        { id: "all-properties", icon: "🏘️", label: "Properties" },
         { id: "site-check-admin", icon: "📍", label: "Site Checks" },
+        { id: "bank-settings", icon: "🏦", label: "Bank Settings" },
         { id: "users", icon: "👤", label: "All Users",
           subItems: [
             { id: "users-brokers", icon: "🤝", label: "Brokers List" },
@@ -41,7 +41,6 @@ const Sidebar = ({
         { id: "transactions", icon: "💰", label: "Transactions" },
         { id: "announcements", icon: "📢", label: "Announcements" },
         { id: "send-message", icon: "📤", label: "Send Message" },
-        { id: "broker-holds", icon: "⏱️", label: "Booked Lists" },
         { id: "reports", icon: "📊", label: "Reports" },
         { id: "complaints-admin", icon: "📋", label: "Complaints" },
         { id: "password-resets", icon: "🔑", label: "Password Resets" },
@@ -58,9 +57,8 @@ const Sidebar = ({
       }
       return [
         ...baseItems,
-        { id: "properties", icon: "🏠", label: "My Properties" },
         { id: "browse-properties", icon: "🔍", label: "Browse Properties" },
-        { id: "requests", icon: "📩", label: "Requests" },
+
         { id: "commission", icon: "💰", label: "Commission" },
         { id: "broker-engagement", icon: "💼", label: "Engagement Center" },
         { id: "announcements", icon: "📢", label: "Announcements" },
@@ -73,7 +71,7 @@ const Sidebar = ({
     if (user?.role === "property_admin") {
       return [
         ...baseItems,
-        { id: "properties", icon: "🏠", label: "Properties" },
+        { id: "all-properties", icon: "🏘️", label: "Properties" },
         { id: "map-view", icon: "🗺️", label: "Map View" },
         { id: "site-check", icon: "📍", label: "Site Check" },
         { id: "agreement-workflow", icon: "🤝", label: "Agreements Workflow" },

@@ -152,15 +152,15 @@ const BrokerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
         onLogout={onLogout}
         dashboardTitle="🏢 Broker Dashboard"
         onSettingsClick={() => setCurrentPage && setCurrentPage('settings')}
+        notificationWidget={
+          <MessageNotificationWidget 
+            userId={user?.id}
+            onNavigateToMessages={() => setCurrentPage('messages')}
+          />
+        }
       />
 
-      {/* Action Bar */}
-      <div style={{ display: 'flex', gap: '10px', alignItems: 'center', padding: '15px 30px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0' }}>
-        <MessageNotificationWidget 
-          userId={user?.id}
-          onNavigateToMessages={() => setCurrentPage('messages')}
-        />
-      </div>
+
 
       {/* Navigation Tabs */}
       <div className="broker-tabs">
@@ -307,8 +307,8 @@ const BrokerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
                 {/* Recent Requests */}
                 <div className="recent-requests">
                   <h3>Recent Requests</h3>
-                  {incomingRequests.slice(0, 3).map(request => (
-                    <div key={request.id} className="request-card">
+                  {incomingRequests.slice(0, 3).map((request, idx) => (
+                    <div key={request.id || `inc-req-${idx}`} className="request-card">
                       <div className="request-header">
                         <h4>{request.property_title}</h4>
                         <span className={`status-badge ${request.status}`}>{request.status}</span>
@@ -338,8 +338,8 @@ const BrokerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
                   </div>
                 ) : (
                   <div className="requests-list">
-                    {incomingRequests.map(request => (
-                      <div key={request.id} className="request-item">
+                    {incomingRequests.map((request, idx) => (
+                      <div key={request.id || `inc-row-${idx}`} className="request-item">
                         <div className="request-main">
                           <div className="request-details">
                             <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -428,8 +428,8 @@ const BrokerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
                   </div>
                 ) : (
                   <div className="customers-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '20px' }}>
-                    {customers.map(cust => (
-                      <div key={cust.id} className="stat-card" style={{ display: 'block', height: 'auto' }}>
+                    {customers.map((cust, idx) => (
+                      <div key={cust.id || `cust-${idx}`} className="stat-card" style={{ display: 'block', height: 'auto' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '15px', marginBottom: '15px' }}>
                           <div style={{ width: '50px', height: '50px', background: '#e2e8f0', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '24px' }}>
                             👤
@@ -671,8 +671,8 @@ const BrokerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
                           <p style={{ color: '#94a3b8', background: '#f8fafc', padding: '20px', borderRadius: '8px', textAlign: 'center' }}>No active engagements right now.</p>
                         ) : (
                           <div style={{ display: 'grid', gap: '16px' }}>
-                            {inProgressList.map(eng => (
-                              <div key={eng.id} style={{ 
+                            {inProgressList.map((eng, idx) => (
+                              <div key={`${eng.id}-${idx}`} style={{ 
                                 background: '#fff', 
                                 border: '1px solid #e2e8f0', 
                                 borderRadius: '16px', 
@@ -696,8 +696,8 @@ const BrokerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
                           <p style={{ color: '#94a3b8', background: '#f8fafc', padding: '20px', borderRadius: '8px', textAlign: 'center' }}>No completed deals yet. Keep closing!</p>
                         ) : (
                           <div style={{ display: 'grid', gap: '20px' }}>
-                            {completedList.map(eng => (
-                              <div key={eng.id} style={{ 
+                            {completedList.map((eng, idx) => (
+                              <div key={`${eng.id}-${idx}`} style={{ 
                                 background: '#fff', 
                                 border: '1px solid #34d399', 
                                 borderRadius: '16px', 
@@ -831,7 +831,7 @@ const BrokerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
                     if (inProgressComm.length > 0) {
                       return (
                         <div style={{ display: 'grid', gap: '12px' }}>
-                          {inProgressComm.map(eng => {
+                          {inProgressComm.map((eng, idx) => {
                             const price = Number(eng.property_price || 0);
                             const projectedComm = Math.round(price * 0.02 * 100) / 100;
                             const statusColors = {
@@ -842,7 +842,7 @@ const BrokerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
                               payment_submitted: '#f97316',
                             };
                             return (
-                              <div key={eng.id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 18px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
+                              <div key={`${eng.id}-${idx}`} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '14px 18px', background: '#f8fafc', borderRadius: '10px', border: '1px solid #e2e8f0' }}>
                                 <div>
                                   <div style={{ fontWeight: '600', fontSize: '14px', color: '#1e293b' }}>{eng.property_title}</div>
                                   <div style={{ fontSize: '12px', color: '#64748b', marginTop: '3px' }}>
@@ -1016,8 +1016,8 @@ const BrokerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
                   </div>
                 ) : (
                   <div style={{ display: 'grid', gap: '15px' }}>
-                    {brokerHolds.map(hold => (
-                      <div key={hold.id} style={{ padding: '20px', border: '1px solid #e2e8f0', borderRadius: '12px', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
+                    {brokerHolds.map((hold, idx) => (
+                      <div key={hold.id || `hold-${idx}`} style={{ padding: '20px', border: '1px solid #e2e8f0', borderRadius: '12px', background: '#fff', boxShadow: '0 1px 3px rgba(0,0,0,0.05)' }}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '10px', flexWrap: 'wrap', gap: '10px' }}>
                           <h3 style={{ margin: 0 }}>{hold.property_title}</h3>
                           <span style={{ 
@@ -1097,8 +1097,8 @@ const BrokerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
                 </div>
               ) : (
                 <div className="notifications-list">
-                  {notifications.map(notif => (
-                    <div key={notif.id} className="notification-item">
+                  {notifications.map((notif, idx) => (
+                    <div key={notif.id || `notif-${idx}`} className={`notification-item ${notif.is_read ? 'read' : 'unread'}`}>
                       <div className="notification-icon">🔔</div>
                       <div className="notification-content">
                         <h4>{notif.title}</h4>

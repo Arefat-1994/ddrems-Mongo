@@ -291,8 +291,8 @@ const Agreements = ({ user, onLogout, onSettingsClick }) => {
                     </div>
                 ) : (
                     <div className="agreements-grid">
-                        {agreements.map(agreement => (
-                            <div key={agreement.id} className="agreement-card">
+                        {agreements.map((agreement, idx) => (
+                            <div key={agreement.id || `agreement-${idx}`} className="agreement-card">
                                 <div className="agreement-header">
                                     <div className="prop-info">
                                         <h4>{agreement.property_title}</h4>
@@ -561,8 +561,8 @@ const Agreements = ({ user, onLogout, onSettingsClick }) => {
                                     <select value={formData.property_id}
                                         onChange={(e) => setFormData({ ...formData, property_id: e.target.value })} required>
                                         <option value="">-- Choose Property --</option>
-                                        {properties.map(p => (
-                                            <option key={p.id} value={p.id}>{p.title} ({p.location})</option>
+                                        {properties.map((p, idx) => (
+                                            <option key={p.id || `prop-opt-${idx}`} value={p.id}>{p.title} ({p.location})</option>
                                         ))}
                                     </select>
                                 </div>
@@ -571,8 +571,8 @@ const Agreements = ({ user, onLogout, onSettingsClick }) => {
                                     <select value={formData.customer_id}
                                         onChange={(e) => setFormData({ ...formData, customer_id: e.target.value })} required>
                                         <option value="">-- Choose Customer --</option>
-                                        {customers.map(c => (
-                                            <option key={c.id} value={c.id}>{c.name} ({c.email})</option>
+                                        {customers.map((c, idx) => (
+                                            <option key={c.id || `cust-opt-${idx}`} value={c.id}>{c.name} ({c.email})</option>
                                         ))}
                                     </select>
                                 </div>

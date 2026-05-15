@@ -158,13 +158,13 @@ router.get("/tenant/:tenantId", async (req, res) => {
 
     const payments = await RentalPaymentSchedules.aggregate([
       { $match: { tenant_id: new mongoose.Types.ObjectId(tenantId) } },
-      { $lookup: { from: 'properties', localField: 'property_id', foreignField: '_id', as: 'property' } },
+      { $lookup: { from: 'properties', let: { pid: '$property_id' }, pipeline: [{ $match: { $expr: { $eq: ['$_id', '$$pid'] } } }, { $project: { title: 1, location: 1 } }], as: 'property' } },
       { $unwind: { path: '$property', preserveNullAndEmptyArrays: true } },
-      { $lookup: { from: 'users', localField: 'owner_id', foreignField: '_id', as: 'owner' } },
+      { $lookup: { from: 'users', let: { uid: '$owner_id' }, pipeline: [{ $match: { $expr: { $eq: ['$_id', '$$uid'] } } }, { $project: { name: 1, email: 1, phone: 1 } }], as: 'owner' } },
       { $unwind: { path: '$owner', preserveNullAndEmptyArrays: true } },
-      { $lookup: { from: 'agreementrequests', localField: 'agreement_request_id', foreignField: '_id', as: 'agreement' } },
+      { $lookup: { from: 'agreementrequests', let: { arid: '$agreement_request_id' }, pipeline: [{ $match: { $expr: { $eq: ['$_id', '$$arid'] } } }, { $project: { payment_schedule: 1, rental_duration_months: 1 } }], as: 'agreement' } },
       { $unwind: { path: '$agreement', preserveNullAndEmptyArrays: true } },
-      { $lookup: { from: 'brokerengagements', localField: 'broker_engagement_id', foreignField: '_id', as: 'engagement' } },
+      { $lookup: { from: 'brokerengagements', let: { beid: '$broker_engagement_id' }, pipeline: [{ $match: { $expr: { $eq: ['$_id', '$$beid'] } } }, { $project: { payment_schedule: 1, rental_duration_months: 1 } }], as: 'engagement' } },
       { $unwind: { path: '$engagement', preserveNullAndEmptyArrays: true } },
       { $addFields: {
         id: '$_id',
@@ -212,13 +212,13 @@ router.get("/owner/:ownerId", async (req, res) => {
 
     const payments = await RentalPaymentSchedules.aggregate([
       { $match: { owner_id: new mongoose.Types.ObjectId(ownerId) } },
-      { $lookup: { from: 'properties', localField: 'property_id', foreignField: '_id', as: 'property' } },
+      { $lookup: { from: 'properties', let: { pid: '$property_id' }, pipeline: [{ $match: { $expr: { $eq: ['$_id', '$$pid'] } } }, { $project: { title: 1, location: 1 } }], as: 'property' } },
       { $unwind: { path: '$property', preserveNullAndEmptyArrays: true } },
-      { $lookup: { from: 'users', localField: 'tenant_id', foreignField: '_id', as: 'tenant' } },
+      { $lookup: { from: 'users', let: { uid: '$tenant_id' }, pipeline: [{ $match: { $expr: { $eq: ['$_id', '$$uid'] } } }, { $project: { name: 1, email: 1, phone: 1 } }], as: 'tenant' } },
       { $unwind: { path: '$tenant', preserveNullAndEmptyArrays: true } },
-      { $lookup: { from: 'agreementrequests', localField: 'agreement_request_id', foreignField: '_id', as: 'agreement' } },
+      { $lookup: { from: 'agreementrequests', let: { arid: '$agreement_request_id' }, pipeline: [{ $match: { $expr: { $eq: ['$_id', '$$arid'] } } }, { $project: { payment_schedule: 1, rental_duration_months: 1 } }], as: 'agreement' } },
       { $unwind: { path: '$agreement', preserveNullAndEmptyArrays: true } },
-      { $lookup: { from: 'brokerengagements', localField: 'broker_engagement_id', foreignField: '_id', as: 'engagement' } },
+      { $lookup: { from: 'brokerengagements', let: { beid: '$broker_engagement_id' }, pipeline: [{ $match: { $expr: { $eq: ['$_id', '$$beid'] } } }, { $project: { payment_schedule: 1, rental_duration_months: 1 } }], as: 'engagement' } },
       { $unwind: { path: '$engagement', preserveNullAndEmptyArrays: true } },
       { $addFields: {
         id: '$_id',
@@ -262,15 +262,15 @@ router.get("/owner/:ownerId", async (req, res) => {
 router.get("/admin/all", async (req, res) => {
   try {
     const payments = await RentalPaymentSchedules.aggregate([
-      { $lookup: { from: 'properties', localField: 'property_id', foreignField: '_id', as: 'property' } },
+      { $lookup: { from: 'properties', let: { pid: '$property_id' }, pipeline: [{ $match: { $expr: { $eq: ['$_id', '$$pid'] } } }, { $project: { title: 1, location: 1 } }], as: 'property' } },
       { $unwind: { path: '$property', preserveNullAndEmptyArrays: true } },
-      { $lookup: { from: 'users', localField: 'tenant_id', foreignField: '_id', as: 'tenant' } },
+      { $lookup: { from: 'users', let: { uid: '$tenant_id' }, pipeline: [{ $match: { $expr: { $eq: ['$_id', '$$uid'] } } }, { $project: { name: 1, email: 1, phone: 1 } }], as: 'tenant' } },
       { $unwind: { path: '$tenant', preserveNullAndEmptyArrays: true } },
-      { $lookup: { from: 'users', localField: 'owner_id', foreignField: '_id', as: 'owner' } },
+      { $lookup: { from: 'users', let: { uid: '$owner_id' }, pipeline: [{ $match: { $expr: { $eq: ['$_id', '$$uid'] } } }, { $project: { name: 1, email: 1, phone: 1 } }], as: 'owner' } },
       { $unwind: { path: '$owner', preserveNullAndEmptyArrays: true } },
-      { $lookup: { from: 'agreementrequests', localField: 'agreement_request_id', foreignField: '_id', as: 'agreement' } },
+      { $lookup: { from: 'agreementrequests', let: { arid: '$agreement_request_id' }, pipeline: [{ $match: { $expr: { $eq: ['$_id', '$$arid'] } } }, { $project: { payment_schedule: 1, rental_duration_months: 1 } }], as: 'agreement' } },
       { $unwind: { path: '$agreement', preserveNullAndEmptyArrays: true } },
-      { $lookup: { from: 'brokerengagements', localField: 'broker_engagement_id', foreignField: '_id', as: 'engagement' } },
+      { $lookup: { from: 'brokerengagements', let: { beid: '$broker_engagement_id' }, pipeline: [{ $match: { $expr: { $eq: ['$_id', '$$beid'] } } }, { $project: { payment_schedule: 1, rental_duration_months: 1 } }], as: 'engagement' } },
       { $unwind: { path: '$engagement', preserveNullAndEmptyArrays: true } },
       { $addFields: {
         id: '$_id',

@@ -21,7 +21,7 @@ const NotificationBell = () => {
     const date = new Date(dateString);
     const now = new Date();
     const diff = Math.floor((now - date) / 1000);
-    
+
     if (diff < 60) return 'Just now';
     if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
     if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
@@ -43,7 +43,7 @@ const NotificationBell = () => {
 
   return (
     <div className="notification-bell-container" ref={dropdownRef}>
-      <button 
+      <button
         className={`bell-btn ${unreadCount > 0 ? 'has-unread' : ''}`}
         onClick={() => setIsOpen(!isOpen)}
         title="Notifications"
@@ -64,9 +64,9 @@ const NotificationBell = () => {
           </div>
           <div className="dropdown-body">
             {notifications.length > 0 ? (
-              notifications.map((notif) => (
-                <div 
-                  key={notif.id} 
+              notifications.map((notif, idx) => (
+                <div
+                  key={notif.id || `notif-${idx}`}
                   className={`notification-item ${!notif.is_read ? 'unread' : ''}`}
                   onClick={() => {
                     markAsRead(notif.id);
@@ -84,7 +84,7 @@ const NotificationBell = () => {
               ))
             ) : (
               <div className="no-notifications">
-                <p>No notifications yet</p>
+                <p> Finding notifications yet</p>
               </div>
             )}
           </div>

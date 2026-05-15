@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import './DashboardHeader.css';
 import { UserProfilePill } from './PageHeader';
 
-const DashboardHeader = ({ user, onLogout, dashboardTitle, onSettingsClick }) => {
+const DashboardHeader = ({ user, onLogout, dashboardTitle, onSettingsClick, children, notificationWidget }) => {
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   return (
@@ -14,6 +14,8 @@ const DashboardHeader = ({ user, onLogout, dashboardTitle, onSettingsClick }) =>
         </div>
 
         <div className="header-right" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          {children}
+          {notificationWidget}
           <UserProfilePill user={user} onSettingsClick={onSettingsClick} />
           <button
             onClick={() => setShowLogoutConfirm(true)}

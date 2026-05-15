@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const mongoose = require('mongoose');
-const { Properties, Users, PropertyImages, PropertyVerification, Agreements, Notifications } = require('../models');
+const { Properties, Users, PropertyImages, PropertyVerification, Agreements, Notifications, BrokerEngagements } = require('../models');
 const emailService = require('../services/emailService');
 const { upload } = require('../middleware/upload');
 const path = require('path');
@@ -93,10 +93,50 @@ router.get('/stats', async (req, res) => {
       { $project: { listing_type: '$_id', count: 1, _id: 0 } }
     ]);
 
-    // Fast mocks for revenue/broker stats since we don't need complex aggregation for immediate fix
-    const revenue = [];
-    const performance = [];
-    const totalRev = 0;
+    const revenueAgg = await BrokerEngagements.aggregate([
+      { $match: { status: 'completed' } },
+      { $group: { _id: null, total: { $sum: '$system_commission_amount' } } }
+    ]);
+    const totalRev = revenueAgg.length > 0 ? revenueAgg[0].total : 0;
+
+    const monthlyRevenueAgg = await BrokerEngagements.aggregate([
+      { $match: { status: 'completed', completed_at: { $exists: true } } },
+      { $group: {
+        _id: { month: { $month: '$completed_at' }, year: { $year: '$completed_at' } },
+        amount: { $sum: '$system_commission_amount' }
+      }},
+      { $sort: { '_id.year': 1, '_id.month': 1 } },
+      { $limit: 12 }
+    ]);
+    const revenue = monthlyRevenueAgg.map(r => ({
+      month: `${r._id.year}-${String(r._id.month).padStart(2, '0')}`,
+      amount: r.amount
+    }));
+
+    const performance = await BrokerEngagements.aggregate([
+      { $match: { status: 'completed' } },
+      { $group: {
+        _id: '$broker_id',
+        deals: { $sum: 1 },
+        revenue: { $sum: '$system_commission_amount' }
+      }},
+      { $lookup: {
+        from: 'users',
+        localField: '_id',
+        foreignField: '_id',
+        as: 'broker'
+      }},
+      { $unwind: '$broker' },
+      { $project: {
+        _id: 0,
+        broker_id: '$_id',
+        name: '$broker.name',
+        count: '$deals',
+        revenue: 1
+      }},
+      { $sort: { count: -1 } }
+    ]);
+
     const userDist = await Users.aggregate([
       { $group: { _id: '$role', count: { $sum: 1 } } },
       { $project: { role: '$_id', count: 1, _id: 0 } }

@@ -2539,7 +2539,11 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
                             </button>
                           ) : null}
 
-                           {(!isBuyer || enteredKeys[doc.id] === doc.access_key) ? (
+                           {( !isBuyer || 
+                              selectedAgreement?.status === 'media_released' || 
+                              selectedAgreement?.status === 'completed' || 
+                              enteredKeys[doc.id] === doc.access_key
+                            ) ? (
                              <button 
                                type="button"
                                className="btn-outline" 
@@ -2679,14 +2683,19 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
                             </button>
                           ) : null}
 
-                           {(!isBuyer || enteredKeys[doc.id] === doc.access_key) ? (
-                             <a 
-                               href={getDocumentUrl(doc.document_path)} target="_blank" rel="noopener noreferrer"
+                           {( !isBuyer || 
+                              selectedAgreement?.status === 'media_released' || 
+                              selectedAgreement?.status === 'completed' || 
+                              enteredKeys[doc.id] === doc.access_key
+                            ) ? (
+                             <button 
+                               type="button"
                                className="btn-outline" 
-                               style={{ fontSize: 11, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4, textDecoration: 'none' }}
+                               style={{ fontSize: 11, padding: '4px 10px', display: 'flex', alignItems: 'center', gap: 4 }}
+                               onClick={() => { setViewingDoc(doc); setViewDocModal(true); }}
                              >
                                👁️ View
-                             </a>
+                             </button>
                            ) : (
                              <button 
                                type="button"
@@ -2939,13 +2948,17 @@ const AgreementWorkflow = ({ user, onLogout, initialPropertyId }) => {
             <div className="modal-body" style={{ padding: '0', maxHeight: 'calc(90vh - 120px)', overflow: 'hidden' }}>
               <div style={{ height: '100%', display: 'flex', flexDirection: 'column', background: '#f8fafc' }}>
                 <div style={{ flex: 1, padding: '20px', overflow: 'auto', display: 'flex', justifyContent: 'center' }}>
-                  {getDocumentUrl(viewingDoc.document_path).startsWith('data:application/pdf') ? (
+                  { (getDocumentUrl(viewingDoc.document_path).startsWith('data:application/pdf') || 
+                     getDocumentUrl(viewingDoc.document_path).toLowerCase().includes('.pdf')) ? (
                     <iframe
                       src={getDocumentUrl(viewingDoc.document_path)}
                       style={{ width: '100%', height: '100%', minHeight: '600px', border: 'none', borderRadius: '8px', background: '#fff' }}
                       title="Document Preview"
                     />
-                  ) : getDocumentUrl(viewingDoc.document_path).startsWith('data:image') || getDocumentUrl(viewingDoc.document_path).includes('.jpg') || getDocumentUrl(viewingDoc.document_path).includes('.png') || getDocumentUrl(viewingDoc.document_path).includes('.jpeg') ? (
+                  ) : (getDocumentUrl(viewingDoc.document_path).startsWith('data:image') || 
+                       getDocumentUrl(viewingDoc.document_path).toLowerCase().includes('.jpg') || 
+                       getDocumentUrl(viewingDoc.document_path).toLowerCase().includes('.png') || 
+                       getDocumentUrl(viewingDoc.document_path).toLowerCase().includes('.jpeg')) ? (
                     <img
                       src={getDocumentUrl(viewingDoc.document_path)}
                       alt="Document Preview"

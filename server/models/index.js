@@ -26,6 +26,7 @@ exports.CaptchaChallenges = require('./CaptchaChallenges');
 exports.CommissionTracking = require('./CommissionTracking');
 exports.Complaints = require('./Complaints');
 exports.CustomerProfiles = require('./CustomerProfiles');
+exports.DocumentAccess = require('./DocumentAccess');
 
 exports.EditRequests = require('./EditRequests');
 exports.Favorites = require('./Favorites');

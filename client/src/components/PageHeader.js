@@ -15,9 +15,6 @@ export const UserProfilePill = ({ user, onSettingsClick }) => {
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
-      {/* Bell */}
-      <div style={{ fontSize: '28px', cursor: 'pointer' }}>🔔</div>
-
       {/* Pill Card */}
       <div style={{
         display: 'flex', alignItems: 'center', gap: '14px',

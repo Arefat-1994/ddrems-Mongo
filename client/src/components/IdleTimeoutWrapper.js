@@ -6,7 +6,7 @@ import React, { useState, useEffect, useCallback, useRef } from 'react';
  * Default timeout: 5 minutes
  * User-configurable: 5, 10, 20, 30, 60 minutes
  */
-const IdleTimeoutWrapper = ({ user, onLogout, children }) => {
+const IdleTimeoutWrapper = ({ user, onLogout, currentPage, children }) => {
   const [showWarning, setShowWarning] = useState(false);
   const [countdown, setCountdown] = useState(60);
   const [idleTimeout, setIdleTimeout] = useState(5); // minutes
@@ -15,7 +15,7 @@ const IdleTimeoutWrapper = ({ user, onLogout, children }) => {
   const countdownIntervalRef = useRef(null);
 
   // Exempt roles don't get timed out
-  const isExempt = ['system_admin', 'property_admin'].includes(user?.role);
+  const isExempt = ['system_admin', 'property_admin'].includes(user?.role) || currentPage === 'chapa';
 
   // Fetch user's idle timeout preference
   useEffect(() => {

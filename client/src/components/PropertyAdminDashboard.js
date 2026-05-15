@@ -7,6 +7,7 @@ import DocumentViewerAdmin from './shared/DocumentViewerAdmin';
 import Reports from './Reports';
 import axios from 'axios';
 import Users from './Users';
+import Properties from './Properties';
 import MessageNotificationWidget from './MessageNotificationWidget';
 import AdminMessagesView from './AdminMessagesView';
 import AgreementWorkflow from './AgreementWorkflow';
@@ -19,10 +20,11 @@ import BookedLists from './BookedLists';
 
 const API_BASE = `http://${window.location.hostname}:5000/api`;
 
-const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapPropertyId, initialView }) => {
-  const [currentView, setCurrentView] = useState(initialView || 'dashboard'); // dashboard, approval, all-properties, reports, documents, users, messages, send-message, transactions
+const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapPropertyId, initialView, onSettingsClick }) => {
+  const [currentView, setCurrentView] = useState(initialView || 'dashboard'); // dashboard, approval, reports, documents, users, messages, send-message, transactions
   const [showAdminMessages, setShowAdminMessages] = useState(false);
   const [showAgreementWorkflow, setShowAgreementWorkflow] = useState(false);
+  const [showToolsDropdown, setShowToolsDropdown] = useState(false);
 
 
   const [stats, setStats] = useState({
@@ -43,7 +45,6 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
 
   const [pendingRequests, setPendingRequests] = useState([]);
   const [requestHistory, setRequestHistory] = useState([]);
-  const [allProperties, setAllProperties] = useState([]);
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [showViewModal, setShowViewModal] = useState(false);
   const [showResponseModal, setShowResponseModal] = useState(false);
@@ -57,7 +58,6 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
   const [docFilter, setDocFilter] = useState('all');
   const [searchTerm, setSearchTerm] = useState('');
   const [notification, setNotification] = useState(null);
-  const [isDataLoading, setIsDataLoading] = useState(true);
 
   const showNotification = (message, type = 'success') => {
     setNotification({ message, type });
@@ -78,7 +78,7 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
       };
 
       const [statsData, pendingProfilesData, pendingAgreementsData, brokerHoldsData] = await Promise.all([
-        safeFetch(`/properties/stats?admin_id=${user.id}`, { verified: 0, inactive: 0, suspended: 0, total: 0 }),
+        safeFetch('/properties/stats', { verified: 0, inactive: 0, suspended: 0, total: 0, pending: 0 }),
         safeFetch('/profiles/pending', { total: 0 }),
         safeFetch(`/agreement-requests/admin/pending?admin_id=${user.id}`, []),
         safeFetch(`/broker-bookings?property_admin_id=${user.id}`, [])
@@ -121,29 +121,11 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
         setRequestHistory(combinedHistory);
       }
     } catch (error) {
-    } finally {
-      setIsDataLoading(false);
+      console.error('Critical error in fetchPropertyAdminData:', error);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentView]);
-  const fetchAllProperties = useCallback(async () => {
-    setIsDataLoading(true);
-    try {
-      const response = await axios.get(`${API_BASE}/properties/all-with-status`);
-      setAllProperties(response.data);
-    } catch (error) {
-      console.error('Error fetching all properties:', error);
-    } finally {
-      setIsDataLoading(false);
-    }
-  }, []);
 
-  useEffect(() => {
-    fetchPropertyAdminData();
-    if (initialView === 'documents') {
-      fetchAllProperties();
-    }
-  }, [fetchPropertyAdminData, initialView, fetchAllProperties]);
 
   // Fetch pending requests whenever view changes to agreement-related views
   useEffect(() => {
@@ -193,10 +175,7 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
   }, [currentView]);
 
 
-  const handleViewAll = () => {
-    setCurrentView('all-properties');
-    fetchAllProperties();
-  };
+
 
   const viewPropertyDetail = (property) => {
     setSelectedProperty(property);
@@ -221,7 +200,6 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
       });
       
       showNotification(response.data.message || `Property ${action} successfully!`, 'success');
-      fetchAllProperties();
       fetchPropertyAdminData();
     } catch (error) {
       console.error(`Error: ${action}`, error);
@@ -247,10 +225,7 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
     return badges[status] || badges.pending;
   };
 
-  const filteredProperties = allProperties.filter(p => {
-    if (filterType === 'all') return true;
-    return p.type === filterType;
-  });
+
 
 
   // === SUSPICIOUS ACTIVITY VIEW ===
@@ -279,7 +254,7 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
           subtitle="AI-powered fraud detection — properties with unusual pricing patterns"
           user={user}
           onLogout={onLogout}
-          onSettingsClick={() => setCurrentPage('settings')}
+          onSettingsClick={onSettingsClick || (() => setCurrentPage('settings'))}
           actions={
             <div style={{ display: 'flex', gap: '10px' }}>
               <button className="btn-primary" onClick={fetchSuspiciousData} disabled={suspiciousLoading}>
@@ -462,7 +437,7 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
           subtitle="Review and verify property documents organized by property, owner, and status"
           user={user}
           onLogout={onLogout}
-          onSettingsClick={() => setCurrentPage('settings')}
+          onSettingsClick={onSettingsClick || (() => setCurrentPage('settings'))}
           actions={
             <button className="btn-secondary" onClick={() => setCurrentView('dashboard')}>
               ← Back to Dashboard
@@ -591,7 +566,6 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
                   onVerificationAction={() => {
                     setSelectedProperty(null);
                     fetchPropertyAdminData();
-                    fetchAllProperties();
                   }}
                 />
               </div>
@@ -599,18 +573,11 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
           ) : (
             <div style={{ display: 'grid', gap: '20px' }}>
               {filteredPropertiesWithDocs.length === 0 ? (
-                isDataLoading ? (
-                  <div className="empty-state" style={{ textAlign: 'center', padding: '60px', color: '#64748b' }}>
-                    <div style={{ fontSize: '3rem', marginBottom: '20px' }}>⏳</div>
-                    <h3>Loading Properties...</h3>
-                  </div>
-                ) : (
-                  <div className="empty-state" style={{ textAlign: 'center', padding: '60px', color: '#64748b' }}>
-                    <div style={{ fontSize: '3rem', marginBottom: '20px' }}>📄</div>
-                    <h3>No Properties Found</h3>
-                    <p>Try adjusting your search or filter criteria</p>
-                  </div>
-                )
+                <div className="empty-state" style={{ textAlign: 'center', padding: '60px', color: '#64748b' }}>
+                  <div style={{ fontSize: '3rem', marginBottom: '20px' }}>📄</div>
+                  <h3>No Properties Found</h3>
+                  <p>Try adjusting your search or filter criteria</p>
+                </div>
               ) : (
                 filteredPropertiesWithDocs.map(property => (
                   <div
@@ -749,7 +716,7 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
           subtitle="Forward agreement requests to property owners for final approval"
           user={user}
           onLogout={onLogout}
-          onSettingsClick={() => setCurrentPage('settings')}
+          onSettingsClick={onSettingsClick || (() => setCurrentPage('settings'))}
           actions={
             <button className="btn-secondary" onClick={() => setCurrentView('dashboard')}>
               ← Back to Dashboard
@@ -764,9 +731,7 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
                 <h3>📥 Incoming Agreement Requests ({agreementRequests.length})</h3>
               </div>
               <div className="requests-list" style={{ padding: '20px' }}>
-                {agreementRequests.length === 0 && isDataLoading ? (
-                  <p className="no-data">⏳ Loading requests...</p>
-                ) : agreementRequests.length === 0 ? (
+                {agreementRequests.length === 0 ? (
                   <p className="no-data">No pending agreement requests.</p>
                 ) : (
                   agreementRequests.map(req => (
@@ -801,9 +766,7 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
                 <h3>📜 Agreement Request History ({agreementHistory.length})</h3>
               </div>
               <div className="requests-list" style={{ padding: '20px' }}>
-                {agreementHistory.length === 0 && isDataLoading ? (
-                  <p className="no-data">⏳ Loading history...</p>
-                ) : agreementHistory.length === 0 ? (
+                {agreementHistory.length === 0 ? (
                   <p className="no-data">No historical records.</p>
                 ) : (
                   agreementHistory.map(req => (
@@ -875,7 +838,7 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
           subtitle="View message history and incoming replies"
           user={user}
           onLogout={onLogout}
-          onSettingsClick={() => setCurrentPage('settings')}
+          onSettingsClick={onSettingsClick || (() => setCurrentPage('settings'))}
           actions={
             <div style={{ display: 'flex', gap: '10px' }}>
               <button className="btn-primary" onClick={() => setCurrentView('send-message')}>
@@ -908,6 +871,20 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
     );
   }
 
+  // === ALL PROPERTIES VIEW (excludes pending) ===
+  if (currentView === 'all-properties') {
+    return (
+      <div className="property-admin-dashboard">
+        <div style={{ padding: '20px' }}>
+          <button className="btn-secondary" style={{ marginBottom: '15px' }} onClick={() => setCurrentView('dashboard')}>
+            ← Back to Dashboard
+          </button>
+          <Properties user={user} onLogout={onLogout} viewMode="all" setCurrentPage={setCurrentPage} setViewMapPropertyId={setViewMapPropertyId} onSettingsClick={() => setCurrentPage('settings')} />
+        </div>
+      </div>
+    );
+  }
+
   // === APPROVAL VIEW ===
 
   if (currentView === 'approval') {
@@ -915,7 +892,7 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
       <div className="property-admin-dashboard">
         <PropertyApproval
           user={user}
-          onSettingsClick={() => setCurrentPage('settings')}
+          onSettingsClick={onSettingsClick || (() => setCurrentPage('settings'))}
           onLogout={onLogout}
           onClose={() => { setCurrentView('dashboard'); fetchPropertyAdminData(); }}
           onRefresh={fetchPropertyAdminData}
@@ -939,266 +916,6 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
     );
   }
 
-  // === ALL PROPERTIES VIEW ===
-  if (currentView === 'all-properties') {
-    return (
-      <div className="property-admin-dashboard">
-        <PageHeader
-          title="All Properties"
-          subtitle="View and manage all property statuses"
-          user={user}
-          onLogout={onLogout}
-          onSettingsClick={() => setCurrentPage('settings')}
-          actions={
-            <button className="btn-secondary" onClick={() => { setCurrentView('dashboard'); fetchPropertyAdminData(); }}>
-              ← Back to Dashboard
-            </button>
-          }
-        />
-
-        <div className="filters-bar" style={{ margin: '20px 0', display: 'flex', gap: '10px', alignItems: 'center' }}>
-          <select
-            className="filter-select"
-            value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
-            style={{ padding: '8px 12px', borderRadius: '8px', border: '1px solid #e2e8f0' }}
-          >
-            <option value="all">All Types ({allProperties.length})</option>
-            <option value="apartment">Apartment</option>
-            <option value="villa">Villa</option>
-            <option value="house">House</option>
-            <option value="shop">Shop</option>
-          </select>
-          <span style={{ color: '#64748b', fontSize: '14px' }}>
-            Showing {filteredProperties.length} of {allProperties.length} properties
-          </span>
-        </div>
-
-        <div className="all-properties-list">
-          {filteredProperties.length === 0 && isDataLoading ? (
-            <div className="empty-state" style={{ textAlign: 'center', padding: '60px', color: '#64748b' }}>
-              <div style={{ fontSize: '3rem', marginBottom: '16px' }}>⏳</div>
-              <h3>Loading Properties...</h3>
-            </div>
-          ) : filteredProperties.length === 0 ? (
-            <div className="empty-state" style={{ textAlign: 'center', padding: '60px', color: '#64748b' }}>
-              <div style={{ fontSize: '3rem', marginBottom: '16px' }}>🏠</div>
-              <h3>No Properties Found</h3>
-            </div>
-          ) : (
-            filteredProperties.map(property => {
-              const vBadge = getVerificationBadge(property.verification_status);
-            return (
-              <div key={property.id} className="property-row-card">
-                <div className="property-row-image">
-                  {property.main_image ? (
-                    <img
-                      src={property.main_image}
-                      alt={property.title}
-                      onError={(e) => { e.target.onerror = null; e.target.style.display = 'none'; }}
-                    />
-                  ) : (
-                    <div className="no-image-small">🏠</div>
-                  )}
-                </div>
-                <div className="property-row-info">
-                  <h4>{property.title}</h4>
-                  <p>📍 {property.location} • {property.type} • {(property.price / 1000000).toFixed(2)}M ETB</p>
-                  <p style={{ fontSize: '12px', color: '#64748b' }}>
-                    👤 {property.owner_name || property.broker_name || 'Unknown'} •
-                    📅 {new Date(property.created_at).toLocaleDateString()}
-                  </p>
-                </div>
-                <div className="property-row-status">
-                  <span className="status-badge" style={{ background: getStatusColor(property.status), color: '#fff', padding: '4px 10px', borderRadius: '12px', fontSize: '12px' }}>
-                    {property.status}
-                  </span>
-                  <span style={{ fontSize: '12px', color: vBadge.color, marginTop: '4px' }}>
-                    {vBadge.emoji} {vBadge.label}
-                  </span>
-                  {property._suspicious && (
-                    <span style={{
-                      display: 'inline-block',
-                      background: '#ef4444',
-                      color: 'white',
-                      padding: '2px 8px',
-                      borderRadius: '10px',
-                      fontSize: '10px',
-                      fontWeight: '700',
-                      marginTop: '4px',
-                      textTransform: 'uppercase'
-                    }}>
-                      ⚠ SUSPICIOUS
-                    </span>
-                  )}
-                  {property._riskScore > 0 && (
-                    <span style={{ fontSize: '11px', color: '#ef4444', marginTop: '2px' }}>
-                      Risk: {property._riskScore}%
-                    </span>
-                  )}
-                </div>
-                <div className="property-row-actions">
-                  <button className="btn-icon" title="View" onClick={() => viewPropertyDetail(property)}>👁️</button>
-                  <button
-                    className="btn-icon"
-                    title="View Documents"
-                    onClick={() => {
-                      setSelectedProperty(property);
-                      setCurrentView('documents');
-                    }}
-                    style={{ background: '#3b82f6', color: 'white' }}
-                  >
-                    📄
-                  </button>
-                  {property.status !== 'active' && (
-                    <button className="btn-icon success" title="Approve" onClick={() => handleQuickAction(property.id, 'approved')}>✅</button>
-                  )}
-                  {property.status !== 'suspended' && (
-                    <button className="btn-icon warning" title="Suspend" onClick={() => handleQuickAction(property.id, 'suspended')}>⏸️</button>
-                  )}
-                  {property.status !== 'inactive' && (
-                    <button className="btn-icon danger" title="Reject" onClick={() => handleQuickAction(property.id, 'rejected')}>❌</button>
-                  )}
-                  <button
-                    className="btn-icon danger"
-                    title="Delete Permanently"
-                    onClick={async () => {
-                      if (window.confirm('PERMANENTLY DELETE this property? This cannot be undone.')) {
-                        try {
-                          await axios.delete(`${API_BASE}/properties/${property.id}`);
-                          showNotification('Property deleted permanently.', 'success');
-                          fetchAllProperties();
-                        } catch (err) {
-                          showNotification('Failed to delete property.', 'error');
-                        }
-                      }
-                    }}
-                  >
-                    🗑️
-                  </button>
-                </div>
-
-              </div>
-            );
-          })
-        )}
-        {/* We can remove the old filteredProperties.length === 0 check below since it is handled above */}
-        </div>
-
-        {/* View Property Detail Modal */}
-        {showViewModal && selectedProperty && (
-          <div className="modal-overlay" onClick={() => setShowViewModal(false)}>
-            <div className="modal-content extra-large" onClick={(e) => e.stopPropagation()}>
-              <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  🏠 {selectedProperty.title}
-                </h2>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                  {selectedProperty.latitude && selectedProperty.longitude && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        if (setViewMapPropertyId && setCurrentPage) {
-                          setViewMapPropertyId(selectedProperty.id);
-                          setCurrentPage('map-view');
-                        }
-                      }}
-                      style={{
-                        background: 'white',
-                        color: '#475569',
-                        border: 'none',
-                        padding: '6px 14px',
-                        borderRadius: '8px',
-                        fontSize: '13px',
-                        fontWeight: '600',
-                        cursor: 'pointer',
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
-                      }}
-                    >
-                      📍 View on Map
-                    </button>
-                  )}
-                  <button
-                    className="close-btn"
-                    onClick={() => setShowViewModal(false)}
-                    style={{ position: 'relative', top: 'auto', right: 'auto', margin: 0 }}
-                  >
-                    ✕
-                  </button>
-                </div>
-              </div>
-              <div className="modal-body">
-                <div className="property-review-grid">
-                  <div className="review-section full-width">
-                    <h3>📷 Property Images</h3>
-                    <ImageGallery propertyId={selectedProperty.id} canDelete={false} />
-                  </div>
-                  <div className="review-section">
-                    <h3>ℹ️ Details</h3>
-                    <div className="info-grid">
-                      <div><strong>Type:</strong> {selectedProperty.type}</div>
-                      <div><strong>Listing:</strong> {selectedProperty.listing_type || 'sale'}</div>
-                      <div><strong>Price:</strong> {(selectedProperty.price / 1000000).toFixed(2)}M ETB</div>
-                      <div><strong>Location:</strong> {selectedProperty.location}</div>
-                      <div><strong>Bedrooms:</strong> {selectedProperty.bedrooms || 'N/A'}</div>
-                      <div><strong>Bathrooms:</strong> {selectedProperty.bathrooms || 'N/A'}</div>
-                      <div><strong>Area:</strong> {selectedProperty.area || 'N/A'} m²</div>
-                      <div><strong>Status:</strong> <span style={{ color: getStatusColor(selectedProperty.status), fontWeight: 'bold' }}>{selectedProperty.status}</span></div>
-                    </div>
-                    {selectedProperty.description && (
-                      <div className="description-box"><strong>Description:</strong><p>{selectedProperty.description}</p></div>
-                    )}
-                    
-                    <div style={{ marginTop: '20px' }}>
-                      <h4 style={{marginTop: '20px'}}>ML Price Verification</h4>
-                      
-                    </div>
-                  </div>
-                  <div className="review-section">
-                    <h3>👤 Owner/Broker</h3>
-                    <div className="submitter-info">
-                      <p><strong>Owner:</strong> {selectedProperty.owner_name || 'N/A'}</p>
-                      <p><strong>Broker:</strong> {selectedProperty.broker_name || 'N/A'}</p>
-                      <p><strong>Added:</strong> {new Date(selectedProperty.created_at).toLocaleString()}</p>
-                    </div>
-                    {selectedProperty.verification_status && (
-                      <div style={{ marginTop: '15px' }}>
-                        <h4>📋 Verification</h4>
-                        <p><strong>Status:</strong> {getVerificationBadge(selectedProperty.verification_status).emoji} {selectedProperty.verification_status}</p>
-                        {selectedProperty.verification_notes && <p><strong>Notes:</strong> {selectedProperty.verification_notes}</p>}
-                        {selectedProperty.verified_at && <p><strong>Date:</strong> {new Date(selectedProperty.verified_at).toLocaleString()}</p>}
-                        {selectedProperty.verified_by_name && <p><strong>By:</strong> {selectedProperty.verified_by_name}</p>}
-                      </div>
-                    )}
-                  </div>
-                  {/* Property Map */}
-                  {(selectedProperty.latitude || selectedProperty.longitude) && (
-                    <div className="review-section full-width" style={{ marginTop: '15px' }}>
-                      <h3>📍 Property Location Map</h3>
-                      <PropertyMap 
-                        latitude={selectedProperty.latitude} 
-                        longitude={selectedProperty.longitude} 
-                        title={selectedProperty.title} 
-                      />
-                    </div>
-                  )}
-                </div>
-              </div>
-              <div className="modal-actions">
-                <button className="btn-success" onClick={() => { handleQuickAction(selectedProperty.id, 'approved'); setShowViewModal(false); }}>✅ Approve</button>
-                <button className="btn-warning" onClick={() => { handleQuickAction(selectedProperty.id, 'suspended'); setShowViewModal(false); }}>⏸️ Suspend</button>
-                <button className="btn-danger" onClick={() => { handleQuickAction(selectedProperty.id, 'rejected'); setShowViewModal(false); }}>❌ Reject</button>
-                <button className="btn-secondary" onClick={() => setShowViewModal(false)}>Close</button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
 
   // === MAIN DASHBOARD VIEW ===
   return (
@@ -1228,11 +945,44 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
               userId={user?.id}
               onNavigateToMessages={() => setCurrentPage('messages')}
             />
-            <button className="btn-warning" onClick={() => setCurrentView('approval')}>
-              ⏳ Pending Properties ({stats.pendingVerification})
+            
+            <div style={{ position: 'relative' }}>
+              <button 
+                className="btn-primary" 
+                style={{ background: 'white', color: '#1e293b', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '6px' }}
+                onClick={() => setShowToolsDropdown(!showToolsDropdown)}
+              >
+                🛠️ Tools {showToolsDropdown ? '▲' : '▼'}
+              </button>
+              
+              {showToolsDropdown && (
+                <div style={{
+                  position: 'absolute', top: '100%', right: 0, marginTop: '8px',
+                  background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px',
+                  boxShadow: '0 10px 25px rgba(0,0,0,0.1)', zIndex: 100, minWidth: '220px',
+                  display: 'flex', flexDirection: 'column', overflow: 'hidden'
+                }}>
+                  <button className="dropdown-tool-btn" onClick={() => { setCurrentView('documents'); setShowToolsDropdown(false); }}>
+                    📄 Document Verification
+                  </button>
+                  <button className="dropdown-tool-btn" onClick={() => { setCurrentView('messages'); setShowToolsDropdown(false); }}>
+                    📧 Incoming Messages
+                  </button>
+                  <button className="dropdown-tool-btn" onClick={() => { setCurrentPage('announcements'); setShowToolsDropdown(false); }}>
+                    📢 Announcements
+                  </button>
+                  <button className="dropdown-tool-btn" onClick={() => { setSuspiciousData([]); setCurrentView('suspicious'); setShowToolsDropdown(false); }}>
+                    ⚠️ Suspicious Activities
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <button className="btn-secondary" style={{ background: 'white', color: '#1e293b', border: '1px solid #e2e8f0' }} onClick={() => setCurrentView('all-properties')}>
+              🏘️ View All Properties
             </button>
-            <button className="btn-primary" onClick={handleViewAll}>
-              📋 View All Properties
+            <button className="btn-warning" style={{ background: 'white', color: '#1e293b', border: '1px solid #f59e0b' }} onClick={() => setCurrentView('approval')}>
+              ⏳ Pending Properties ({stats.pendingVerification})
             </button>
           </div>
         }
@@ -1251,40 +1001,24 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
         alignItems: 'center',
         boxShadow: '0 1px 2px rgba(0,0,0,0.03)'
       }}>
-        <button className="btn-secondary" onClick={() => setCurrentView('agreements')} style={{ padding: '8px 16px', fontSize: '13px' }}>
+        <button className="btn-secondary" onClick={() => setCurrentView('agreements')} style={{ padding: '8px 16px', fontSize: '13px', background: 'white', color: '#1e293b' }}>
           🤝 Agreements
         </button>
-        <button className="btn-secondary" onClick={() => setCurrentView('broker-holds')} style={{ padding: '8px 16px', fontSize: '13px' }}>
+        <button className="btn-secondary" onClick={() => setCurrentView('broker-holds')} style={{ padding: '8px 16px', fontSize: '13px', background: 'white', color: '#1e293b' }}>
           ⏱️ Booked Lists
         </button>
 
-        <button className="btn-secondary" onClick={() => setCurrentView('reports')} style={{ padding: '8px 16px', fontSize: '13px' }}>
+        <button className="btn-secondary" onClick={() => setCurrentView('reports')} style={{ padding: '8px 16px', fontSize: '13px', background: 'white', color: '#1e293b' }}>
           📊 Visual Reports
         </button>
-        <button className="btn-secondary" onClick={() => { setCurrentView('documents'); fetchAllProperties(); }} style={{ padding: '8px 16px', fontSize: '13px' }}>
-          📄 Document Verification
-        </button>
-        <button className="btn-primary" onClick={() => setCurrentPage('site-check')} style={{ padding: '8px 16px', fontSize: '13px', background: 'linear-gradient(135deg, #0ea5e9, #6366f1)' }}>
+        <button className="btn-primary" onClick={() => setCurrentPage('site-check')} style={{ padding: '8px 16px', fontSize: '13px', background: 'white', color: '#1e293b', border: '1px solid #e2e8f0' }}>
           📍 Start Site Check
         </button>
-        <button className="btn-primary" onClick={() => setCurrentView('send-message')} style={{ padding: '8px 16px', fontSize: '13px', background: '#3b82f6' }}>
+        <button className="btn-primary" onClick={() => setCurrentView('send-message')} style={{ padding: '8px 16px', fontSize: '13px', background: 'white', color: '#1e293b', border: '1px solid #e2e8f0' }}>
           📤 Send Message
         </button>
-        <button
-          className="btn-secondary"
-          onClick={() => { setSuspiciousData([]); setCurrentView('suspicious'); }}
-          style={{
-            padding: '8px 16px',
-            fontSize: '13px',
-            background: stats.suspiciousProperties > 0 ? '#fef2f2' : undefined,
-            color: stats.suspiciousProperties > 0 ? '#dc2626' : undefined,
-            borderColor: stats.suspiciousProperties > 0 ? '#fecaca' : undefined
-          }}
-        >
-          ⚠️ Suspicious Activity {stats.suspiciousProperties > 0 ? `(${stats.suspiciousProperties})` : ''}
-        </button>
         {stats.pendingAgreementRequests > 0 && (
-          <button className="btn-warning" onClick={() => setCurrentView('agreement-requests')} style={{ padding: '8px 16px', fontSize: '13px' }}>
+          <button className="btn-warning" onClick={() => setCurrentView('agreement-requests')} style={{ padding: '8px 16px', fontSize: '13px', background: 'white', color: '#1e293b', border: '1px solid #f59e0b' }}>
             🤝 Mediate Agreements ({stats.pendingAgreementRequests})
           </button>
         )}
@@ -1358,7 +1092,7 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
               </button>
             </>
           ) : (
-            <p>✅ All properties have been reviewed! <button className="btn-text" onClick={handleViewAll}>View all properties →</button></p>
+            <p>✅ All properties have been reviewed!</p>
           )}
         </div>
       </div>
@@ -1367,7 +1101,6 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
         <div className="dashboard-card">
           <div className="card-header">
             <h3>📊 Property Status Overview</h3>
-            <button className="btn-text" onClick={handleViewAll}>View All</button>
           </div>
           <div className="stats-chart">
             {[
@@ -1429,6 +1162,94 @@ const PropertyAdminDashboard = ({ user, onLogout, setCurrentPage, setViewMapProp
             </div>
             <div className="modal-body" style={{ padding: 0 }}>
               <AgreementWorkflow user={user} onLogout={onLogout} />
+            </div>
+          </div>
+        </div>
+      )}
+      {/* View Property Detail Modal */}
+      {showViewModal && selectedProperty && (
+        <div className="modal-overlay" onClick={() => setShowViewModal(false)}>
+          <div className="modal-content extra-large" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h2 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+                🏠 {selectedProperty.title}
+              </h2>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                {selectedProperty.latitude && selectedProperty.longitude && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (setViewMapPropertyId && setCurrentPage) {
+                        setViewMapPropertyId(selectedProperty.id);
+                        setCurrentPage('map-view');
+                      }
+                    }}
+                    style={{
+                      background: 'white',
+                      color: '#475569',
+                      border: 'none',
+                      padding: '6px 14px',
+                      borderRadius: '8px',
+                      fontSize: '13px',
+                      fontWeight: '600',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+                    }}
+                  >
+                    📍 View on Map
+                  </button>
+                )}
+                <button
+                  className="close-btn"
+                  onClick={() => setShowViewModal(false)}
+                  style={{ position: 'relative', top: 'auto', right: 'auto', margin: 0 }}
+                >
+                  ✕
+                </button>
+              </div>
+            </div>
+            <div className="modal-body">
+              <div className="property-detail-grid">
+                <div className="detail-section">
+                  <h3>📷 Property Images</h3>
+                  <ImageGallery images={selectedProperty.images || []} />
+                </div>
+                <div className="detail-section">
+                  <h3>ℹ️ Basic Information</h3>
+                  <div className="info-grid">
+                    <div className="info-item"><span>Price:</span> <strong>{(selectedProperty.price / 1000000).toFixed(2)}M ETB</strong></div>
+                    <div className="info-item"><span>Location:</span> <strong>{selectedProperty.location}</strong></div>
+                    <div className="info-item"><span>Type:</span> <strong>{selectedProperty.type}</strong></div>
+                    <div className="info-item"><span>Status:</span> <strong>{selectedProperty.status}</strong></div>
+                    <div className="info-item"><span>Bedrooms:</span> <strong>{selectedProperty.bedrooms}</strong></div>
+                    <div className="info-item"><span>Bathrooms:</span> <strong>{selectedProperty.bathrooms}</strong></div>
+                    <div className="info-item"><span>Area:</span> <strong>{selectedProperty.area} sqm</strong></div>
+                  </div>
+                </div>
+                <div className="detail-section full-width">
+                  <h3>📝 Description</h3>
+                  <p>{selectedProperty.description}</p>
+                </div>
+                {selectedProperty.latitude && selectedProperty.longitude && (
+                  <div className="review-section full-width" style={{ marginTop: '15px' }}>
+                    <h3>📍 Property Location Map</h3>
+                    <PropertyMap 
+                      latitude={selectedProperty.latitude} 
+                      longitude={selectedProperty.longitude} 
+                      title={selectedProperty.title} 
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="modal-actions">
+              <button className="btn-success" onClick={() => { handleQuickAction(selectedProperty.id, 'approved'); setShowViewModal(false); }}>✅ Approve</button>
+              <button className="btn-warning" onClick={() => { handleQuickAction(selectedProperty.id, 'suspended'); setShowViewModal(false); }}>⏸️ Suspend</button>
+              <button className="btn-danger" onClick={() => { handleQuickAction(selectedProperty.id, 'rejected'); setShowViewModal(false); }}>❌ Reject</button>
+              <button className="btn-secondary" onClick={() => setShowViewModal(false)}>Close</button>
             </div>
           </div>
         </div>

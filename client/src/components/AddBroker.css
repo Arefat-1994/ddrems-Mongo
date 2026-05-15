@@ -177,6 +177,21 @@
   font-style: italic;
 }
 
+.form-group.has-error input {
+  border-color: #ef4444;
+}
+
+.form-group.has-error input:focus {
+  box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+}
+
+.error-message {
+  color: #ef4444;
+  font-size: 12px;
+  margin-top: 5px;
+  display: block;
+}
+
 .credentials-box {
   background: #f8fafc;
   border: 2px solid #e2e8f0;

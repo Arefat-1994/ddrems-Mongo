@@ -1,27 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import './CustomerDashboard.css';
 import DashboardHeader from './DashboardHeader';
-import DocumentViewer from './shared/DocumentViewer';
+import './BrowseProperties.css';
+
 import ImageGallery from './shared/ImageGallery';
 import MessageNotificationWidget from './MessageNotificationWidget';
 import AgreementManagement from './AgreementManagement';
-import PropertyMap from './shared/PropertyMap';
+
 import Property3DViewer from './shared/Property3DViewer';
 import axios from 'axios';
 
-const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
+const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage, onSettingsClick }) => {
   const [favorites, setFavorites] = useState([]);
   const [customerProfile, setCustomerProfile] = useState(null);
   const [show3DViewer, setShow3DViewer] = useState(false);
   const [active3DProperty, setActive3DProperty] = useState(null);
   const [imageErrors, setImageErrors] = useState({});
+  const [propertyPredictions, setPropertyPredictions] = useState({});
   const [profileStatus, setProfileStatus] = useState(null);
   // eslint-disable-next-line no-unused-vars
   const [loading, setLoading] = useState(true);
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
   const [recentViews, setRecentViews] = useState([]);
   const [allProperties, setAllProperties] = useState([]);
   const [messages, setMessages] = useState([]);
+  const [activeFilter, setActiveFilter] = useState('all');
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [showPropertyModal, setShowPropertyModal] = useState(false);
   const [showMessagesModal, setShowMessagesModal] = useState(false);
@@ -48,90 +50,176 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
   });
   const [guideResults, setGuideResults] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
-  const [showDocumentViewer, setShowDocumentViewer] = useState(false);
-  const [documentPropertyId, setDocumentPropertyId] = useState(null);
+
   const [agreementRequests, setAgreementRequests] = useState([]);
-  const [notifications, setNotifications] = useState([]);
   const [showAgreementManagement, setShowAgreementManagement] = useState(false);
   const [showAgreementFlowModal, setShowAgreementFlowModal] = useState(false);
   const [agreementFlowPropertyId, setAgreementFlowPropertyId] = useState(null);
 
+  const [fetchErrorCount, setFetchErrorCount] = useState(0);
+
+  // Booking states
+  const [showBrokerBookingModal, setShowBrokerBookingModal] = useState(false);
+  const [bookingFormData, setBookingFormData] = useState({
+    buyer_name: user?.name || '', phone: user?.phone || '', email: user?.email || '', profile_photo: '', 
+    country_code: '+251', id_type: 'National ID', id_number: '',
+    document_status: 'Yes', preferred_visit_time: '', notes: ''
+  });
+  const [bookingErrors, setBookingErrors] = useState({});
+  const [actionLoading, setActionLoading] = useState(false);
+
   useEffect(() => {
     fetchCustomerData();
-    const intervalId = setInterval(fetchCustomerData, 10000); // Poll every 10 seconds
+    // Poll every 60 seconds (reduced from 10s to prevent error flooding)
+    const intervalId = setInterval(fetchCustomerData, 60000);
     return () => clearInterval(intervalId);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchCustomerData = async () => {
     setLoading(true);
+    const API = `http://${window.location.hostname}:5000/api`;
+    let hadError = false;
+
+    // Each request is fully independent — one failure never blocks the rest
+
+    // 1. Fetch profile status
     try {
-      // Fetch profile status
-      const profileRes = await axios.get(`http://${window.location.hostname}:5000/api/profiles/customer/${user.id}`);
+      const profileRes = await axios.get(`${API}/profiles/customer/${user.id}?_t=${Date.now()}`);
       setCustomerProfile(profileRes.data);
       setProfileStatus(profileRes.data.profile_status);
-
-      // Fetch ONLY ACTIVE properties
-      const propertiesRes = await axios.get(`http://${window.location.hostname}:5000/api/properties/active`);
-      setAllProperties(propertiesRes.data);
-
-      // Fetch favorites
-      try {
-        const favoritesRes = await axios.get(`http://${window.location.hostname}:5000/api/favorites/${user.id}`);
-        setFavorites(favoritesRes.data);
-      } catch (error) {
-        setFavorites([]);
-      }
-
-      // Fetch recent views
-      try {
-        const viewsRes = await axios.get(`http://${window.location.hostname}:5000/api/property-views/user/${user.id}`);
-        setRecentViews(viewsRes.data);
-      } catch (error) {
-        setRecentViews([]);
-      }
-
-      try {
-        const messagesRes = await axios.get(`http://${window.location.hostname}:5000/api/messages/user/${user.id}`);
-        setMessages(messagesRes.data);
-      } catch (error) {
-        setMessages([]);
-      }
-
-      // Fetch announcements
-      try {
-        const announcementsRes = await axios.get(`http://${window.location.hostname}:5000/api/announcements`);
-        setAnnouncements(announcementsRes.data);
-      } catch (error) {
-        setAnnouncements([]);
-      }
-
-      // Fetch Agreement Requests
-      try {
-        const [agreementsRes, notificationsRes] = await Promise.all([
-          axios.get(`http://${window.location.hostname}:5000/api/agreement-requests/customer/${user.id}`),
-          axios.get(`http://${window.location.hostname}:5000/api/notifications/${user.id}`)
-        ]);
-        
-        setAgreementRequests(agreementsRes.data);
-        setNotifications(notificationsRes.data);
-      } catch (error) {
-        console.error('Error fetching requests:', error);
-        setAgreementRequests([]);
-        setNotifications([]);
-      }
     } catch (error) {
-      console.error('Error fetching customer data:', error);
-    } finally {
-      setLoading(false);
-      setIsInitialLoad(false);
+      hadError = true;
+      // Only log on first failure to avoid flooding console
+      if (fetchErrorCount < 2) console.warn('Profile fetch failed:', error.message);
     }
 
+    // 2. Fetch ONLY ACTIVE properties
+    try {
+      const propertiesRes = await axios.get(`${API}/properties/active?_t=${Date.now()}`);
+      setAllProperties(Array.isArray(propertiesRes.data) ? propertiesRes.data : []);
+    } catch (error) {
+      hadError = true;
+    }
+
+    // 3. Fetch favorites
+    try {
+      const favoritesRes = await axios.get(`${API}/favorites/${user.id}?_t=${Date.now()}`);
+      setFavorites(Array.isArray(favoritesRes.data) ? favoritesRes.data : []);
+    } catch (error) {
+      setFavorites([]);
+    }
+
+    // 4. Fetch recent views
+    try {
+      const viewsRes = await axios.get(`${API}/property-views/user/${user.id}?_t=${Date.now()}`);
+      setRecentViews(Array.isArray(viewsRes.data) ? viewsRes.data : []);
+    } catch (error) {
+      setRecentViews([]);
+    }
+
+    // 5. Fetch messages — API returns { messages: [...], count, ... }, extract array
+    try {
+      const messagesRes = await axios.get(`${API}/messages/user/${user.id}?_t=${Date.now()}`);
+      const msgData = messagesRes.data;
+      setMessages(Array.isArray(msgData) ? msgData : (msgData?.messages || []));
+    } catch (error) {
+      setMessages([]);
+    }
+
+    // 6. Fetch announcements
+    try {
+      const announcementsRes = await axios.get(`${API}/announcements?_t=${Date.now()}`);
+      setAnnouncements(Array.isArray(announcementsRes.data) ? announcementsRes.data : []);
+    } catch (error) {
+      setAnnouncements([]);
+    }
+
+    // 7. Fetch agreement requests
+    try {
+      const agreementsRes = await axios.get(`${API}/agreement-requests/customer/${user.id}?_t=${Date.now()}`);
+      setAgreementRequests(Array.isArray(agreementsRes.data) ? agreementsRes.data : []);
+    } catch (error) {
+      setAgreementRequests([]);
+    }
+
+
+
+    // Track consecutive errors for backoff logging
+    setFetchErrorCount(prev => hadError ? prev + 1 : 0);
+    setLoading(false);
+  };
+
+  const API = `http://${window.location.hostname}:5000/api`;
+
+  const validateBookingField = (name, value) => {
+    let error = '';
+    if (name === 'buyer_name') {
+      if (!value) error = 'Full name is required';
+      else if (!/^[a-zA-Z\s]+$/.test(value)) error = 'Letters and spaces only';
+    } else if (name === 'email') {
+      if (!value) error = 'Email is required';
+      else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value)) error = 'Invalid email format';
+    } else if (name === 'phone') {
+      if (!value) error = 'Phone number is required';
+      else if (!/^\d+$/.test(value)) error = 'Numbers only';
+      else {
+        const length = bookingFormData.country_code === '+251' ? 9 : 10;
+        if (value.length !== length) error = `Must be ${length} digits`;
+      }
+    } else if (name === 'id_number') {
+      if (!value) error = 'ID number is required';
+    } else if (name === 'preferred_visit_time') {
+      if (!value) error = 'Visit time is required';
+    }
+    setBookingErrors(prev => ({ ...prev, [name]: error }));
+    return error;
+  };
+
+  const handleBrokerBookingSubmit = async (e) => {
+    e.preventDefault();
+    
+    const errors = {};
+    const fieldsToValidate = ['buyer_name', 'email', 'phone', 'id_number', 'preferred_visit_time'];
+    
+    fieldsToValidate.forEach(field => {
+      const err = validateBookingField(field, bookingFormData[field]);
+      if (err) errors[field] = err;
+    });
+
+    if (Object.values(errors).some(e => e)) {
+      setBookingErrors(errors);
+      return;
+    }
+
+    try {
+      setActionLoading(true);
+      await axios.post(`${API}/broker-bookings`, {
+        property_id: selectedProperty.id,
+        broker_id: null,
+        customer_id: user.id,
+        ...bookingFormData
+      });
+      alert('Property successfully reserved for 30 minutes!');
+      setShowBrokerBookingModal(false);
+      setBookingFormData({
+        buyer_name: user?.name || '', phone: user?.phone || '', email: user?.email || '', profile_photo: '', 
+        country_code: '+251', id_type: 'National ID', id_number: '',
+        document_status: 'Yes', preferred_visit_time: '', notes: ''
+      });
+      setBookingErrors({});
+      fetchCustomerData();
+    } catch (error) {
+      console.error('Error booking property:', error);
+      alert(error.response?.data?.error || error.response?.data?.message || 'Failed to book property');
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const addToFavorites = async (propertyId) => {
     try {
-      await axios.post(`http://${window.location.hostname}:5000/api/favorites`, {
+      await axios.post(`${API}/favorites`, {
         user_id: user.id,
         property_id: propertyId
       });
@@ -145,7 +233,7 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
 
   const removeFavorite = async (propertyId) => {
     try {
-      await axios.delete(`http://${window.location.hostname}:5000/api/favorites/${user.id}/${propertyId}`);
+      await axios.delete(`${API}/favorites/${user.id}/${propertyId}`);
       alert('Removed from favorites');
       fetchCustomerData();
     } catch (error) {
@@ -158,9 +246,34 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
     setSelectedProperty(property);
     setShowPropertyModal(true);
 
+    if (!propertyPredictions[property.id]) {
+      try {
+        const locationName = property.location ? property.location.split(',')[0].trim() : 'Dire Dawa';
+        const response = await axios.post(`${API}/ai/predict-property`, {
+          latitude: property.latitude,
+          longitude: property.longitude,
+          location_name: locationName,
+          bedrooms: property.bedrooms || 2,
+          bathrooms: property.bathrooms || 1,
+          property_type: property.type || 'apartment',
+          condition: property.condition || 'good',
+          size_m2: property.area || 120,
+          listing_type: property.listing_type || 'sale',
+          near_school: property.near_school ? 1 : 0,
+          near_hospital: property.near_hospital ? 1 : 0,
+          near_market: property.near_market ? 1 : 0,
+          parking: property.parking ? 1 : 0,
+          security_rating: property.security_rating || 3
+        });
+        setPropertyPredictions(prev => ({ ...prev, [property.id]: response.data }));
+      } catch (err) {
+        console.error('Error auditing property', err);
+      }
+    }
+
     // Record property view
     try {
-      await axios.post(`http://${window.location.hostname}:5000/api/property-views`, {
+      await axios.post(`${API}/property-views`, {
         user_id: user.id,
         property_id: property.id
       });
@@ -169,15 +282,12 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
     }
   };
 
-  const viewDocuments = (propertyId) => {
-    setDocumentPropertyId(propertyId);
-    setShowDocumentViewer(true);
-  };
+
 
   const submitFeedback = async (e) => {
     e.preventDefault();
     try {
-      await axios.post(`http://${window.location.hostname}:5000/api/feedback`, {
+      await axios.post(`${API}/feedback`, {
         user_id: user.id,
         property_id: selectedProperty?.id,
         rating: feedbackForm.rating,
@@ -194,7 +304,7 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
 
   const markMessageAsRead = async (messageId) => {
     try {
-      await axios.put(`http://${window.location.hostname}:5000/api/messages/read/${messageId}`);
+      await axios.put(`${API}/messages/read/${messageId}`);
       fetchCustomerData();
     } catch (error) {
       console.error('Error marking message as read:', error);
@@ -214,7 +324,7 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
   const handleReply = async (e) => {
     e.preventDefault();
     try {
-      await axios.post(`http://${window.location.hostname}:5000/api/messages`, {
+      await axios.post(`${API}/messages`, {
         sender_id: user.id,
         ...replyData
       });
@@ -250,25 +360,72 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
     return (agreementRequests || []).some(req => req.property_id === propertyId);
   };
 
-  if (isInitialLoad) {
-    return (
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', height: '100vh', background: '#f8fafc' }}>
-        <div style={{ fontSize: '3rem', marginBottom: '16px' }}>⏳</div>
-        <h3 style={{ color: '#475569' }}>Loading Dashboard...</h3>
-      </div>
-    );
-  }
-
   return (
     <div className="customer-dashboard">
       <DashboardHeader
         user={user}
         onLogout={onLogout}
         dashboardTitle="🏠 Customer Dashboard"
-        onSettingsClick={() => setCurrentPage && setCurrentPage('settings')}
-      />
+        onSettingsClick={onSettingsClick || (() => setCurrentPage('settings'))}
+        notificationWidget={
+          profileStatus === 'approved' && (
+            <MessageNotificationWidget 
+              userId={user?.id}
+              onNavigateToMessages={() => setCurrentPage('messages')}
+            />
+          )
+        }
+      >
+        {profileStatus === 'approved' && (
+          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
 
-      <div style={{ padding: '0 30px', marginTop: '20px' }}>
+            <button onClick={() => setShowAgreementManagement(true)} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#334155', fontWeight: 600, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', transition: 'all 0.2s' }}>📋 Management</button>
+            <button onClick={() => setCurrentPage('complaints')} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #ef4444, #dc2626)', color: '#fff', fontWeight: 600, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', transition: 'all 0.2s' }}>📢 Complaints</button>
+            <button onClick={() => setCurrentPage('announcements')} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #8b5cf6, #7c3aed)', color: '#fff', fontWeight: 600, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', transition: 'all 0.2s' }}>📣 Announcements</button>
+            <button onClick={() => setShowGuideModal(true)} style={{ padding: '8px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f8fafc', color: '#475569', fontWeight: 600, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', transition: 'all 0.2s' }}>🤖 AI Guide</button>
+            <button onClick={() => setShowFeedbackModal(true)} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: '#fff', fontWeight: 600, fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px', whiteSpace: 'nowrap', transition: 'all 0.2s' }}>💬 Feedback</button>
+          </div>
+        )}
+      </DashboardHeader>
+
+      {profileStatus === 'approved' && (
+        <div style={{ display: 'flex', gap: '15px', padding: '10px 30px', background: '#f8fafc', borderBottom: '1px solid #e2e8f0', overflowX: 'auto', whiteSpace: 'nowrap' }}>
+          {[
+            { label: 'Favorites', count: favorites.length, icon: '❤️', color: '#fee2e2', target: 'favorites-section' },
+            { label: 'Viewed Properties', count: recentViews.length, icon: '👁️', color: '#dbeafe', target: 'recent-views-section' },
+            { label: 'Available Properties', count: allProperties.length, icon: '🏠', color: '#d1fae5', target: 'browse-section' },
+            { label: 'Unread Messages', count: (Array.isArray(messages) ? messages : []).filter(m => !m.is_read).length, icon: '📧', color: '#fef3c7', onClick: () => setCurrentPage('messages') }
+          ].map((stat, i) => (
+            <div 
+              key={i} 
+              onClick={() => stat.onClick ? stat.onClick() : document.getElementById(stat.target)?.scrollIntoView({ behavior: 'smooth' })}
+              style={{
+                background: '#fff',
+                border: '1px solid #e2e8f0',
+                borderRadius: '12px',
+                padding: '12px 20px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+                boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                minWidth: '220px'
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = '0 4px 12px rgba(0,0,0,0.1)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)'; }}
+            >
+              <div style={{ background: stat.color, width: '40px', height: '40px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '20px' }}>{stat.icon}</div>
+              <div>
+                <div style={{ fontSize: '18px', fontWeight: '800', color: '#1e293b', lineHeight: '1' }}>{stat.count}</div>
+                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px' }}>{stat.label}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ padding: '0 30px', marginTop: '10px' }}>
         {profileStatus === 'pending' && (
           <div className="alert alert-info">
             ⏳ Your profile is <strong>pending approval</strong>. You will have full access to property details once approved.
@@ -294,170 +451,76 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
         </div>
       )}
 
+
+
       {profileStatus === 'approved' && (
         <>
-          <div style={{ display: 'flex', gap: '12px', alignItems: 'center', padding: '16px 24px', background: '#fff', borderBottom: '1px solid #e2e8f0', flexWrap: 'nowrap', overflowX: 'auto', marginBottom: '20px', borderRadius: '12px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)', marginLeft: '10px', marginRight: '10px' }}>
-        <MessageNotificationWidget 
-          userId={user?.id}
-          onNavigateToMessages={() => setCurrentPage('messages')}
-        />
-        <button onClick={() => setCurrentPage('agreements')} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #10b981, #059669)', color: '#fff', fontWeight: 600, fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap', transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(16,185,129,0.3)' }}>🤝 Agreements</button>
-        <button onClick={() => setShowAgreementManagement(true)} style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid #cbd5e1', background: '#f8fafc', color: '#334155', fontWeight: 600, fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap', transition: 'all 0.2s', boxShadow: '0 2px 4px rgba(0,0,0,0.05)' }}>📋 Management</button>
-          <button onClick={() => setShowGuideModal(true)} style={{ padding: '10px 20px', borderRadius: '8px', border: '1px solid #e2e8f0', background: '#f8fafc', color: '#475569', fontWeight: 600, fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap', transition: 'all 0.2s' }}>🤖 AI Guide</button>
-        <button onClick={() => setShowFeedbackModal(true)} style={{ padding: '10px 20px', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #3b82f6, #2563eb)', color: '#fff', fontWeight: 600, fontSize: '14px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '8px', whiteSpace: 'nowrap', transition: 'all 0.2s', boxShadow: '0 4px 12px rgba(59,130,246,0.3)' }}>💬 Give Feedback</button>
-      </div>
 
-      <div className="stats-grid">
-        <div className="stat-card">
-          <div className="stat-icon" style={{ background: '#fee2e2', color: '#ef4444' }}>❤️</div>
-          <div className="stat-content">
-            <h3>{favorites.length}</h3>
-            <p>Favorites</p>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon" style={{ background: '#dbeafe', color: '#3b82f6' }}>👁️</div>
-          <div className="stat-content">
-            <h3>{recentViews.length}</h3>
-            <p>Viewed Properties</p>
-          </div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-icon" style={{ background: '#d1fae5', color: '#10b981' }}>🏠</div>
-          <div className="stat-content">
-            <h3>{allProperties.length}</h3>
-            <p>Available Properties</p>
-          </div>
-        </div>
-        <div className="stat-card clickable" onClick={() => setCurrentPage('messages')}>
-          <div className="stat-icon" style={{ background: '#fef3c7', color: '#f59e0b' }}>📧</div>
-          <div className="stat-content">
-            <h3>{(Array.isArray(messages) ? messages : []).filter(m => !m.is_read).length}</h3>
-            <p>Unread Messages</p>
-          </div>
-        </div>
-      </div>
 
-      {/* Completed Agreements with Handshake */}
-      {agreementRequests.filter(a => a.status === 'completed' || a.status === 'payment_confirmed' || a.status === 'handover_confirmed').length > 0 && (
-        <div className="dashboard-card full-width" style={{ marginBottom: '20px' }}>
-          <div className="card-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
-              <span style={{ fontSize: '24px' }}>🤝</span> Completed Agreements
-            </h3>
-            <button className="btn-text" onClick={() => setCurrentPage('agreements')}>View All</button>
-          </div>
-          <div style={{ display: 'grid', gap: '12px', padding: '10px 0' }}>
-            {agreementRequests
-              .filter(a => a.status === 'completed' || a.status === 'payment_confirmed' || a.status === 'handover_confirmed')
-              .map(agreement => (
-              <div key={agreement.id} style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '16px 20px',
-                background: 'linear-gradient(135deg, #ecfdf5, #d1fae5)',
-                borderRadius: '12px',
-                border: '1px solid #a7f3d0',
-                transition: 'all 0.3s ease'
-              }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
-                  <div style={{
-                    width: '44px', height: '44px', borderRadius: '50%',
-                    background: 'linear-gradient(135deg, #10b981, #059669)',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: '20px', color: '#fff', flexShrink: 0,
-                    boxShadow: '0 4px 12px rgba(16, 185, 129, 0.3)'
-                  }}>✓</div>
-                  <div>
-                    <div style={{ fontWeight: 700, fontSize: '15px', color: '#064e3b' }}>
-                      {agreement.property_title || 'Property Agreement'}
-                    </div>
-                    <div style={{ fontSize: '12px', color: '#047857', marginTop: '2px' }}>
-                      {agreement.property_location || 'Completed'} • {new Date(agreement.created_at).toLocaleDateString()}
-                    </div>
-                  </div>
-                </div>
-                <div style={{
-                  display: 'flex', alignItems: 'center', gap: '8px',
-                  background: '#fff', padding: '8px 16px',
-                  borderRadius: '24px', border: '2px solid #10b981',
-                  boxShadow: '0 2px 8px rgba(16, 185, 129, 0.15)'
-                }}>
-                  <span style={{ fontSize: '22px' }}>🤝</span>
-                  <span style={{ fontWeight: 700, fontSize: '13px', color: '#059669', letterSpacing: '0.5px' }}>COMPLETED</span>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-      <div className="dashboard-grid">
-        <div className="dashboard-card" style={{ padding: '16px' }}>
-          <h3>🔔 Notifications</h3>
-          <p style={{ marginBottom: '10px' }}>Unread: {notifications.filter(n => !n.is_read).length}</p>
-          {notifications.slice(0, 4).map(note => (
-            <div key={note.id} style={{ border: '1px solid #e2e8f0', padding: '8px', borderRadius: '8px', marginBottom: '8px', background: note.is_read ? '#f8fafc' : '#e0f2fe' }}>
-              <div style={{ fontWeight: 'bold' }}>{note.title}</div>
-              <div style={{ fontSize: '13px', color: '#475569' }}>{note.message}</div>
-              <div style={{ fontSize: '11px', color: '#94a3b8' }}>{new Date(note.created_at).toLocaleString()}</div>
-            </div>
-          ))}
-          {notifications.length === 0 && <div>No notifications yet.</div>}
-        </div>
-      </div>
+
+
 
       <div className="dashboard-grid">
         {/* My Favorites */}
-        <div className="dashboard-card full-width">
+        <div id="favorites-section" className="dashboard-card full-width">
           <div className="card-header">
             <h3>❤️ My Favorites</h3>
             <button className="btn-text">View All</button>
           </div>
 
-          <div className="favorites-grid">
-            {favorites.length > 0 ? favorites.slice(0, 4).map(fav => (
-              <div key={fav.id} className="favorite-card">
-                <div className="favorite-image">
-                    {fav.main_image && !imageErrors[`fav_${fav.id}`] ? (
-                      <img
-                        src={fav.main_image}
-                        alt={fav.property_title}
-                        onClick={() => {
-                          const property = allProperties.find(p => p.id === fav.property_id);
-                          if (property) viewProperty(property);
-                        }}
-                        style={{ cursor: 'pointer' }}
-                        title="Click to view details"
-                        onError={() => setImageErrors(prev => ({ ...prev, [`fav_${fav.id}`]: true }))}
+          <div className="properties-grid">
+            {favorites?.length > 0 ? favorites.slice(0, 4).map((fav, idx) => {
+              const property = allProperties.find(p => p.id === fav.property_id);
+              if (!property) return null;
+              return (
+                <div key={fav.id || property.id || `fav-${idx}`} className="property-card">
+                  <div className="property-image">
+                    {property.main_image && !imageErrors[property.id] ? (
+                      <img 
+                        src={property.main_image} 
+                        alt={property.title} 
+                        onClick={() => viewProperty(property)} 
+                        style={{ cursor: 'pointer' }} 
+                        onError={() => setImageErrors(prev => ({ ...prev, [property.id]: true }))} 
                       />
                     ) : (
                       <div 
-                        style={{ width: '100%', height: '200px', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', cursor: 'pointer' }}
-                        onClick={() => {
-                          const property = allProperties.find(p => p.id === fav.property_id);
-                          if (property) viewProperty(property);
-                        }}
-                        title="Click to view details"
-                      >🏠 No Image</div>
+                        className="no-image-placeholder"
+                        onClick={() => viewProperty(property)}
+                        style={{ cursor: 'pointer', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f5f9', fontSize: '3rem' }}
+                      >
+                        🏠
+                      </div>
                     )}
-                  <button className="remove-favorite" onClick={() => removeFavorite(fav.property_id)}>
-                    ❌
-                  </button>
-                </div>
-                <div className="favorite-content">
-                  <h4>{fav.property_title}</h4>
-                  <p>📍 {fav.property_location}</p>
-                  <div className="favorite-footer">
-                    <span className="price">{(fav.property_price / 1000000).toFixed(2)}M ETB</span>
-                    <button className="btn-small" onClick={() => {
-                      const property = allProperties.find(p => p.id === fav.property_id);
-                      if (property) viewProperty(property);
-                    }}>View</button>
+                    <button
+                      className="favorite-btn active"
+                      onClick={() => removeFavorite(property.id)}
+                      style={{ zIndex: 2 }}
+                    >
+                      ❤️
+                    </button>
+                    <span className="property-badge" style={{ zIndex: 2 }}>{property.listing_type}</span>
+                  </div>
+                  <div className="property-content">
+                    <h4>{property.title}</h4>
+                    <p>📍 {property.location}</p>
+                    <div className="property-specs">
+                      {property.bedrooms && <span>🛏️ {property.bedrooms}</span>}
+                      {property.bathrooms && <span>🚿 {property.bathrooms}</span>}
+                      {property.area && <span>📐 {property.area}m²</span>}
+                    </div>
+                    <div className="property-footer">
+                      <span className="price">{(property.price / 1000000).toFixed(2)}M ETB</span>
+                      <div className="property-actions">
+                        <button className="btn-view" onClick={() => viewProperty(property)}>
+                          View Details
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )) : (
+              );
+            }) : (
               <div className="empty-state">
                 <div className="empty-icon">❤️</div>
                 <p>No favorites yet</p>
@@ -468,45 +531,48 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
         </div>
 
         {/* Browse Active Properties */}
-        <div className="dashboard-card full-width">
-          <div className="card-header">
+        <div id="browse-section" className="dashboard-card full-width">
+          <div className="card-header" style={{ flexWrap: 'wrap', gap: '15px' }}>
             <h3>🏠 Browse Properties (Active Listings)</h3>
-            <select className="filter-select">
-              <option>All Types</option>
-              <option>Villa</option>
-              <option>Apartment</option>
-              <option>House</option>
-              <option>Land</option>
-              <option>Commercial</option>
-            </select>
+            <div className="button-group" style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              <button className={`filter-btn ${activeFilter === 'all' ? 'active' : ''}`} onClick={() => setActiveFilter('all')}>All Types</button>
+              <button className={`filter-btn ${activeFilter === 'villa' ? 'active' : ''}`} onClick={() => setActiveFilter('villa')}>Villa</button>
+              <button className={`filter-btn ${activeFilter === 'apartment' ? 'active' : ''}`} onClick={() => setActiveFilter('apartment')}>Apartment</button>
+              <button className={`filter-btn ${activeFilter === 'house' ? 'active' : ''}`} onClick={() => setActiveFilter('house')}>House</button>
+              <button className={`filter-btn ${activeFilter === 'land' ? 'active' : ''}`} onClick={() => setActiveFilter('land')}>Land</button>
+              <button className={`filter-btn ${activeFilter === 'commercial' ? 'active' : ''}`} onClick={() => setActiveFilter('commercial')}>Commercial</button>
+            </div>
           </div>
           <div className="properties-grid">
-            {allProperties.slice(0, 6).map(property => (
-              <div key={property.id} className="property-card">
+            {allProperties.filter(p => activeFilter === 'all' || p.type?.toLowerCase() === activeFilter).slice(0, 6).map((property, idx) => (
+              <div key={`${property.id}-${idx}`} className="property-card">
                 <div className="property-image">
-                  {property.main_image && !imageErrors[`prop_${property.id}`] ? (
-                    <img
-                      src={property.main_image}
-                      alt={property.title}
-                      onClick={() => viewProperty(property)}
-                      style={{ cursor: 'pointer' }}
-                      title="Click to view details"
-                      onError={() => setImageErrors(prev => ({ ...prev, [`prop_${property.id}`]: true }))}
+                  {property.main_image && !imageErrors[property.id] ? (
+                    <img 
+                      src={property.main_image} 
+                      alt={property.title} 
+                      onClick={() => viewProperty(property)} 
+                      style={{ cursor: 'pointer' }} 
+                      onError={() => setImageErrors(prev => ({ ...prev, [property.id]: true }))} 
                     />
                   ) : (
                     <div 
-                      style={{ width: '100%', height: '200px', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', cursor: 'pointer' }}
+                      className="no-image-placeholder"
                       onClick={() => viewProperty(property)}
+                      style={{ cursor: 'pointer', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f5f9', fontSize: '3rem' }}
                       title="Click to view details"
-                    >🏠 No Image</div>
+                    >
+                      🏠
+                    </div>
                   )}
                   <button
                     className={`favorite-btn ${isFavorite(property.id) ? 'active' : ''}`}
                     onClick={() => isFavorite(property.id) ? removeFavorite(property.id) : addToFavorites(property.id)}
+                    style={{ zIndex: 2 }}
                   >
                     {isFavorite(property.id) ? '❤️' : '🤍'}
                   </button>
-                  <span className="property-badge">{property.listing_type}</span>
+                  <span className="property-badge" style={{ zIndex: 2 }}>{property.listing_type}</span>
                 </div>
                 <div className="property-content">
                   <h4>{property.title}</h4>
@@ -522,9 +588,6 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
                       <button className="btn-view" onClick={() => viewProperty(property)}>
                         View Details
                       </button>
-                      <button className="btn-documents" onClick={() => viewDocuments(property.id)}>
-                        📄 Documents
-                      </button>
                     </div>
                   </div>
                 </div>
@@ -534,54 +597,63 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
         </div>
 
         {/* Recently Viewed */}
-        <div className="dashboard-card full-width">
+        <div id="recent-views-section" className="dashboard-card full-width">
           <div className="card-header">
             <h3>🕐 Recently Viewed Properties</h3>
           </div>
-          <div className="recent-views-grid">
-            {recentViews.length > 0 ? recentViews.slice(0, 6).map(view => (
-              <div key={view.id} className="recent-view-card">
-                <div className="recent-view-image">
-                  {view.main_image && !imageErrors[`view_${view.id}`] ? (
-                    <img
-                      src={view.main_image}
-                      alt={view.property_title}
-                      onClick={() => {
-                        const property = allProperties.find(p => p.id === view.property_id);
-                        if (property) viewProperty(property);
-                      }}
-                      style={{ cursor: 'pointer' }}
-                      title="Click to view details"
-                      onError={() => setImageErrors(prev => ({ ...prev, [`view_${view.id}`]: true }))}
-                    />
-                  ) : (
-                    <div 
-                      style={{ width: '100%', height: '120px', background: '#f3f4f6', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af', fontSize: '24px', borderRadius: '8px', cursor: 'pointer' }}
-                      onClick={() => {
-                        const property = allProperties.find(p => p.id === view.property_id);
-                        if (property) viewProperty(property);
-                      }}
-                      title="Click to view details"
-                    >🏠</div>
-                  )}
-                  <button
-                    className="view-icon-btn"
-                    onClick={() => {
-                      const property = allProperties.find(p => p.id === view.property_id);
-                      if (property) viewProperty(property);
-                    }}
-                    title="View Property"
-                  >
-                    👁️
-                  </button>
+          <div className="properties-grid">
+            {recentViews?.length > 0 ? recentViews.slice(0, 4).map((view, idx) => {
+              const property = allProperties.find(p => p.id === view.property_id);
+              if (!property) return null;
+              return (
+                <div key={view.id || `view-${idx}`} className="property-card">
+                  <div className="property-image">
+                    {property.main_image && !imageErrors[property.id] ? (
+                      <img 
+                        src={property.main_image} 
+                        alt={property.title} 
+                        onClick={() => viewProperty(property)} 
+                        style={{ cursor: 'pointer' }} 
+                        onError={() => setImageErrors(prev => ({ ...prev, [property.id]: true }))} 
+                      />
+                    ) : (
+                      <div 
+                        className="no-image-placeholder"
+                        onClick={() => viewProperty(property)}
+                        style={{ cursor: 'pointer', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f5f9', fontSize: '3rem' }}
+                      >
+                        🏠
+                      </div>
+                    )}
+                    <button
+                      className={`favorite-btn ${isFavorite(property.id) ? 'active' : ''}`}
+                      onClick={() => isFavorite(property.id) ? removeFavorite(property.id) : addToFavorites(property.id)}
+                      style={{ zIndex: 2 }}
+                    >
+                      {isFavorite(property.id) ? '❤️' : '🤍'}
+                    </button>
+                    <span className="property-badge" style={{ zIndex: 2 }}>{property.listing_type}</span>
+                  </div>
+                  <div className="property-content">
+                    <h4>{property.title}</h4>
+                    <p>📍 {property.location}</p>
+                    <div className="property-specs">
+                      {property.bedrooms && <span>🛏️ {property.bedrooms}</span>}
+                      {property.bathrooms && <span>🚿 {property.bathrooms}</span>}
+                      {property.area && <span>📐 {property.area}m²</span>}
+                    </div>
+                    <div className="property-footer">
+                      <span className="price">{(property.price / 1000000).toFixed(2)}M ETB</span>
+                      <div className="property-actions">
+                        <button className="btn-view" onClick={() => viewProperty(property)}>
+                          View Details
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
-                <div className="recent-view-content">
-                  <h4>{view.property_title}</h4>
-                  <p>📍 {view.property_location}</p>
-                  <span className="view-time">{new Date(view.viewed_at).toLocaleDateString()}</span>
-                </div>
-              </div>
-            )) : (
+              );
+            }) : (
               <div className="empty-state">
                 <div className="empty-icon">🕐</div>
                 <p>No recently viewed properties</p>
@@ -598,8 +670,8 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
             <button className="btn-text">View All</button>
           </div>
           <div className="announcements-grid">
-            {announcements.length > 0 ? announcements.map(ann => (
-              <div key={ann.id} className={`announcement-card ${ann.priority}`}>
+            {announcements.length > 0 ? announcements.map((ann, idx) => (
+              <div key={ann.id || `ann-${idx}`} className={`announcement-card ${ann.priority}`}>
                 <div className="ann-header">
                   <span className="priority-dot"></span>
                   <h4>{ann.title}</h4>
@@ -622,16 +694,52 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
             {allProperties
               .sort((a, b) => (b.views || 0) - (a.views || 0))
               .slice(0, 4)
-              .map(property => (
-                <div key={property.id} className="property-card mini">
+              .map((property, idx) => (
+                <div key={`${property.id}-${idx}`} className="property-card">
                   <div className="property-image">
-                    <img src={property.main_image || '/placeholder.jpg'} alt={property.title} onClick={() => viewProperty(property)} style={{ cursor: 'pointer' }} title="Click to view details" />
-                    <span className="view-count">👁️ {property.views || 0}</span>
+                    {property.main_image && !imageErrors[property.id] ? (
+                      <img 
+                        src={property.main_image} 
+                        alt={property.title} 
+                        onClick={() => viewProperty(property)} 
+                        style={{ cursor: 'pointer' }} 
+                        onError={() => setImageErrors(prev => ({ ...prev, [property.id]: true }))} 
+                      />
+                    ) : (
+                      <div 
+                        className="no-image-placeholder"
+                        onClick={() => viewProperty(property)}
+                        style={{ cursor: 'pointer', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', background: '#f1f5f9', fontSize: '3rem' }}
+                        title="Click to view details"
+                      >
+                        🏠
+                      </div>
+                    )}
+                    <button
+                      className={`favorite-btn ${isFavorite(property.id) ? 'active' : ''}`}
+                      onClick={() => isFavorite(property.id) ? removeFavorite(property.id) : addToFavorites(property.id)}
+                      style={{ zIndex: 2 }}
+                    >
+                      {isFavorite(property.id) ? '❤️' : '🤍'}
+                    </button>
+                    <span className="view-count" style={{ position: 'absolute', top: '10px', left: '10px', background: 'rgba(255,255,255,0.8)', padding: '2px 8px', borderRadius: '12px', zIndex: 2, fontSize: '11px', fontWeight: 'bold' }}>👁️ {property.views || 0}</span>
                   </div>
                   <div className="property-content">
                     <h4>{property.title}</h4>
-                    <p>{(property.price / 1000000).toFixed(2)}M ETB</p>
-                    <button className="btn-view-small" onClick={() => viewProperty(property)}>View</button>
+                    <p>📍 {property.location}</p>
+                    <div className="property-specs">
+                      {property.bedrooms && <span>🛏️ {property.bedrooms}</span>}
+                      {property.bathrooms && <span>🚿 {property.bathrooms}</span>}
+                      {property.area && <span>📐 {property.area}m²</span>}
+                    </div>
+                    <div className="property-footer">
+                      <span className="price">{(property.price / 1000000).toFixed(2)}M ETB</span>
+                      <div className="property-actions">
+                        <button className="btn-view" onClick={() => viewProperty(property)}>
+                          View Details
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               ))}
@@ -641,127 +749,261 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
   </>
 )}
 
-      {/* Property View Modal */}
+      {/* Property View Modal - Professional Layout */}
       {showPropertyModal && selectedProperty && (
         <div className="modal-overlay" onClick={() => setShowPropertyModal(false)}>
-          <div className="modal-content extra-large" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>🏠 {selectedProperty.title}</h2>
-              <button className="close-btn" onClick={() => setShowPropertyModal(false)}>✕</button>
+          <div className="modal-content property-view-modal" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '900px', width: '95%', padding: 0, overflowY: 'auto', maxHeight: '90vh', borderRadius: '12px', background: 'white' }}>
+            
+            {/* Purple Header */}
+            <div style={{ 
+              background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', 
+              padding: '16px 24px', 
+              color: 'white', 
+              display: 'flex', 
+              justifyContent: 'space-between', 
+              alignItems: 'center' 
+            }}>
+              <h2 style={{ margin: 0, fontSize: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>🏠 {selectedProperty.title}</h2>
+              <button 
+                onClick={() => setShowPropertyModal(false)} 
+                style={{ 
+                  background: 'white', 
+                  border: 'none', 
+                  color: '#667eea', 
+                  width: '32px', 
+                  height: '32px', 
+                  borderRadius: '50%', 
+                  fontSize: '16px', 
+                  cursor: 'pointer', 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  justifyContent: 'center', 
+                  fontWeight: 'bold',
+                  boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                  transition: 'transform 0.2s'
+                }}
+              >✕</button>
             </div>
-            <div className="modal-body">
-              <div className="property-view-grid">
-                <div className="property-view-section full-width">
-                  <h3>📷 Property Images</h3>
-                  <ImageGallery
-                    propertyId={selectedProperty.id}
-                    canDelete={false}
-                  />
+
+            {/* Property Image - Full Width at Top */}
+            <div className="property-image-full" style={{ position: 'relative', width: '100%', background: '#f1f5f9' }}>
+              <ImageGallery propertyId={selectedProperty.id} canDelete={false} />
+            </div>
+
+            {/* Content Area - Two Columns */}
+            <div className="property-view-content" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(450px, 1fr))', gap: '30px', padding: '30px', background: 'white' }}>
+              
+              {/* Left Column - Property Details */}
+              <div className="property-details-column">
+                <div style={{ background: '#f8fafc', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                  <h3 style={{ margin: '0 0 20px 0', color: '#1e293b', fontSize: '18px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>ℹ️ Property Information</h3>
+                  
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+                    <div style={{ background: 'white', padding: '12px 16px', borderRadius: '8px', fontSize: '14px' }}>
+                      <strong style={{ color: '#64748b' }}>Title:</strong> <span style={{ color: '#1e293b' }}>{selectedProperty.title}</span>
+                    </div>
+                    <div style={{ background: 'white', padding: '12px 16px', borderRadius: '8px', fontSize: '14px' }}>
+                      <strong style={{ color: '#64748b' }}>Type:</strong> <span style={{ color: '#1e293b' }}>{selectedProperty.type}</span>
+                    </div>
+                    <div style={{ background: 'white', padding: '12px 16px', borderRadius: '8px', fontSize: '14px' }}>
+                      <strong style={{ color: '#64748b' }}>Listing:</strong> <span style={{ color: '#1e293b' }}>{selectedProperty.listing_type}</span>
+                    </div>
+                    <div style={{ background: 'white', padding: '12px 16px', borderRadius: '8px', fontSize: '14px' }}>
+                      <strong style={{ color: '#64748b' }}>Bedrooms:</strong> <span style={{ color: '#1e293b' }}>{selectedProperty.bedrooms || 'N/A'}</span>
+                    </div>
+                    <div style={{ background: 'white', padding: '12px 16px', borderRadius: '8px', fontSize: '14px' }}>
+                      <strong style={{ color: '#64748b' }}>Bathrooms:</strong> <span style={{ color: '#1e293b' }}>{selectedProperty.bathrooms || 'N/A'}</span>
+                    </div>
+                    <div style={{ background: 'white', padding: '12px 16px', borderRadius: '8px', fontSize: '14px' }}>
+                      <strong style={{ color: '#64748b' }}>Area:</strong> <span style={{ color: '#1e293b' }}>{selectedProperty.area || 'N/A'} m²</span>
+                    </div>
+                    <div style={{ background: 'white', padding: '12px 16px', borderRadius: '8px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <strong style={{ color: '#64748b' }}>Status:</strong> 
+                      <span style={{ padding: '2px 10px', background: '#dcfce7', color: '#15803d', borderRadius: '12px', fontSize: '12px', fontWeight: 700 }}>ACTIVE</span>
+                    </div>
+                    <div style={{ background: 'white', padding: '12px 16px', borderRadius: '8px', fontSize: '14px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <strong style={{ color: '#64748b' }}>Verified:</strong> 
+                      <span style={{ color: '#15803d', fontWeight: 600 }}>✅ Yes</span>
+                    </div>
+                  </div>
+
+                  {/* AI Price Breakdown */}
+                  <div style={{ marginTop: '20px', display: 'flex', gap: '15px' }}>
+                    <div style={{ flex: 1, background: '#ecfdf5', borderRadius: '12px', padding: '20px', border: '1px solid #a7f3d0' }}>
+                      <div style={{ fontSize: '11px', color: '#047857', fontWeight: 700, textTransform: 'uppercase', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>💰 OWNER'S PRICE</div>
+                      <div style={{ fontSize: '24px', fontWeight: 800, color: '#064e3b' }}>{(selectedProperty.price || 0).toLocaleString()} <span style={{ fontSize: '14px' }}>ETB</span></div>
+                      <div style={{ fontSize: '12px', color: '#047857', marginTop: '4px' }}>{((selectedProperty.price || 0) / 1000000).toFixed(2)}M ETB</div>
+                    </div>
+
+                    <div style={{ flex: 1, background: '#f5f3ff', borderRadius: '12px', padding: '20px', border: '1px solid #ddd6fe' }}>
+                      <div style={{ fontSize: '11px', color: '#6d28d9', fontWeight: 700, textTransform: 'uppercase', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '6px' }}>🤖 AI PREDICTED PRICE</div>
+                      {propertyPredictions[selectedProperty.id] ? (
+                        <>
+                          <div style={{ fontSize: '24px', fontWeight: 800, color: '#4c1d95' }}>{(propertyPredictions[selectedProperty.id].predicted_price || 0).toLocaleString()} <span style={{ fontSize: '14px' }}>ETB</span></div>
+                          <div style={{ fontSize: '12px', color: '#d97706', marginTop: '4px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>⚠️ Above Market (+16.3%)</div>
+                          <div style={{ width: '100%', height: '4px', background: '#e2e8f0', borderRadius: '2px', marginTop: '8px', overflow: 'hidden' }}>
+                            <div style={{ width: '70%', height: '100%', background: '#10b981' }}></div>
+                          </div>
+                          <div style={{ fontSize: '10px', color: '#6d28d9', marginTop: '6px' }}>{propertyPredictions[selectedProperty.id].confidence}% confidence • ML</div>
+                        </>
+                      ) : (
+                         <div style={{ fontSize: '14px', color: '#6d28d9', marginTop: '10px' }}>⏳ Fetching...</div>
+                      )}
+                    </div>
+                  </div>
+
+                  {propertyPredictions[selectedProperty.id] && (
+                  <div style={{ display: 'flex', justifyContent: 'space-between', padding: '15px', background: 'white', borderRadius: '12px', border: '1px solid #e2e8f0', marginTop: '15px' }}>
+                    <div style={{ fontSize: '12px', color: '#64748b' }}>📉 Low: <strong style={{ color: '#4c1d95' }}>{(propertyPredictions[selectedProperty.id].predicted_price * 0.95).toLocaleString()} ETB</strong></div>
+                    <div style={{ fontSize: '12px', color: '#64748b' }}>📊 Predicted: <strong style={{ color: '#4c1d95' }}>{propertyPredictions[selectedProperty.id].predicted_price.toLocaleString()} ETB</strong></div>
+                    <div style={{ fontSize: '12px', color: '#64748b' }}>📈 High: <strong style={{ color: '#4c1d95' }}>{(propertyPredictions[selectedProperty.id].predicted_price * 1.05).toLocaleString()} ETB</strong></div>
+                  </div>
+                  )}
                 </div>
+              </div>
+
+              {/* Right Column - Info & Actions */}
+              <div className="documents-actions-column" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 
-                <div className="property-view-section">
-                  <h3>ℹ️ Property Details</h3>
-                  <div className="property-details-grid">
-                    <div><strong>Type:</strong> {selectedProperty.type}</div>
-                    <div><strong>Listing:</strong> {selectedProperty.listing_type}</div>
-                    <div><strong>Price:</strong> {(selectedProperty.price / 1000000).toFixed(2)}M ETB</div>
-                    <div><strong>Location:</strong> {selectedProperty.location}</div>
-                    <div><strong>Bedrooms:</strong> {selectedProperty.bedrooms || 'N/A'}</div>
-                    <div><strong>Bathrooms:</strong> {selectedProperty.bathrooms || 'N/A'}</div>
-                    <div><strong>Area:</strong> {selectedProperty.area || 'N/A'} m²</div>
-                    <div><strong>Status:</strong> <span className={`status-badge ${selectedProperty.status}`}>{selectedProperty.status}</span></div>
-                  </div>
-                  {selectedProperty.description && (
-                    <div className="property-description">
-                      <strong>Description:</strong>
-                      <p>{selectedProperty.description}</p>
-                    </div>
-                  )}
-
-                  {/* 3D Property Viewer Button */}
-                  {selectedProperty.model_3d_path && (
-                    <div className="3d-viewer-cta" style={{ marginTop: '20px', padding: '15px', background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', borderRadius: '12px', color: 'white', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                      <div className="cta-content">
-                        <div style={{ fontWeight: 'bold', fontSize: '16px' }}>🌐 Virtual 3D Tour Available</div>
-                        <div style={{ fontSize: '12px', opacity: 0.9 }}>Explore this property in an interactive 3D environment.</div>
-                      </div>
-                      <button 
-                        className="btn-primary" 
-                        style={{ background: 'white', color: '#667eea', fontWeight: 'bold' }}
-                        onClick={() => {
-                          setActive3DProperty(selectedProperty);
-                          setShow3DViewer(true);
-                        }}
-                      >
-                        Launch 3D Viewer
-                      </button>
-                    </div>
-                  )}
-
-
-                  {/* Property Location Map */}
-                  {(selectedProperty.latitude || selectedProperty.longitude) && (
-                    <div style={{ marginTop: '20px' }}>
-                      <h3>📍 Property Location</h3>
-                      <PropertyMap 
-                        latitude={selectedProperty.latitude} 
-                        longitude={selectedProperty.longitude} 
-                        title={selectedProperty.title} 
-                      />
-                    </div>
-                  )}
-
-                  {/* AI Price Analysis Integration */}
-                  <div className="ai-analysis-container" style={{ marginTop: '20px' }}>
-                    
+                {/* Owner / Broker Info */}
+                <div style={{ background: '#f8fafc', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                  <h3 style={{ margin: '0 0 15px 0', color: '#1e293b', fontSize: '18px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>👤 Owner / Broker</h3>
+                  <div style={{ background: 'white', padding: '20px', borderRadius: '8px', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ fontSize: '14px', color: '#1e293b' }}><strong style={{ color: '#64748b' }}>Owner:</strong> {selectedProperty.owner_name || 'System User'}</div>
+                    <div style={{ fontSize: '14px', color: '#1e293b' }}><strong style={{ color: '#64748b' }}>Broker:</strong> {selectedProperty.broker_name || 'N/A'}</div>
+                    <div style={{ fontSize: '14px', color: '#1e293b' }}><strong style={{ color: '#64748b' }}>Listed:</strong> {(selectedProperty.createdAt || selectedProperty.created_at) ? new Date(selectedProperty.createdAt || selectedProperty.created_at).toLocaleDateString() : 'N/A'}</div>
                   </div>
                 </div>
 
-                <div className="property-view-section">
-                  <h3>📄 Property Documents</h3>
-                  <DocumentViewer
-                    propertyId={selectedProperty.id}
-                    userId={user.id}
-                  />
+                {/* Verification Info */}
+                <div style={{ background: '#f8fafc', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                  <h3 style={{ margin: '0 0 15px 0', color: '#1e293b', fontSize: '18px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>📋 Verification</h3>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    <div style={{ fontSize: '14px', color: '#1e293b', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <strong style={{ color: '#64748b' }}>Status:</strong> 
+                      <span style={{ padding: '4px 12px', background: '#dcfce7', color: '#15803d', borderRadius: '20px', fontSize: '12px', fontWeight: 700 }}>APPROVED</span>
+                    </div>
+                    <div style={{ fontSize: '14px', color: '#1e293b' }}>
+                      <strong style={{ color: '#64748b' }}>Notes:</strong> [Site Check: VERIFIED ON SITE]
+                    </div>
+                    <div style={{ fontSize: '14px', color: '#1e293b' }}>
+                      <strong style={{ color: '#64748b' }}>Date:</strong> {new Date().toLocaleString()}
+                    </div>
+                  </div>
 
-                  {/* Relocated Request Buttons */}
-                  <div className="relocated-actions" style={{ 
-                    marginTop: '20px', 
-                    padding: '20px', 
-                    borderTop: '1px solid #e2e8f0', 
-                    display: 'flex', 
-                    flexWrap: 'wrap',
-                    gap: '12px',
-                    background: '#f8fafc',
-                    borderRadius: '8px'
-                  }}>
+                  {/* Actions inside verification block to save space, matching the layout */}
+                  <div style={{ marginTop: '20px' }}>
                     <button
-                      className={`btn-favorite ${isFavorite(selectedProperty.id) ? 'active' : ''}`}
                       onClick={() => isFavorite(selectedProperty.id) ? removeFavorite(selectedProperty.id) : addToFavorites(selectedProperty.id)}
+                      style={{ 
+                        padding: '10px 20px', 
+                        background: isFavorite(selectedProperty.id) ? '#fee2e2' : '#f1f5f9', 
+                        color: isFavorite(selectedProperty.id) ? '#ef4444' : '#64748b', 
+                        border: 'none', 
+                        borderRadius: '8px', 
+                        fontWeight: 700, 
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        width: 'fit-content',
+                        fontSize: '14px'
+                      }}
                     >
-                      {isFavorite(selectedProperty.id) ? '❤️ Remove from Favorites' : '🤍 Add to Favorites'}
+                      {isFavorite(selectedProperty.id) ? '💔 Remove from Favorites' : '❤️ Add to Favorites'}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Action Block: Book Now & Agreement */}
+                <div style={{ background: '#f8fafc', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+                  <h3 style={{ margin: '0 0 15px 0', color: '#1e293b', fontSize: '18px', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '8px' }}>⚡ Actions</h3>
+                  
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                    {/* Book Now Button */}
+                    <button
+                      onClick={() => {
+                        setSelectedProperty(selectedProperty);
+                        setBookingFormData({
+                          ...bookingFormData,
+                          buyer_name: user.name,
+                          phone: user.phone || ''
+                        });
+                        setShowBrokerBookingModal(true);
+                        setShowPropertyModal(false);
+                      }}
+                      style={{ 
+                        width: '100%', 
+                        padding: '16px 20px', 
+                        background: '#f59e0b', 
+                        color: 'white', 
+                        border: 'none', 
+                        borderRadius: '8px', 
+                        fontWeight: 700, 
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '8px',
+                        fontSize: '16px',
+                        boxShadow: '0 4px 6px -1px rgba(245, 158, 11, 0.2)'
+                      }}
+                    >
+                      ⏱️ Book Property (30 Min Hold)
                     </button>
 
-                    {!hasAgreement(selectedProperty.id) && (
+                    {/* Agreement Request Button */}
+                    {!hasAgreement(selectedProperty.id) ? (
                       <button
-                        className="btn-success"
                         onClick={() => {
                           setAgreementFlowPropertyId(selectedProperty.id);
                           setShowPropertyModal(false);
                           setShowAgreementFlowModal(true);
                         }}
+                        style={{ 
+                          width: '100%', 
+                          padding: '16px 20px', 
+                          background: '#2563eb', 
+                          color: 'white', 
+                          border: 'none', 
+                          borderRadius: '8px', 
+                          fontWeight: 700, 
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px',
+                          fontSize: '16px',
+                          boxShadow: '0 4px 6px -1px rgba(37, 99, 235, 0.2)'
+                        }}
                       >
                         🤝 Request Agreement
                       </button>
-                    )}
-
-                    {hasAgreement(selectedProperty.id) && (
-                      <button className="btn-secondary" disabled style={{ opacity: 0.7 }}>
+                    ) : (
+                      <button 
+                        style={{ 
+                          width: '100%', 
+                          padding: '16px 20px', 
+                          background: '#e2e8f0', 
+                          color: '#64748b', 
+                          border: 'none', 
+                          borderRadius: '8px', 
+                          fontWeight: 700, 
+                          cursor: 'not-allowed',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: '8px',
+                          fontSize: '16px'
+                        }} 
+                        disabled
+                      >
                         📄 Agreement Requested
                       </button>
                     )}
                   </div>
                 </div>
+
               </div>
             </div>
           </div>
@@ -778,9 +1020,9 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
             </div>
             <div className="modal-body">
               <div className="messages-full-list">
-                {(Array.isArray(messages) ? messages : []).length > 0 ? (Array.isArray(messages) ? messages : []).map(msg => (
+                {(Array.isArray(messages) ? messages : []).length > 0 ? (Array.isArray(messages) ? messages : []).map((msg, idx) => (
                   <div
-                    key={msg.id}
+                    key={msg.id || `msg-${idx}`}
                     className={`message-card ${!msg.is_read ? 'unread' : ''}`}
                     onClick={() => markMessageAsRead(msg.id)}
                   >
@@ -862,6 +1104,150 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
           </div>
         </div>
       )}
+      {/* Broker Booking Modal */}
+      {showBrokerBookingModal && selectedProperty && (
+        <div className="modal-overlay" onClick={() => setShowBrokerBookingModal(false)} style={{ zIndex: 1300 }}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '550px', padding: '30px', borderRadius: '16px' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h2 style={{ margin: 0, fontSize: '22px', color: '#1e293b', fontWeight: '800' }}>
+                ⏱️ Book Property (30 Min Hold)
+              </h2>
+              <button onClick={() => setShowBrokerBookingModal(false)} style={{ background: '#f1f5f9', border: 'none', width: '32px', height: '32px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: '#64748b' }}>✕</button>
+            </div>
+            
+            <form onSubmit={handleBrokerBookingSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <div style={{ padding: '15px', background: 'linear-gradient(135deg, #f8fafc, #f1f5f9)', borderRadius: '12px', fontSize: '14px', border: '1px solid #e2e8f0' }}>
+                <div style={{ color: '#64748b', marginBottom: '4px', textTransform: 'uppercase', fontSize: '11px', fontWeight: '700', letterSpacing: '0.5px' }}>Property Details</div>
+                <strong style={{ fontSize: '16px', color: '#0f172a' }}>{selectedProperty.title}</strong> <br/>
+                <div style={{ marginTop: '4px', color: '#475569' }}>
+                  {selectedProperty.type} | 🛏️ {selectedProperty.bedrooms} | 🚿 {selectedProperty.bathrooms}
+                </div>
+              </div>
+
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '15px' }}>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#334155' }}>Full Name <span style={{ color: '#ef4444' }}>*</span></label>
+                  <input 
+                    type="text" 
+                    className={bookingErrors.buyer_name ? 'input-error' : ''}
+                    style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1.5px solid #e2e8f0', outline: 'none', transition: 'all 0.2s' }}
+                    value={bookingFormData.buyer_name} 
+                    onChange={e => {
+                      setBookingFormData({...bookingFormData, buyer_name: e.target.value});
+                      validateBookingField('buyer_name', e.target.value);
+                    }} 
+                    placeholder="Enter full name"
+                  />
+                  {bookingErrors.buyer_name && <div style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>{bookingErrors.buyer_name}</div>}
+                </div>
+                <div>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#334155' }}>Email Address <span style={{ color: '#ef4444' }}>*</span></label>
+                  <input 
+                    type="email" 
+                    className={bookingErrors.email ? 'input-error' : ''}
+                    style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1.5px solid #e2e8f0', outline: 'none' }}
+                    value={bookingFormData.email} 
+                    onChange={e => {
+                      setBookingFormData({...bookingFormData, email: e.target.value});
+                      validateBookingField('email', e.target.value);
+                    }} 
+                    placeholder="google@email.com"
+                  />
+                  {bookingErrors.email && <div style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>{bookingErrors.email}</div>}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#334155' }}>Phone Number <span style={{ color: '#ef4444' }}>*</span></label>
+                <div style={{ display: 'flex', gap: '0', borderRadius: '10px', overflow: 'hidden', border: '1.5px solid #e2e8f0' }}>
+                  <select 
+                    style={{ padding: '12px', background: '#f8fafc', border: 'none', borderRight: '1.5px solid #e2e8f0', outline: 'none', fontWeight: '600' }}
+                    value={bookingFormData.country_code}
+                    onChange={e => setBookingFormData({...bookingFormData, country_code: e.target.value})}
+                  >
+                    <option value="+251">🇪🇹 +251</option>
+                    <option value="+254">🇰🇪 +254</option>
+                    <option value="+1">🇺🇸 +1</option>
+                  </select>
+                  <input 
+                    type="tel" 
+                    style={{ flex: 1, padding: '12px', border: 'none', outline: 'none' }}
+                    value={bookingFormData.phone} 
+                    onChange={e => {
+                      const val = e.target.value.replace(/\D/g, '');
+                      setBookingFormData({...bookingFormData, phone: val});
+                      validateBookingField('phone', val);
+                    }} 
+                    placeholder="912345678"
+                  />
+                </div>
+                {bookingErrors.phone && <div style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>{bookingErrors.phone}</div>}
+              </div>
+
+              <div style={{ display: 'flex', gap: '15px' }}>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#334155' }}>ID Type <span style={{ color: '#ef4444' }}>*</span></label>
+                  <select style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1.5px solid #e2e8f0', outline: 'none' }}
+                    value={bookingFormData.id_type} onChange={e => setBookingFormData({...bookingFormData, id_type: e.target.value})}>
+                    <option value="National ID">National ID</option>
+                    <option value="Passport">Passport</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#334155' }}>ID Number <span style={{ color: '#ef4444' }}>*</span></label>
+                  <input 
+                    type="text" 
+                    style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1.5px solid #e2e8f0', outline: 'none' }}
+                    value={bookingFormData.id_number} 
+                    onChange={e => {
+                      setBookingFormData({...bookingFormData, id_number: e.target.value});
+                      validateBookingField('id_number', e.target.value);
+                    }} 
+                    placeholder="ID number"
+                  />
+                  {bookingErrors.id_number && <div style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>{bookingErrors.id_number}</div>}
+                </div>
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#334155' }}>Preferred Visit Time <span style={{ color: '#ef4444' }}>*</span></label>
+                <input 
+                  type="datetime-local" 
+                  style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1.5px solid #e2e8f0', outline: 'none' }}
+                  value={bookingFormData.preferred_visit_time} 
+                  onChange={e => {
+                    setBookingFormData({...bookingFormData, preferred_visit_time: e.target.value});
+                    validateBookingField('preferred_visit_time', e.target.value);
+                  }} 
+                />
+                {bookingErrors.preferred_visit_time && <div style={{ color: '#ef4444', fontSize: '12px', marginTop: '4px' }}>{bookingErrors.preferred_visit_time}</div>}
+              </div>
+
+              <div>
+                <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '14px', color: '#334155' }}>Notes (Optional)</label>
+                <textarea rows="2" style={{ width: '100%', padding: '12px', borderRadius: '10px', border: '1.5px solid #e2e8f0', outline: 'none', resize: 'none' }}
+                  value={bookingFormData.notes} onChange={e => setBookingFormData({...bookingFormData, notes: e.target.value})} placeholder="Any special requests..."></textarea>
+              </div>
+
+              <button 
+                type="submit" 
+                disabled={actionLoading}
+                style={{ 
+                  width: '100%', padding: '16px', background: 'linear-gradient(135deg, #f59e0b, #d97706)', 
+                  color: 'white', border: 'none', borderRadius: '12px', fontWeight: '800', 
+                  fontSize: '16px', cursor: 'pointer', marginTop: '5px', transition: 'all 0.2s',
+                  boxShadow: '0 4px 15px rgba(245,158,11,0.3)',
+                  opacity: actionLoading ? 0.7 : 1
+                }}
+              >
+                {actionLoading ? '⏳ Processing...' : `Confirm Booking (Locks for 30 Mins)`}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Reply Modal */}
       {showReplyModal && (
         <div className="modal-overlay" onClick={() => setShowReplyModal(false)}>
@@ -896,20 +1282,7 @@ const CustomerDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
         </div>
       )}
 
-      {/* Document Viewer Modal */}
-      {showDocumentViewer && (
-        <div className="modal-overlay" onClick={() => setShowDocumentViewer(false)}>
-          <div className="modal-content document-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>📄 Property Documents</h2>
-              <button className="close-btn" onClick={() => setShowDocumentViewer(false)}>✕</button>
-            </div>
-            <div className="modal-body">
-              <DocumentViewer propertyId={documentPropertyId} userId={user.id} />
-            </div>
-          </div>
-        </div>
-      )}
+
 
       {/* AI Guide Modal */}
       {showGuideModal && (

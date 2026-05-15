@@ -39,11 +39,6 @@ const Properties = ({ user, onLogout, viewMode = "all", setCurrentPage, setViewM
   });
   const [bookingErrors, setBookingErrors] = useState({});
 
-  const [showVideoUploadModal, setShowVideoUploadModal] = useState(false);
-  const [videoUploadProperty, setVideoUploadProperty] = useState(null);
-  const [videoUploadProgress, setVideoUploadProgress] = useState(0);
-  const [videoUploadType, setVideoUploadType] = useState('file'); // 'file' or 'link'
-  const [videoLink, setVideoLink] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
 
   // AI Price Prediction state
@@ -143,7 +138,7 @@ const Properties = ({ user, onLogout, viewMode = "all", setCurrentPage, setViewM
         user?.role === "admin" ||
         user?.role === "property_admin"
       ) {
-        endpoint = `${API_BASE}/properties/all-with-status`;
+        endpoint = `${API_BASE}/properties`;
       } else if (viewMode === "my" && user?.role === "owner") {
         endpoint = `${API_BASE}/properties/owner/${user.id}`;
       } else if (viewMode === "my" && user?.role === "broker") {
@@ -309,57 +304,7 @@ const Properties = ({ user, onLogout, viewMode = "all", setCurrentPage, setViewM
 
 
 
-  const handleVideoUpload = async (e) => {
-    const file = e.target.files[0];
-    if (!file) return;
 
-    if (file.size > 10 * 1024 * 1024) {
-      alert('Video file is too large. Maximum size is 10MB.');
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append('video', file);
-
-    try {
-      setVideoUploadProgress(1);
-      const API_BASE = `http://${window.location.hostname}:5000/api`;
-      await axios.put(`${API_BASE}/properties/${videoUploadProperty.id}/video`, formData, {
-        onUploadProgress: (progressEvent) => {
-          const percentCompleted = Math.round((progressEvent.loaded * 100) / progressEvent.total);
-          setVideoUploadProgress(percentCompleted);
-        }
-      });
-      alert('✅ Video uploaded successfully!');
-      setShowVideoUploadModal(false);
-      fetchProperties();
-    } catch (error) {
-      console.error('Video upload error:', error);
-      alert('❌ Failed to upload video: ' + (error.response?.data?.message || 'Server error'));
-    } finally {
-      setVideoUploadProgress(0);
-    }
-  };
-
-  const handleVideoLinkSubmit = async (e) => {
-    e.preventDefault();
-    if (!videoLink) return;
-
-    try {
-      setActionLoading(true);
-      const API_BASE = `http://${window.location.hostname}:5000/api`;
-      await axios.put(`${API_BASE}/properties/${videoUploadProperty.id}/video-link`, { video_url: videoLink });
-      alert('✅ Video link updated successfully!');
-      setShowVideoUploadModal(false);
-      setVideoLink('');
-      fetchProperties();
-    } catch (error) {
-      console.error('Video link update error:', error);
-      alert('❌ Failed to update video link');
-    } finally {
-      setActionLoading(false);
-    }
-  };
 
   const filteredProperties = properties.filter((property) => {
     const matchesSearch =
@@ -463,8 +408,8 @@ const Properties = ({ user, onLogout, viewMode = "all", setCurrentPage, setViewM
       </div>
 
       <div className="properties-grid">
-        {filteredProperties.map((property) => (
-          <div key={property.id} className="property-card">
+        {filteredProperties.map((property, idx) => (
+          <div key={`${property.id}-${idx}`} className="property-card">
             <div className="property-image">
               {renderPropertyImage(property)}
               <span
@@ -513,19 +458,7 @@ const Properties = ({ user, onLogout, viewMode = "all", setCurrentPage, setViewM
                   >
                     👁️
                   </button>
-                  {user?.role === "owner" && (
-                    <button
-                      className="btn-icon"
-                      title="Upload Video"
-                      onClick={() => {
-                        setVideoUploadProperty(property);
-                        setShowVideoUploadModal(true);
-                      }}
-                      style={{ color: '#8b5cf6' }}
-                    >
-                      🎥
-                    </button>
-                  )}
+
                   {(user?.role === "property_admin" || user?.role === "system_admin") &&
                     property.latitude && property.longitude && (
                     <button
@@ -847,9 +780,9 @@ const Properties = ({ user, onLogout, viewMode = "all", setCurrentPage, setViewM
                     </p>
                     <p>
                       <strong>Listed:</strong>{" "}
-                      {new Date(
-                        selectedProperty.created_at,
-                      ).toLocaleDateString()}
+                      {(selectedProperty.createdAt || selectedProperty.created_at) ? new Date(
+                        selectedProperty.createdAt || selectedProperty.created_at,
+                      ).toLocaleDateString() : 'N/A'}
                     </p>
                   </div>
                   {propertyDetail && propertyDetail.verification && (
@@ -1299,96 +1232,7 @@ const Properties = ({ user, onLogout, viewMode = "all", setCurrentPage, setViewM
       )}
 
 
-      {/* Video Upload Modal */}
-      {showVideoUploadModal && videoUploadProperty && (
-        <div className="modal-overlay" onClick={() => setShowVideoUploadModal(false)} style={{ zIndex: 1300 }}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()} style={{ maxWidth: '500px', padding: '30px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
-              <h2 style={{ margin: 0, fontSize: '20px', color: '#1e293b' }}>📹 Property Video Tour</h2>
-              <button onClick={() => setShowVideoUploadModal(false)} style={{ background: 'none', border: 'none', fontSize: '20px', cursor: 'pointer' }}>✕</button>
-            </div>
 
-            <div style={{ display: 'flex', gap: '10px', marginBottom: '20px', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px' }}>
-              <button 
-                onClick={() => setVideoUploadType('file')}
-                style={{ 
-                  flex: 1, padding: '10px', borderRadius: '8px', border: 'none', 
-                  background: videoUploadType === 'file' ? '#3b82f6' : '#f1f5f9',
-                  color: videoUploadType === 'file' ? 'white' : '#64748b',
-                  fontWeight: 'bold', cursor: 'pointer'
-                }}
-              >
-                📁 Upload File
-              </button>
-              <button 
-                onClick={() => setVideoUploadType('link')}
-                style={{ 
-                  flex: 1, padding: '10px', borderRadius: '8px', border: 'none', 
-                  background: videoUploadType === 'link' ? '#3b82f6' : '#f1f5f9',
-                  color: videoUploadType === 'link' ? 'white' : '#64748b',
-                  fontWeight: 'bold', cursor: 'pointer'
-                }}
-              >
-                🔗 Video Link
-              </button>
-            </div>
-
-            {videoUploadType === 'file' ? (
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                <p style={{ fontSize: '14px', color: '#64748b' }}>Select a video file from your computer. Max size: <strong>10MB</strong>.</p>
-                <div style={{ position: 'relative' }}>
-                  <input 
-                    type="file" 
-                    accept="video/*" 
-                    onChange={handleVideoUpload}
-                    style={{ 
-                      width: '100%', padding: '40px 20px', border: '2px dashed #cbd5e1', 
-                      borderRadius: '12px', textAlign: 'center', cursor: 'pointer'
-                    }}
-                  />
-                  {videoUploadProgress > 0 && (
-                    <div style={{ marginTop: '15px' }}>
-                      <div style={{ height: '8px', background: '#e2e8f0', borderRadius: '4px', overflow: 'hidden' }}>
-                        <div style={{ width: `${videoUploadProgress}%`, height: '100%', background: '#3b82f6', transition: 'width 0.3s ease' }} />
-                      </div>
-                      <p style={{ fontSize: '12px', textAlign: 'center', marginTop: '5px' }}>Uploading: {videoUploadProgress}%</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : (
-              <form onSubmit={handleVideoLinkSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '15px' }}>
-                <p style={{ fontSize: '14px', color: '#64748b' }}>Provide a direct link to the property video (e.g., YouTube, Vimeo, or Cloud link).</p>
-                <input 
-                  type="url" 
-                  required 
-                  placeholder="https://example.com/video.mp4"
-                  value={videoLink}
-                  onChange={(e) => setVideoLink(e.target.value)}
-                  style={{ width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid #cbd5e1' }}
-                />
-                <button 
-                  type="submit" 
-                  disabled={actionLoading}
-                  style={{ 
-                    width: '100%', padding: '12px', background: '#3b82f6', color: 'white', 
-                    border: 'none', borderRadius: '8px', fontWeight: 'bold', cursor: 'pointer',
-                    opacity: actionLoading ? 0.7 : 1
-                  }}
-                >
-                  {actionLoading ? 'Saving...' : 'Save Video Link'}
-                </button>
-              </form>
-            )}
-
-            <div style={{ marginTop: '20px', padding: '15px', background: '#fff7ed', borderRadius: '10px', border: '1px solid #ffedd5' }}>
-              <p style={{ fontSize: '12px', color: '#9a3412', margin: 0 }}>
-                💡 <strong>Note:</strong> This video will be used during the media release phase of agreements. Ensure it provides a clear tour of the property.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

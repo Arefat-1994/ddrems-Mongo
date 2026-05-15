@@ -9,20 +9,54 @@ const AddBroker = ({ onClose, onSuccess }) => {
     phone: '',
     password: 'admin123'
   });
+  const [errors, setErrors] = useState({});
   const [submitting, setSubmitting] = useState(false);
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
+  const validateForm = () => {
+    const newErrors = {};
     
-    if (!formData.name || !formData.email || !formData.phone) {
-      alert('❌ Please fill in all required fields');
-      return;
+    // Name validation
+    if (!formData.name.trim()) {
+      newErrors.name = 'Full name is required';
+    } else if (formData.name.trim().length < 3) {
+      newErrors.name = 'Name must be at least 3 characters long';
+    } else if (!/^[a-zA-Z\s]+$/.test(formData.name)) {
+      newErrors.name = 'Name should only contain letters and spaces';
     }
 
     // Email validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(formData.email)) {
-      alert('❌ Please enter a valid email address');
+    if (!formData.email) {
+      newErrors.email = 'Email address is required';
+    } else if (!emailRegex.test(formData.email)) {
+      newErrors.email = 'Please enter a valid email address';
+    }
+
+    // Phone validation
+    if (!formData.phone) {
+      newErrors.phone = 'Phone number is required';
+    } else {
+      const cleanPhone = formData.phone.replace(/\s/g, '');
+      if (!/^(\+251|0)9[0-9]{8}$/.test(cleanPhone)) {
+        newErrors.phone = 'Enter a valid Ethiopian phone number (09... or +2519...)';
+      }
+    }
+
+    // Password validation
+    if (!formData.password) {
+      newErrors.password = 'Initial password is required';
+    } else if (formData.password.length < 6) {
+      newErrors.password = 'Password must be at least 6 characters long';
+    }
+
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    
+    if (!validateForm()) {
       return;
     }
 
@@ -89,7 +123,7 @@ The broker can now login and complete their profile.`);
               </div>
             </div>
 
-            <div className="form-group">
+            <div className={`form-group ${errors.name ? 'has-error' : ''}`}>
               <label>Full Name *</label>
               <input
                 type="text"
@@ -98,9 +132,10 @@ The broker can now login and complete their profile.`);
                 placeholder="Enter broker's full name"
                 required
               />
+              {errors.name && <span className="error-message">{errors.name}</span>}
             </div>
 
-            <div className="form-group">
+            <div className={`form-group ${errors.email ? 'has-error' : ''}`}>
               <label>Email Address *</label>
               <input
                 type="email"
@@ -109,9 +144,10 @@ The broker can now login and complete their profile.`);
                 placeholder="broker@example.com"
                 required
               />
+              {errors.email && <span className="error-message">{errors.email}</span>}
             </div>
 
-            <div className="form-group">
+            <div className={`form-group ${errors.phone ? 'has-error' : ''}`}>
               <label>Phone Number *</label>
               <input
                 type="tel"
@@ -120,9 +156,10 @@ The broker can now login and complete their profile.`);
                 placeholder="+251912345678"
                 required
               />
+              {errors.phone && <span className="error-message">{errors.phone}</span>}
             </div>
 
-            <div className="form-group">
+            <div className={`form-group ${errors.password ? 'has-error' : ''}`}>
               <label>Initial Password</label>
               <input
                 type="text"
@@ -130,6 +167,7 @@ The broker can now login and complete their profile.`);
                 onChange={(e) => setFormData({ ...formData, password: e.target.value })}
                 placeholder="Default: admin123"
               />
+              {errors.password && <span className="error-message">{errors.password}</span>}
               <small className="form-hint">
                 The broker can change this password after first login
               </small>

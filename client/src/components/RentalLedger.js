@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import axios from "axios";
 import "./RentalLedger.css";
 
@@ -42,7 +42,6 @@ const scheduleBadgeStyle = (s) => {
 
 const RentalLedger = ({ user }) => {
   const [payments, setPayments] = useState([]);
-  const [grouped, setGrouped] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showPayModal, setShowPayModal] = useState(false);
   const [showVerifyModal, setShowVerifyModal] = useState(false);
@@ -65,44 +64,55 @@ const RentalLedger = ({ user }) => {
   const fetchPayments = useCallback(async () => {
     try {
       setLoading(true);
-      let res;
-      if (isAdmin) {
-        res = await axios.get(`${API}/rental-payments/admin/all`);
-        setPayments(res.data.payments || []);
-        // Group admin view by property
-        const g = {};
-        for (const pay of (res.data.payments || [])) {
-          const key = pay.property_id;
-          if (!g[key]) {
-            g[key] = {
-              property_id: pay.property_id,
-              property_title: pay.property_title,
-              property_location: pay.property_location,
-              tenant_name: pay.tenant_name,
-              owner_name: pay.owner_name,
-              payment_schedule: pay.payment_schedule || "monthly",
-              lease_duration_months: pay.lease_duration_months,
-              installments: []
-            };
-          }
-          g[key].installments.push(pay);
-        }
-        setGrouped(Object.values(g));
-      } else if (isOwner) {
-        res = await axios.get(`${API}/rental-payments/owner/${user.id}`);
-        setPayments(res.data.payments || []);
-        setGrouped(res.data.grouped || []);
-      } else {
-        res = await axios.get(`${API}/rental-payments/tenant/${user.id}`);
-        setPayments(res.data.payments || []);
-        setGrouped(res.data.grouped || []);
-      }
+      const endpoint = isAdmin ? `${API}/rental-payments/admin/all` : 
+                       isOwner ? `${API}/rental-payments/owner/${user.id}` : 
+                       `${API}/rental-payments/tenant/${user.id}`;
+      const res = await axios.get(endpoint);
+      setPayments(res.data.payments || []);
     } catch (err) {
       console.error("Error fetching rental payments:", err);
     } finally {
       setLoading(false);
     }
-  }, [user, isAdmin, isOwner]);
+  }, [user?.id, isAdmin, isOwner]);
+
+  // Derived Grouped Data
+  const grouped = useMemo(() => {
+    const g = {};
+    for (const pay of payments) {
+      const key = pay.property_id;
+      if (!g[key]) {
+        g[key] = {
+          property_id: pay.property_id,
+          property_title: pay.property_title,
+          property_location: pay.property_location,
+          tenant_name: pay.tenant_name,
+          owner_name: pay.owner_name,
+          payment_schedule: pay.payment_schedule || "monthly",
+          lease_duration_months: pay.lease_duration_months,
+          installments: []
+        };
+      }
+      g[key].installments.push(pay);
+    }
+    return Object.values(g);
+  }, [payments]);
+
+  // Summary stats
+  const stats = useMemo(() => {
+    const totalInstallments = payments.length;
+    let paidCount = 0, pendingCount = 0, overdueCount = 0, submittedCount = 0, totalPaid = 0, totalDue = 0;
+    
+    payments.forEach(p => {
+      const amt = Number(p.amount || 0);
+      if (p.status === "paid") { paidCount++; totalPaid += amt; }
+      else if (p.status === "pending") { pendingCount++; totalDue += amt; }
+      else if (p.status === "overdue") { overdueCount++; totalDue += amt; }
+      else if (p.status === "submitted") submittedCount++;
+    });
+
+    return { totalInstallments, paidCount, pendingCount, overdueCount, submittedCount, totalPaid, totalDue };
+  }, [payments]);
 
   useEffect(() => {
     if (user) {
@@ -110,15 +120,6 @@ const RentalLedger = ({ user }) => {
       fetchBankAccounts();
     }
   }, [user, fetchPayments, fetchBankAccounts]);
-
-  // Summary stats
-  const totalInstallments = payments.length;
-  const paidCount = payments.filter(p => p.status === "paid").length;
-  const pendingCount = payments.filter(p => p.status === "pending").length;
-  const overdueCount = payments.filter(p => p.status === "overdue").length;
-  const submittedCount = payments.filter(p => p.status === "submitted").length;
-  const totalPaid = payments.filter(p => p.status === "paid").reduce((s, p) => s + Number(p.amount), 0);
-  const totalDue = payments.filter(p => ["pending", "overdue"].includes(p.status)).reduce((s, p) => s + Number(p.amount), 0);
 
   // ── Pay Modal ──
   const openPayModal = (payment) => {
@@ -239,38 +240,38 @@ const RentalLedger = ({ user }) => {
         <div className="ledger-stats-row">
           <div className="stat-pill total-pill">
             <span className="pill-icon">📊</span>
-            <span className="pill-value">{totalInstallments}</span>
+            <span className="pill-value">{stats.totalInstallments}</span>
             <span className="pill-label">Total</span>
           </div>
           <div className="stat-pill paid-pill">
             <span className="pill-icon">✅</span>
-            <span className="pill-value">{paidCount}</span>
+            <span className="pill-value">{stats.paidCount}</span>
             <span className="pill-label">Paid</span>
           </div>
           <div className="stat-pill submitted-pill">
             <span className="pill-icon">📤</span>
-            <span className="pill-value">{submittedCount}</span>
+            <span className="pill-value">{stats.submittedCount}</span>
             <span className="pill-label">Awaiting</span>
           </div>
           <div className="stat-pill pending-pill">
             <span className="pill-icon">⏳</span>
-            <span className="pill-value">{pendingCount}</span>
+            <span className="pill-value">{stats.pendingCount}</span>
             <span className="pill-label">Pending</span>
           </div>
           <div className="stat-pill overdue-pip">
             <span className="pill-icon">🔴</span>
-            <span className="pill-value">{overdueCount}</span>
+            <span className="pill-value">{stats.overdueCount}</span>
             <span className="pill-label">Overdue</span>
           </div>
           <div className="stat-divider"></div>
           <div className="stat-pill money-paid-pill">
             <span className="pill-icon">💰</span>
-            <span className="pill-value">{totalPaid.toLocaleString()}</span>
+            <span className="pill-value">{stats.totalPaid.toLocaleString()}</span>
             <span className="pill-label">Paid (ETB)</span>
           </div>
           <div className="stat-pill money-due-pill">
             <span className="pill-icon">📋</span>
-            <span className="pill-value">{totalDue.toLocaleString()}</span>
+            <span className="pill-value">{stats.totalDue.toLocaleString()}</span>
             <span className="pill-label">Due (ETB)</span>
           </div>
         </div>
@@ -280,11 +281,11 @@ const RentalLedger = ({ user }) => {
       {grouped.length === 0 && (
         <div className="empty-state">
           <div className="empty-icon">📭</div>
-          <p><strong>No rental payments found</strong></p>
+          <p><strong>No rental schedule found</strong></p>
           <p style={{ fontSize: "0.85rem" }}>
-            {isTenant && "Rental payment schedules will appear here once your lease is active."}
-            {isOwner && "Tenant payment schedules will appear here for your rental properties."}
-            {isAdmin && "No rental payment schedules have been created yet."}
+            {isTenant && "No rental payment schedules have been generated for you yet."}
+            {isOwner && "No tenant payment schedules exist for your properties yet."}
+            {isAdmin && "No rental payment schedules exist in the system yet."}
           </p>
         </div>
       )}
@@ -496,15 +497,15 @@ const RentalLedger = ({ user }) => {
             {selectedPayment.receipt_url && (
               <div style={{ marginBottom: 16 }}>
                 <p style={{ fontSize: 13, fontWeight: "bold", marginBottom: 6 }}>Receipt / Proof of Payment:</p>
-                <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, overflow: "hidden", background: "#f8fafc" }}>
+                <div style={{ border: "1px solid #e2e8f0", borderRadius: 8, overflowY: "auto", maxHeight: "400px", background: "#f8fafc" }}>
                   {(() => {
                     const url = selectedPayment.receipt_url.startsWith('http') || selectedPayment.receipt_url.startsWith('data:') 
                       ? selectedPayment.receipt_url 
                       : `${API.replace('/api', '')}${selectedPayment.receipt_url}`;
                     if (url.startsWith('data:application/pdf') || url.toLowerCase().endsWith('.pdf')) {
-                      return <iframe src={url} style={{ width: "100%", height: "250px", border: "none" }} title="Receipt" />;
+                      return <iframe src={url} style={{ width: "100%", height: "400px", border: "none" }} title="Receipt" />;
                     } else {
-                      return <img src={url} alt="Receipt" style={{ width: "100%", maxHeight: "250px", objectFit: "contain", display: "block" }} />;
+                      return <img src={url} alt="Receipt" style={{ width: "100%", height: "auto", display: "block" }} />;
                     }
                   })()}
                 </div>

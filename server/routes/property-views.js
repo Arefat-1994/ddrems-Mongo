@@ -16,9 +16,18 @@ router.get('/user/:userId', async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(req.params.userId)) return res.json([]);
     const views = await PropertyViews.aggregate([
       { $match: { user_id: new mongoose.Types.ObjectId(req.params.userId) } },
-      { $lookup: { from: 'properties', localField: 'property_id', foreignField: '_id', as: 'property' } },
-      { $unwind: '$property' },
+      { $lookup: { 
+        from: 'properties', 
+        let: { propId: '$property_id' },
+        pipeline: [
+          { $match: { $expr: { $eq: ['$_id', '$$propId'] } } },
+          { $project: { title: 1, location: 1, price: 1, main_image: 1 } }
+        ],
+        as: 'property' 
+      } },
+      { $unwind: { path: '$property', preserveNullAndEmptyArrays: true } },
       { $addFields: { id: '$_id', property_title: '$property.title', property_location: '$property.location', property_price: '$property.price', main_image: '$property.main_image' } },
+      { $project: { property: 0 } },
       { $sort: { viewed_at: -1 } },
       { $limit: 10 }
     ]);

@@ -337,9 +337,7 @@ const SiteCheckAdmin = ({ user }) => {
             <span style={{ color: '#64748b', fontSize: '14px' }}>{legalDocs.length} document(s) found</span>
           </div>
 
-          {loading ? (
-            <div className="sca-empty"><div className="empty-icon">⏳</div><h3>Loading...</h3></div>
-          ) : legalDocs.length === 0 ? (
+          {legalDocs.length === 0 ? (
             <div className="sca-empty">
               <div className="empty-icon">📄</div>
               <h3>No Legal Documents</h3>

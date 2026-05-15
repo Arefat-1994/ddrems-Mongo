@@ -40,7 +40,7 @@ import AgreementWorkflow from './components/AgreementWorkflow';
 import BrokerEngagement from './components/BrokerEngagement';
 import Favorites from './components/Favorites';
 import MyBookings from './components/MyBookings';
-import UserSettings from './components/UserSettings';
+
 import Complaints from './components/Complaints';
 import ComplaintsAdmin from './components/ComplaintsAdmin';
 import IdleTimeoutWrapper from './components/IdleTimeoutWrapper';
@@ -158,6 +158,19 @@ function App() {
         if (user.role === 'owner') return <OwnerDashboard user={user} onLogout={handleLogout} setCurrentPage={navigateToPage} setViewMapPropertyId={setViewMapPropertyId} onSettingsClick={() => navigateToPage('settings')} />;
         if (user.role === 'user') return <CustomerDashboard user={user} onLogout={handleLogout} setCurrentPage={navigateToPage} setViewMapPropertyId={setViewMapPropertyId} onSettingsClick={() => navigateToPage('settings')} />;
         return <Dashboard user={user} onLogout={handleLogout} setCurrentPage={navigateToPage} setViewMapPropertyId={setViewMapPropertyId} onSettingsClick={() => navigateToPage('settings')} />;
+      case 'all-properties':
+        if (user.role === 'system_admin') {
+          return <SystemAdminDashboard user={user} onLogout={handleLogout} setCurrentPage={navigateToPage} setViewMapPropertyId={setViewMapPropertyId} initialView="all-properties" onSettingsClick={() => navigateToPage('settings')} />;
+        }
+        if (user.role === 'property_admin') {
+          return <PropertyAdminDashboard user={user} onLogout={handleLogout} setCurrentPage={navigateToPage} setViewMapPropertyId={setViewMapPropertyId} initialView="all-properties" onSettingsClick={() => navigateToPage('settings')} />;
+        }
+        return <Properties user={user} onLogout={handleLogout} viewMode="all" setCurrentPage={navigateToPage} setViewMapPropertyId={setViewMapPropertyId} onSettingsClick={() => navigateToPage('settings')} />;
+      case 'bank-settings':
+        if (['admin', 'system_admin'].includes(user?.role)) {
+          return <SystemAdminDashboard user={user} onLogout={handleLogout} setCurrentPage={navigateToPage} setViewMapPropertyId={setViewMapPropertyId} initialView="bank-accounts" onSettingsClick={() => navigateToPage('settings')} />;
+        }
+        return <Dashboard user={user} onLogout={handleLogout} onSettingsClick={() => navigateToPage('settings')} />;
       case 'properties':
         return <Properties user={user} onLogout={handleLogout} viewMode="my" setCurrentPage={navigateToPage} setViewMapPropertyId={setViewMapPropertyId} onSettingsClick={() => navigateToPage('settings')} />;
       case 'browse-properties':
@@ -222,7 +235,6 @@ function App() {
         if (user.role === 'system_admin') return <PasswordResetRequests user={user} onLogout={handleLogout} onSettingsClick={() => navigateToPage('settings')} />;
         return <Dashboard user={user} onLogout={handleLogout} onSettingsClick={() => navigateToPage('settings')} />;
       case 'user-settings':
-        return <UserSettings user={user} onLogout={handleLogout} onThemeChange={handleThemeChange} />;
       case 'settings':
         return <UserSettingsEnhanced user={user} onLogout={handleLogout} onRefreshUser={refreshUser} />;
       case 'mpesa':
@@ -248,7 +260,7 @@ function App() {
 
   return (
     <NotificationProvider userId={user?.id}>
-      <IdleTimeoutWrapper user={user} onLogout={handleLogout}>
+      <IdleTimeoutWrapper user={user} onLogout={handleLogout} currentPage={currentPage}>
         <div className={`App ${!showSidebar ? 'no-sidebar' : ''}`}>
           {showSidebar && (
             <Sidebar

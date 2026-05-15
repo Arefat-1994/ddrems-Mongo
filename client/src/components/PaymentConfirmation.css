@@ -165,8 +165,8 @@
 .receipt-preview {
   margin-top: 15px;
   border-radius: 6px;
-  overflow: hidden;
-  max-height: 300px;
+  overflow-y: auto;
+  max-height: 400px;
 }
 
 .receipt-preview img {

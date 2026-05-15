@@ -80,7 +80,10 @@ const Transactions = ({ user, onLogout, onSettingsClick }) => {
                     {transaction.status}
                   </span>
                 </td>
-                <td>{new Date(transaction.created_at).toLocaleDateString()}</td>
+                <td>{(() => {
+                  const d = new Date(transaction.created_at);
+                  return isNaN(d.getTime()) ? '—' : d.toLocaleDateString();
+                })()}</td>
                 <td>
                   <div className="table-actions">
                     <button className="btn-icon" title="View">👁️</button>

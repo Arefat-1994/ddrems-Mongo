@@ -403,7 +403,7 @@ const OwnerProfile = ({ user, onComplete }) => {
               <button className={`panel-tab-btn ${activeDetailTab === 'Verification' ? 'active' : ''}`} onClick={() => setActiveDetailTab('Verification')}>
                 📜 Verification
               </button>
-              {profile.profile_status === 'approved' && !editRequest && (
+              {profile.profile_status === 'approved' && (
                 <button className={`panel-tab-btn ${activeDetailTab === 'Edit Request' ? 'active' : ''}`} onClick={() => setActiveDetailTab('Edit Request')}>
                   ✏️ Edit Request
                 </button>
@@ -503,7 +503,7 @@ const OwnerProfile = ({ user, onComplete }) => {
                 </div>
               )}
 
-              {activeDetailTab === 'Edit Request' && profile.profile_status === 'approved' && !editRequest && (
+              {activeDetailTab === 'Edit Request' && profile.profile_status === 'approved' && (
                 <div>
                   <h4 className="section-title">Edit Request</h4>
                   <div style={{ background: '#f8fafc', padding: '20px', borderRadius: '8px' }}>

@@ -78,43 +78,7 @@ const DocumentManager = ({ propertyId, uploadedBy }) => {
     }
   };
 
-  const [showSendModal, setShowSendModal] = useState(false);
-  const [recipientId, setRecipientId] = useState('');
-  const [users, setUsers] = useState([]);
 
-  const sendKey = async (doc) => {
-    setSelectedDoc(doc);
-    setShowSendModal(true);
-    // Fetch users (customers) to send the key to
-    try {
-      const response = await axios.get(`${API_BASE}/users`);
-      setUsers(response.data.filter(u => u.role === 'user'));
-    } catch (error) {
-      console.error('Error fetching users:', error);
-    }
-  };
-
-  const handleSendKey = async () => {
-    if (!recipientId) {
-      alert('Please select a recipient');
-      return;
-    }
-    try {
-      await axios.post(`${API_BASE}/messages`, {
-        sender_id: uploadedBy,
-        receiver_id: recipientId,
-        subject: `Access Key for ${selectedDoc.document_name}`,
-        message: `Hello, here is the access key to view the document "${selectedDoc.document_name}" for property ID ${propertyId}: ${selectedDoc.access_key}`,
-        message_type: 'property'
-      });
-      alert('Key sent successfully!');
-      setShowSendModal(false);
-      setRecipientId('');
-    } catch (error) {
-      console.error('Error sending key:', error);
-      alert('Failed to send key');
-    }
-  };
 
   const handleView = (doc) => {
     try {
@@ -229,13 +193,7 @@ const DocumentManager = ({ propertyId, uploadedBy }) => {
                 >
                   🔄 Regen
                 </button>
-                <button
-                  className="btn-doc-action send"
-                  onClick={() => sendKey(doc)}
-                  title="Send Key to Customer"
-                >
-                  📤 Send
-                </button>
+
                 <button
                   className={`btn-doc-action ${doc.is_locked ? 'unlock' : 'lock'}`}
                   onClick={() => toggleLock(doc.id, doc.is_locked)}
@@ -286,38 +244,7 @@ const DocumentManager = ({ propertyId, uploadedBy }) => {
           </div>
         </div>
       )}
-      {showSendModal && selectedDoc && (
-        <div className="modal-overlay" onClick={() => setShowSendModal(false)}>
-          <div className="modal-content key-modal" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>📤 Send Access Key</h2>
-              <button className="close-btn" onClick={() => setShowSendModal(false)}>✕</button>
-            </div>
-            <div className="modal-body">
-              <div className="send-key-form">
-                <p>Send access key for <strong>{selectedDoc.document_name}</strong></p>
-                <div className="form-group">
-                  <label>Select Customer</label>
-                  <select
-                    value={recipientId}
-                    onChange={(e) => setRecipientId(e.target.value)}
-                    required
-                  >
-                    <option value="">-- Select a Customer --</option>
-                    {users.map(u => (
-                      <option key={u.id} value={u.id}>{u.name} ({u.email})</option>
-                    ))}
-                  </select>
-                </div>
-                <div className="modal-actions">
-                  <button className="btn-secondary" onClick={() => setShowSendModal(false)}>Cancel</button>
-                  <button className="btn-primary" onClick={handleSendKey}>Send Key</button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
+
     </div>
   );
 };

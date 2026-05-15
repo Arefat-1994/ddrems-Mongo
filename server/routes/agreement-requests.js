@@ -49,14 +49,23 @@ router.get("/customer/:userId", async (req, res) => {
 
     const requests = await AgreementRequests.aggregate([
       { $match: { customer_id: new mongoose.Types.ObjectId(req.params.userId) } },
-      { $lookup: { from: "properties", localField: "property_id", foreignField: "_id", as: "property" } },
-      { $unwind: { path: "$property", preserveNullAndEmptyArrays: true } },
+      { $lookup: { 
+        from: 'properties', 
+        let: { propId: '$property_id' },
+        pipeline: [
+          { $match: { $expr: { $eq: ['$_id', '$$propId'] } } },
+          { $project: { title: 1, location: 1 } }
+        ],
+        as: 'property' 
+      } },
+      { $unwind: { path: '$property', preserveNullAndEmptyArrays: true } },
       { $addFields: {
-        id: "$_id",
-        property_title: "$property.title",
-        property_location: "$property.location",
-        request_type: "agreement"
+        id: '$_id',
+        property_title: '$property.title',
+        property_location: '$property.location',
+        request_type: 'agreement'
       }},
+      { $project: { property: 0, customer: 0 } },
       { $sort: { created_at: -1 } }
     ]);
     res.json(requests);
@@ -77,17 +86,34 @@ router.get("/admin/pending", async (req, res) => {
 
     const requests = await AgreementRequests.aggregate([
       { $match: matchQuery },
-      { $lookup: { from: "properties", localField: "property_id", foreignField: "_id", as: "property" } },
-      { $lookup: { from: "users", localField: "customer_id", foreignField: "_id", as: "customer" } },
-      { $unwind: { path: "$property", preserveNullAndEmptyArrays: true } },
-      { $unwind: { path: "$customer", preserveNullAndEmptyArrays: true } },
+      { $lookup: { 
+        from: 'properties', 
+        let: { propId: '$property_id' },
+        pipeline: [
+          { $match: { $expr: { $eq: ['$_id', '$$propId'] } } },
+          { $project: { title: 1 } }
+        ],
+        as: 'property' 
+      } },
+      { $lookup: { 
+        from: 'users', 
+        let: { custId: '$customer_id' },
+        pipeline: [
+          { $match: { $expr: { $eq: ['$_id', '$$custId'] } } },
+          { $project: { name: 1, email: 1 } }
+        ],
+        as: 'customer' 
+      } },
+      { $unwind: { path: '$property', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$customer', preserveNullAndEmptyArrays: true } },
       { $addFields: {
-        id: "$_id",
-        property_title: "$property.title",
-        customer_name: "$customer.name",
-        customer_email: "$customer.email",
-        request_type: "agreement"
+        id: '$_id',
+        property_title: '$property.title',
+        customer_name: '$customer.name',
+        customer_email: '$customer.email',
+        request_type: 'agreement'
       }},
+      { $project: { property: 0, customer: 0 } },
       { $sort: { created_at: -1 } }
     ]);
     res.json(requests);
@@ -134,6 +160,7 @@ router.get("/admin/history", async (req, res) => {
         customer_name: "$customer.name",
         request_type: "agreement"
       }},
+      { $project: { property: 0, customer: 0 } },
       { $sort: { updated_at: -1 } },
       { $limit: 50 }
     ]);
@@ -208,17 +235,34 @@ router.get("/owner/:ownerId", async (req, res) => {
         owner_id: new mongoose.Types.ObjectId(req.params.ownerId),
         status: { $in: ["pending_admin_review", "forwarded", "pending"] }
       }},
-      { $lookup: { from: "properties", localField: "property_id", foreignField: "_id", as: "property" } },
-      { $lookup: { from: "users", localField: "customer_id", foreignField: "_id", as: "customer" } },
-      { $unwind: { path: "$property", preserveNullAndEmptyArrays: true } },
-      { $unwind: { path: "$customer", preserveNullAndEmptyArrays: true } },
+      { $lookup: { 
+        from: 'properties', 
+        let: { propId: '$property_id' },
+        pipeline: [
+          { $match: { $expr: { $eq: ['$_id', '$$propId'] } } },
+          { $project: { title: 1, listing_type: 1 } }
+        ],
+        as: 'property' 
+      } },
+      { $lookup: { 
+        from: 'users', 
+        let: { custId: '$customer_id' },
+        pipeline: [
+          { $match: { $expr: { $eq: ['$_id', '$$custId'] } } },
+          { $project: { name: 1 } }
+        ],
+        as: 'customer' 
+      } },
+      { $unwind: { path: '$property', preserveNullAndEmptyArrays: true } },
+      { $unwind: { path: '$customer', preserveNullAndEmptyArrays: true } },
       { $addFields: {
-        id: "$_id",
-        property_title: "$property.title",
-        property_listing_type: "$property.listing_type",
-        customer_name: "$customer.name",
-        request_type: "agreement"
+        id: '$_id',
+        property_title: '$property.title',
+        property_listing_type: '$property.listing_type',
+        customer_name: '$customer.name',
+        request_type: 'agreement'
       }},
+      { $project: { property: 0, customer: 0 } },
       { $sort: { created_at: -1 } }
     ]);
     res.json(requests);
@@ -233,17 +277,34 @@ router.get("/broker/:brokerId", async (req, res) => {
     if (!isValidId(req.params.brokerId)) return res.json([]);
 
     const requests = await AgreementRequests.aggregate([
-      { $lookup: { from: "properties", localField: "property_id", foreignField: "_id", as: "property" } },
-      { $unwind: { path: "$property", preserveNullAndEmptyArrays: true } },
-      { $match: { "property.broker_id": new mongoose.Types.ObjectId(req.params.brokerId) } },
-      { $lookup: { from: "users", localField: "customer_id", foreignField: "_id", as: "customer" } },
-      { $unwind: { path: "$customer", preserveNullAndEmptyArrays: true } },
+      { $lookup: { 
+        from: 'properties', 
+        let: { propId: '$property_id' },
+        pipeline: [
+          { $match: { $expr: { $eq: ['$_id', '$$propId'] } } },
+          { $project: { title: 1, broker_id: 1 } }
+        ],
+        as: 'property' 
+      } },
+      { $unwind: { path: '$property', preserveNullAndEmptyArrays: true } },
+      { $match: { 'property.broker_id': new mongoose.Types.ObjectId(req.params.brokerId) } },
+      { $lookup: { 
+        from: 'users', 
+        let: { custId: '$customer_id' },
+        pipeline: [
+          { $match: { $expr: { $eq: ['$_id', '$$custId'] } } },
+          { $project: { name: 1 } }
+        ],
+        as: 'customer' 
+      } },
+      { $unwind: { path: '$customer', preserveNullAndEmptyArrays: true } },
       { $addFields: {
-        id: "$_id",
-        property_title: "$property.title",
-        customer_name: "$customer.name",
-        request_type: "agreement"
+        id: '$_id',
+        property_title: '$property.title',
+        customer_name: '$customer.name',
+        request_type: 'agreement'
       }},
+      { $project: { property: 0, customer: 0 } },
       { $sort: { created_at: -1 } }
     ]);
     res.json(requests);

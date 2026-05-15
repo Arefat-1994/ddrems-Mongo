@@ -88,11 +88,29 @@ app.use('/api/chapa', require('./routes/chapa'));
 app.use('/api/site-check', require('./routes/site-check'));
 app.use('/api/complaints', require('./routes/complaints'));
 app.use('/api/service-control', require('./routes/service-control'));
+app.use('/api/document-access', require('./routes/document-access'));
+app.use('/api/user-preferences', require('./routes/user-preferences'));
 
 // 404 Handler to catch unknown routes
 app.use((req, res, next) => {
   console.log(`[404 NOT FOUND] ${req.method} ${req.url}`);
   res.status(404).json({ message: 'Route not found: ' + req.url });
+});
+
+// Global error handler - catches unhandled errors in routes
+app.use((err, req, res, next) => {
+  console.error(`[SERVER ERROR] ${req.method} ${req.url}:`, err.message);
+  res.status(500).json({ message: 'Internal server error', error: err.message });
+});
+
+// Prevent server crashes from unhandled promise rejections
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('[UNHANDLED REJECTION]', reason);
+});
+
+process.on('uncaughtException', (error) => {
+  console.error('[UNCAUGHT EXCEPTION]', error.message);
+  // Don't exit - let the server keep running
 });
 
 const PORT = process.env.PORT || 5000;

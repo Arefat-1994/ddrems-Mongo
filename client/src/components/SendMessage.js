@@ -202,7 +202,7 @@ const SendMessage = ({ user, onLogout, onSettingsClick }) => {
         }
 
         const response = await axios.post(`${API_BASE}/messages?userId=${user.id}`, {
-          receiver_id: parseInt(formData.receiver_id),
+          receiver_id: formData.receiver_id,
           subject: formData.subject,
           message: formData.message,
           message_type: formData.message_type,

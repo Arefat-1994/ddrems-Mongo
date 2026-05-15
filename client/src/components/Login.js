@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import './Login.css';
 import axios from 'axios';
 import Register from './Register';
+import BrandLogo from './shared/BrandLogo';
 
 const Login = ({ onLogin, initialShowRegister = false, onBackToLanding }) => {
   const [showRegister, setShowRegister] = useState(initialShowRegister);
@@ -167,14 +168,7 @@ const LoginForm = ({ onLogin, onShowRegister, onBackToLanding }) => {
           </button>
         )}
         <div className="login-header" style={{marginTop: onBackToLanding ? '20px' : '0'}}>
-          <img src={require('../logo.svg').default || require('../logo.svg')} alt="DDREMS Logo" className="auth-logo" onError={(e) => { e.target.style.display = 'none'; }} />
-          <h1 className="auth-title">DDREMS</h1>
-          <p className="auth-subtitle">Dire Dawa Real Estate Management System</p>
-          <div className="auth-slogan-container">
-            <span className="auth-slogan-line"></span>
-            <p className="auth-slogan">Experiencing the excellence of the live</p>
-            <span className="auth-slogan-line"></span>
-          </div>
+          <BrandLogo size="large" showSlogan={true} />
           <h2 className="auth-heading">Login</h2>
         </div>
 
@@ -253,7 +247,7 @@ const LoginForm = ({ onLogin, onShowRegister, onBackToLanding }) => {
         </form>
 
         <div className="login-footer">
-          <p>Demo: admin@ddrems.com / admin123</p>
+          
           <div className="register-section">
             <p>Don't have an account?</p>
             <button 

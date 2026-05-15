@@ -73,9 +73,15 @@ export const NotificationProvider = ({ children, userId }) => {
     newSocket.on('new_notification', (notification) => {
       console.log('[SOCKET] Received notification:', notification);
       setLatestNotification(notification);
-      setUnreadCount(prev => prev + 1);
-      setNotifications(prev => [notification, ...prev]);
-      playNotificationSound();
+      setNotifications(prev => {
+        // Check if notification already exists
+        const exists = prev.some(n => n.id === notification.id);
+        if (exists) return prev;
+        
+        setUnreadCount(c => c + 1);
+        playNotificationSound();
+        return [notification, ...prev];
+      });
     });
 
     return () => newSocket.close();

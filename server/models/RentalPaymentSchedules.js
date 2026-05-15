@@ -25,4 +25,11 @@ const RentalPaymentSchedulesSchema = new mongoose.Schema({
   updated_at: { type: Date },
 }, { timestamps: true });
 
+// Optimize queries with indexes
+RentalPaymentSchedulesSchema.index({ tenant_id: 1 });
+RentalPaymentSchedulesSchema.index({ owner_id: 1 });
+RentalPaymentSchedulesSchema.index({ property_id: 1 });
+RentalPaymentSchedulesSchema.index({ due_date: 1 });
+RentalPaymentSchedulesSchema.index({ status: 1 });
+
 module.exports = mongoose.model('RentalPaymentSchedules', RentalPaymentSchedulesSchema);

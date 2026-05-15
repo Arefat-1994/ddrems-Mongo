@@ -210,7 +210,7 @@ const Reports = ({ user, onLogout, onBack }) => {
         ] : [
           ['Total Properties', stats.total || 0],
           ['Active Listings', stats.active || 0],
-          ['Active Brokers', (stats.brokerPerformance || []).length],
+          ['Active Brokers', stats?.userDistribution?.find(u => u.role === 'broker')?.count || 0],
           ['Total Users', (stats.userDistribution || []).reduce((acc, curr) => acc + curr.count, 0)]
         ],
         theme: 'striped',
@@ -249,6 +249,7 @@ const Reports = ({ user, onLogout, onBack }) => {
         ["Metric", "Value"],
         ["Total Properties", stats.total || 0],
         ["Active Listings", stats.active || 0],
+        ["Active Brokers", stats?.userDistribution?.find(u => u.role === 'broker')?.count || 0],
         ["Total Users", (stats.userDistribution || []).reduce((acc, curr) => acc + curr.count, 0)]
       ];
       const wsSummary = XLSX.utils.aoa_to_sheet(summaryData);
@@ -279,6 +280,7 @@ const Reports = ({ user, onLogout, onBack }) => {
               <li><b>Items for Rent:</b> ${stats?.listingDistribution?.find(l => l.listing_type === 'rent')?.count || 0}</li>
             ` : `
               <li><b>Active Listings:</b> ${stats.active || 0}</li>
+              <li><b>Active Brokers:</b> ${stats?.userDistribution?.find(u => u.role === 'broker')?.count || 0}</li>
               <li><b>Total Users:</b> ${(stats.userDistribution || []).reduce((acc, curr) => acc + curr.count, 0)}</li>
             `}
           </ul>
@@ -286,7 +288,7 @@ const Reports = ({ user, onLogout, onBack }) => {
           <table border="1" style="border-collapse: collapse; width: 100%;">
             <thead><tr style="background-color: #f2f2f2;"><th>${isPropertyAdmin ? 'Listing Type' : 'Type'}</th><th>Count</th></tr></thead>
             <tbody>
-              ${(isPropertyAdmin ? stats.listingDistribution : stats.typeDistribution || []).map(d => `<tr><td>${isPropertyAdmin ? d.listing_type : d.type}</td><td>${d.count}</td></tr>`).join('')}
+              ${((isPropertyAdmin ? stats.listingDistribution : stats.typeDistribution) || []).map(d => `<tr><td>${isPropertyAdmin ? d.listing_type : d.type}</td><td>${d.count}</td></tr>`).join('')}
             </tbody>
           </table>
           <p style="margin-top: 20px; color: #666; font-size: 10pt;">&copy; Dire Dawa Real Estate Management System</p>
@@ -365,7 +367,7 @@ const Reports = ({ user, onLogout, onBack }) => {
                 <h4>Active Listings</h4>
               </div>
               <div className="summary-card">
-                <p className="value">{(stats?.brokerPerformance || []).length}</p>
+                <p className="value">{stats?.userDistribution?.find(u => u.role === 'broker')?.count || 0}</p>
                 <h4>Active Brokers</h4>
               </div>
               <div className="summary-card">
@@ -407,7 +409,6 @@ const Reports = ({ user, onLogout, onBack }) => {
                           const data = chart.data;
                           if (data.labels.length && data.datasets.length) {
                             return data.labels.map((label, i) => {
-                              const value = data.datasets[0].data[i];
                               const backgroundColor = data.datasets[0].backgroundColor[i];
                               return {
                                 text: `  ${label}`,
@@ -653,7 +654,7 @@ const Reports = ({ user, onLogout, onBack }) => {
                     </tr>
                   </thead>
                   <tbody>
-                    {rentalRevenue.summary.monthlyBreakdown.map((m, i) => (
+                    {(rentalRevenue.summary.monthlyBreakdown || []).map((m, i) => (
                       <tr key={i} style={{ borderBottom: '1px solid #f1f5f9' }}>
                         <td style={{ padding: '10px 16px', fontWeight: 600 }}>{m.month}</td>
                         <td style={{ padding: '10px 16px', textAlign: 'right', color: '#059669', fontWeight: 700 }}>{Number(m.collected).toLocaleString()}</td>

@@ -6,12 +6,19 @@ const MessageNotificationWidget = ({ userId, onNavigateToMessages }) => {
   const [notifications, setNotifications] = useState([]);
   const [showNotifications, setShowNotifications] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [errorCount, setErrorCount] = useState(0);
 
   useEffect(() => {
+    if (!userId) return;
     fetchUnreadMessages();
     
-    // Set up interval to check for new messages every 30 seconds
-    const messageInterval = setInterval(fetchUnreadMessages, 30000);
+    // Set up interval to check for new messages every 60 seconds
+    const messageInterval = setInterval(() => {
+      // Back off after 3 consecutive failures to avoid flooding
+      if (errorCount < 3) {
+        fetchUnreadMessages();
+      }
+    }, 60000);
     
     return () => clearInterval(messageInterval);
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -37,14 +44,16 @@ const MessageNotificationWidget = ({ userId, onNavigateToMessages }) => {
       oscillator.start();
       oscillator.stop(audioCtx.currentTime + 0.1);
     } catch (e) {
-      console.log('Audio disabled or unsupported');
+      // Audio not supported, silently ignore
     }
   };
 
   const fetchUnreadMessages = async () => {
+    if (!userId) return;
     try {
       setLoading(true);
-      const response = await axios.get(`http://${window.location.hostname}:5000/api/messages/unread/${userId}`);
+      const API = `http://${window.location.hostname}:5000/api`;
+      const response = await axios.get(`${API}/messages/unread/${userId}`);
       const newCount = response.data.count || 0;
       
       // Play sound if we got a new message
@@ -54,12 +63,15 @@ const MessageNotificationWidget = ({ userId, onNavigateToMessages }) => {
       setUnreadMessages(newCount);
       
       // Also fetch recent notifications
-      const notifResponse = await axios.get(`http://${window.location.hostname}:5000/api/messages/notifications/${userId}`);
+      const notifResponse = await axios.get(`${API}/messages/notifications/${userId}`);
       setNotifications(notifResponse.data.notifications || []);
+      setErrorCount(0); // Reset error counter on success
     } catch (error) {
-      console.error('Error fetching unread messages:', error);
-      setUnreadMessages(0);
-      setNotifications([]);
+      // Only log first failure to avoid console flooding
+      setErrorCount(prev => {
+        if (prev < 1) console.warn('MessageWidget: fetch failed:', error.message);
+        return prev + 1;
+      });
     } finally {
       setLoading(false);
     }
@@ -81,22 +93,24 @@ const MessageNotificationWidget = ({ userId, onNavigateToMessages }) => {
         onClick={() => setShowNotifications(!showNotifications)}
         style={{ 
           position: 'relative',
-          background: unreadMessages > 0 ? '#ef4444' : undefined,
-          color: unreadMessages > 0 ? 'white' : undefined,
+          background: unreadMessages > 0 ? '#ef4444' : '#f8fafc',
+          color: unreadMessages > 0 ? 'white' : '#334155',
           animation: unreadMessages > 0 ? 'pulse 2s infinite' : undefined,
-          padding: '10px 16px',
+          padding: '10px 20px',
           borderRadius: '8px',
-          border: 'none',
+          border: unreadMessages > 0 ? 'none' : '1px solid #cbd5e1',
           cursor: 'pointer',
-          fontWeight: '500',
+          fontWeight: '600',
           fontSize: '14px',
           display: 'flex',
           alignItems: 'center',
           gap: '8px',
-          transition: 'all 0.3s ease'
+          transition: 'all 0.3s ease',
+          boxShadow: unreadMessages > 0 ? '0 4px 12px rgba(239,68,68,0.3)' : '0 2px 4px rgba(0,0,0,0.05)',
+          whiteSpace: 'nowrap'
         }}
       >
-        📥 Incoming messages
+        🔔 Notifications
         {unreadMessages > 0 && (
           <span 
             className="notification-badge"
@@ -181,9 +195,9 @@ const MessageNotificationWidget = ({ userId, onNavigateToMessages }) => {
                 <div>Loading messages...</div>
               </div>
             ) : notifications.length > 0 ? (
-              notifications.map(notification => (
+              notifications.map((notification, idx) => (
                 <div 
-                  key={notification.id}
+                  key={notification.id || `msg-notif-${idx}`}
                   style={{
                     padding: '12px 16px',
                     borderBottom: '1px solid #f9fafb',
@@ -235,7 +249,10 @@ const MessageNotificationWidget = ({ userId, onNavigateToMessages }) => {
                         color: '#9ca3af',
                         fontSize: '12px'
                       }}>
-                        {new Date(notification.created_at).toLocaleString()}
+                      {(() => {
+                        const d = new Date(notification.created_at || notification.createdAt);
+                        return isNaN(d.getTime()) ? 'N/A' : d.toLocaleString();
+                      })()}
                       </div>
                     </div>
                   </div>
@@ -248,7 +265,7 @@ const MessageNotificationWidget = ({ userId, onNavigateToMessages }) => {
                 color: '#9ca3af' 
               }}>
                 <div style={{ fontSize: '32px', marginBottom: '10px' }}>📭</div>
-                <div style={{ fontWeight: '500' }}>No messages</div>
+                <div style={{ fontWeight: '500' }}>No notifications</div>
                 <div style={{ fontSize: '12px', marginTop: '4px' }}>You're all caught up!</div>
               </div>
             )}

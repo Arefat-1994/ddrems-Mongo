@@ -46,34 +46,49 @@ const ServiceBlockedOverlay = ({ user, currentPage, onLogout }) => {
       return;
     }
 
+    let isMounted = true;
+
     const checkStatus = async () => {
       try {
+        const API = `http://${window.location.hostname}:5000/api`;
+        
         // Check system schedule
-        const scheduleRes = await fetch(`http://${window.location.hostname}:5000/api/service-control/schedule/is-open`);
-        if (scheduleRes.ok) {
-          const data = await scheduleRes.json();
-          setSystemStatus(data);
+        try {
+          const scheduleRes = await fetch(`${API}/service-control/schedule/is-open`);
+          if (scheduleRes.ok && isMounted) {
+            const data = await scheduleRes.json();
+            setSystemStatus(data);
+          }
+        } catch (fetchErr) {
+          // Network error (server down) - silently ignore, don't block UI
         }
 
         // Check role-specific service controls
         if (user?.role) {
-          const serviceRes = await fetch(`http://${window.location.hostname}:5000/api/service-control/check/${user.role}`);
-          if (serviceRes.ok) {
-            const data = await serviceRes.json();
-            setDisabledServices(data.disabledServices || {});
+          try {
+            const serviceRes = await fetch(`${API}/service-control/check/${user.role}`);
+            if (serviceRes.ok && isMounted) {
+              const data = await serviceRes.json();
+              setDisabledServices(data.disabledServices || {});
+            }
+          } catch (fetchErr) {
+            // Network error - silently ignore
           }
         }
       } catch (err) {
-        console.error('Error checking service status:', err);
+        // Catch-all: never let this component crash
       } finally {
-        setLoading(false);
+        if (isMounted) setLoading(false);
       }
     };
 
     checkStatus();
     // Re-check every 2 minutes
     const interval = setInterval(checkStatus, 120000);
-    return () => clearInterval(interval);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
   }, [user?.role, isExempt, currentPage]);
 
   if (isExempt || loading) return null;

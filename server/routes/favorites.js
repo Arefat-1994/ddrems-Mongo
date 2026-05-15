@@ -8,9 +8,18 @@ router.get('/:userId', async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(req.params.userId)) return res.json([]);
     const favorites = await Favorites.aggregate([
       { $match: { user_id: new mongoose.Types.ObjectId(req.params.userId) } },
-      { $lookup: { from: 'properties', localField: 'property_id', foreignField: '_id', as: 'property' } },
+      { $lookup: { 
+        from: 'properties', 
+        let: { propId: '$property_id' },
+        pipeline: [
+          { $match: { $expr: { $eq: ['$_id', '$$propId'] } } },
+          { $project: { title: 1, location: 1, price: 1, type: 1, main_image: 1 } }
+        ],
+        as: 'property' 
+      } },
       { $unwind: { path: '$property', preserveNullAndEmptyArrays: true } },
       { $addFields: { id: '$_id', property_title: '$property.title', property_location: '$property.location', property_price: '$property.price', property_type: '$property.type', main_image: '$property.main_image' } },
+      { $project: { property: 0 } },
       { $sort: { created_at: -1 } }
     ]);
     res.json(favorites);
@@ -22,9 +31,18 @@ router.get('/broker/:brokerId', async (req, res) => {
     if (!mongoose.Types.ObjectId.isValid(req.params.brokerId)) return res.json([]);
     const favorites = await Favorites.aggregate([
       { $match: { user_id: new mongoose.Types.ObjectId(req.params.brokerId) } },
-      { $lookup: { from: 'properties', localField: 'property_id', foreignField: '_id', as: 'property' } },
+      { $lookup: { 
+        from: 'properties', 
+        let: { propId: '$property_id' },
+        pipeline: [
+          { $match: { $expr: { $eq: ['$_id', '$$propId'] } } },
+          { $project: { title: 1, location: 1, price: 1, type: 1, main_image: 1 } }
+        ],
+        as: 'property' 
+      } },
       { $unwind: { path: '$property', preserveNullAndEmptyArrays: true } },
       { $addFields: { id: '$_id', property_title: '$property.title', property_location: '$property.location', property_price: '$property.price', property_type: '$property.type', main_image: '$property.main_image' } },
+      { $project: { property: 0 } },
       { $sort: { created_at: -1 } }
     ]);
     res.json(favorites);

@@ -52,7 +52,7 @@ const createNotif = async (agreementId, recipientId, type, title, message) => {
 
 const getAgreementsPipeline = (matchCondition) => [
   { $match: matchCondition },
-  { $lookup: { from: "properties", let: { pid: "$property_id" }, pipeline: [{ $match: { $expr: { $eq: ["$_id", "$$pid"] } } }, { $project: { images: 0 } }], as: "property" } },
+  { $lookup: { from: "properties", let: { pid: "$property_id" }, pipeline: [{ $match: { $expr: { $eq: ["$_id", "$$pid"] } } }, { $project: { images: 0, main_image: 0 } }], as: "property" } },
   { $lookup: { from: "users", localField: "customer_id", foreignField: "_id", as: "customer" } },
   { $lookup: { from: "users", localField: "owner_id", foreignField: "_id", as: "owner" } },
   { $lookup: { from: "users", localField: "broker_id", foreignField: "_id", as: "broker" } },

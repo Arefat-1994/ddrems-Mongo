@@ -6,7 +6,9 @@ import ImageGallery from './shared/ImageGallery';
 import DocumentManager from './shared/DocumentManager';
 import axios from 'axios';
 import MessageNotificationWidget from './MessageNotificationWidget';
-import PropertyUploaderModal from './shared/PropertyUploaderModal';
+import BrowseProperties from './BrowseProperties';
+
+
 
 // ============================================================================
 // In-Progress View — Shows real broker engagements from the API
@@ -210,41 +212,21 @@ const InProgressView = ({ user, onLogout, setCurrentPage, onBack }) => {
   );
 };
 
-const AgentDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
-  const [currentView, setCurrentView] = useState('dashboard'); // dashboard, commission, viewProperty, browseProperties, agreements
+const AgentDashboardEnhanced = ({ user, onLogout, setCurrentPage, onSettingsClick }) => {
+  const [currentView, setCurrentView] = useState('dashboard'); // dashboard, commission, inProgress
   const [stats, setStats] = useState({
     totalSales: 0,
     totalRents: 0,
     activeListings: 0,
     totalCommission: 0,
     monthlyRevenue: 0,
-    pendingDeals: 0
+    pendingDeals: 0,
+    propertiesToBonus: 0
   });
-  const [myProperties, setMyProperties] = useState([]);
   const [agreements, setAgreements] = useState([]);
   const [messages, setMessages] = useState([]);
   const [announcements, setAnnouncements] = useState([]);
-  const [showAddProperty, setShowAddProperty] = useState(false);
-  const [showViewProperty, setShowViewProperty] = useState(false);
-  const [selectedProperty, setSelectedProperty] = useState(null);
-  const [propertyForm, setPropertyForm] = useState({
-    title: '',
-    type: 'apartment',
-    listing_type: 'sale',
-    price: '',
-    location: '',
-    bedrooms: '',
-    bathrooms: '',
-    area: '',
-    description: '',
-    distance_to_center_km: '3',
-    near_school: false,
-    near_hospital: false,
-    near_market: false,
-    parking: false,
-    security_rating: '3',
-    condition: 'Good'
-  });
+
 
   useEffect(() => {
     fetchAgentData();
@@ -253,110 +235,68 @@ const AgentDashboardEnhanced = ({ user, onLogout, setCurrentPage }) => {
 
   const fetchAgentData = async () => {
     try {
-      // Fetch ONLY broker's own properties
-      const propertiesRes = await axios.get(`http://${window.location.hostname}:5000/api/properties/broker/${user.id}`);
-      
-      const brokerProperties = propertiesRes.data.filter(p => Number(p.broker_id) === Number(user.id)); // Safety filter
-      setMyProperties(brokerProperties);
+      // 1. Fetch Stats from Commissions API for accurate data
+      let summaryData = { total_deals: 0, deal_commission: 0, total_earned: 0 };
+      try {
+        const summaryRes = await axios.get(`http://${window.location.hostname}:5000/api/commissions/broker/${user.id}/summary`);
+        summaryData = summaryRes.data || summaryData;
+      } catch (err) {
+        console.error('Error fetching commission summary:', err);
+      }
 
-      const sales = brokerProperties.filter(p => p.listing_type === 'sale' && p.status === 'sold').length;
-      const rents = brokerProperties.filter(p => p.listing_type === 'rent' && p.status === 'rented').length;
-      const active = brokerProperties.filter(p => p.status === 'active').length;
+      // 2. Fetch Engagements for granular status tracking
+      let allEng = [];
+      try {
+        const engRes = await axios.get(`http://${window.location.hostname}:5000/api/broker-engagement/broker/${user.id}`);
+        allEng = engRes.data.engagements || [];
+      } catch (err) {
+        console.error('Error fetching engagements:', err);
+      }
+
+      const sales = allEng.filter(e => e.engagement_type === 'sale' && e.status === 'completed').length;
+      const rents = allEng.filter(e => e.engagement_type === 'rent' && e.status === 'completed').length;
+      const pending = allEng.filter(e => !['completed', 'cancelled', 'declined', 'rejected', 'broker_declined'].includes(e.status)).length;
+
+      // 3. Fetch System-wide Active properties for "Market Opportunity"
+      let activeCount = 0;
+      try {
+        const activeRes = await axios.get(`http://${window.location.hostname}:5000/api/properties/active`);
+        activeCount = (activeRes.data || []).length;
+      } catch (err) {}
 
       setStats({
-        totalSales: sales,
-        totalRents: rents,
-        activeListings: active,
-        totalCommission: (sales * 150000) + (rents * 50000),
-        monthlyRevenue: 2500000,
-        pendingDeals: brokerProperties.filter(p => p.status === 'pending').length
+        totalSales: sales || summaryData.total_deals || 0,
+        totalRents: rents || 0,
+        activeListings: activeCount,
+        totalCommission: summaryData.total_earned || 0,
+        monthlyRevenue: summaryData.deal_commission || 0,
+        pendingDeals: pending,
+        propertiesToBonus: summaryData.properties_to_bonus || 0
       });
 
+      // 4. Fetch Messages & Announcements
       try {
         const messagesRes = await axios.get(`http://${window.location.hostname}:5000/api/messages/user/${user.id}`);
         setMessages(messagesRes.data.slice(0, 5));
-      } catch (error) {
-        setMessages([]);
-      }
+      } catch (error) { setMessages([]); }
 
       try {
         const announcementsRes = await axios.get(`http://${window.location.hostname}:5000/api/announcements`);
         setAnnouncements(announcementsRes.data.slice(0, 3));
-      } catch (error) {
-        setAnnouncements([]);
-      }
+      } catch (error) { setAnnouncements([]); }
 
-
-      // Fetch broker's agreements
+      // 5. Fetch Agreements
       try {
         const agreementsRes = await axios.get(`http://${window.location.hostname}:5000/api/agreements/broker/${user.id}`);
-        setAgreements(agreementsRes.data);
-      } catch (error) {
-        setAgreements([]);
-      }
+        setAgreements(agreementsRes.data || []);
+      } catch (error) { setAgreements([]); }
+
     } catch (error) {
       console.error('Error fetching agent data:', error);
     }
   };
 
-  const viewProperty = (property) => {
-    setSelectedProperty(property);
-    setShowViewProperty(true);
-  };
 
-  const [showEditProperty, setShowEditProperty] = useState(false);
-  const editProperty = (property) => {
-    setSelectedProperty(property);
-    setPropertyForm({
-      title: property.title,
-      type: property.type,
-      listing_type: property.listing_type,
-      price: property.price,
-      location: property.location,
-      bedrooms: property.bedrooms || '',
-      bathrooms: property.bathrooms || '',
-      area: property.area || '',
-      description: property.description || '',
-      distance_to_center_km: property.distance_to_center_km || '3',
-      near_school: property.near_school || false,
-      near_hospital: property.near_hospital || false,
-      near_market: property.near_market || false,
-      parking: property.parking || false,
-      security_rating: property.security_rating || '3',
-      condition: property.condition || 'Good'
-    });
-    setShowEditProperty(true);
-  };
-
-  const handleUpdateProperty = async (e) => {
-    e.preventDefault();
-    try {
-      await axios.put(`http://${window.location.hostname}:5000/api/properties/${selectedProperty.id}`, {
-        ...propertyForm
-      });
-      alert('Property updated successfully!');
-      setShowEditProperty(false);
-      fetchAgentData();
-    } catch (error) {
-      console.error('Error updating property:', error);
-      alert('Failed to update property');
-    }
-  };
-
-  const deleteProperty = async (propertyId) => {
-    if (!window.confirm('Are you sure you want to delete this property?')) {
-      return;
-    }
-
-    try {
-      await axios.delete(`http://${window.location.hostname}:5000/api/properties/${propertyId}`);
-      alert('Property deleted successfully');
-      fetchAgentData();
-    } catch (error) {
-      console.error('Error deleting property:', error);
-      alert('Failed to delete property');
-    }
-  };
 
   if (currentView === 'commission') {
     return (
@@ -415,7 +355,7 @@ Generated by DDREMS
           subtitle="View and manage your property agreements"
           user={user}
           onLogout={onLogout}
-          onSettingsClick={() => setCurrentPage('settings')}
+          onSettingsClick={onSettingsClick || (() => setCurrentPage('settings'))}
           actions={
             <button className="btn-secondary" onClick={() => setCurrentView('dashboard')}>
               ← Back to Dashboard
@@ -555,26 +495,7 @@ Generated by DDREMS
                       >
                         📥 Download Agreement
                       </button>
-                      <button
-                        className="btn-primary"
-                        onClick={() => {
-                          const property = myProperties.find(p => p.id === agreement.property_id);
-                          if (property) {
-                            viewProperty(property);
-                          } else {
-                            alert('Property not found');
-                          }
-                        }}
-                        style={{ 
-                          padding: '8px 16px', 
-                          fontSize: '14px',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px'
-                        }}
-                      >
-                        👁️ View Property
-                      </button>
+
                     </div>
                   </div>
                 ))}
@@ -593,7 +514,7 @@ Generated by DDREMS
         subtitle="Agent Dashboard - Manage your properties and track your performance"
         user={user}
         onLogout={onLogout}
-        onSettingsClick={() => setCurrentPage('settings')}
+        onSettingsClick={onSettingsClick || (() => setCurrentPage('settings'))}
         actions={
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <MessageNotificationWidget 
@@ -601,12 +522,6 @@ Generated by DDREMS
               onNavigateToMessages={() => setCurrentPage('messages')}
             />
 
-            <button
-              className="btn-secondary"
-              onClick={() => setCurrentView(currentView === 'agreements' ? 'dashboard' : 'agreements')}
-            >
-              📄 Agreements
-            </button>
             <button
               className={`btn-secondary ${currentView === 'inProgress' ? 'active' : ''}`}
               onClick={() => setCurrentView(currentView === 'inProgress' ? 'dashboard' : 'inProgress')}
@@ -616,106 +531,80 @@ Generated by DDREMS
             <button className="btn-secondary" onClick={() => setCurrentView('commission')}>
               💰 Commission Tracking
             </button>
-            <button className="btn-primary" onClick={() => setShowAddProperty(true)}>
-              <span>➕</span> Add New Property
-            </button>
           </div>
 
         }
       />
 
-      {/* Stats Grid */}
-      <div className="stats-grid">
-        <div className="stat-card sales">
-          <div className="stat-icon">🏆</div>
+      {/* Minimized Stats Grid */}
+      <div className="stats-grid minimized-white" style={{ 
+        marginTop: '-45px', 
+        marginBottom: '15px', 
+        display: 'grid', 
+        gridTemplateColumns: 'repeat(6, 1fr)', 
+        gap: '10px',
+        padding: '0 20px'
+      }}>
+        <div className="stat-card white-theme" style={{ background: '#ffffff', color: '#1f2937', padding: '10px 15px', minHeight: 'auto', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div className="stat-icon" style={{ background: '#f0fdf4', color: '#16a34a', width: '36px', height: '36px', fontSize: '18px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🏆</div>
           <div className="stat-content">
-            <h3>{stats.totalSales}</h3>
-            <p>Total Sales</p>
+            <h3 style={{ color: '#111827', fontSize: '18px', fontWeight: '700', margin: 0 }}>{stats.totalSales}</h3>
+            <p style={{ color: '#6b7280', fontSize: '11px', fontWeight: '600', margin: 0, textTransform: 'uppercase', letterSpacing: '0.025em' }}>Total Sales</p>
           </div>
         </div>
-        <div className="stat-card rents">
-          <div className="stat-icon">🏠</div>
+
+        <div className="stat-card white-theme" style={{ background: '#ffffff', color: '#1f2937', padding: '10px 15px', minHeight: 'auto', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div className="stat-icon" style={{ background: '#eff6ff', color: '#2563eb', width: '36px', height: '36px', fontSize: '18px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🏠</div>
           <div className="stat-content">
-            <h3>{stats.totalRents}</h3>
-            <p>Total Rents</p>
+            <h3 style={{ color: '#111827', fontSize: '18px', fontWeight: '700', margin: 0 }}>{stats.totalRents}</h3>
+            <p style={{ color: '#6b7280', fontSize: '11px', fontWeight: '600', margin: 0, textTransform: 'uppercase', letterSpacing: '0.025em' }}>Total Rents</p>
           </div>
         </div>
-        <div className="stat-card active">
-          <div className="stat-icon">✅</div>
+
+        <div className="stat-card white-theme" style={{ background: '#ffffff', color: '#1f2937', padding: '10px 15px', minHeight: 'auto', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div className="stat-icon" style={{ background: '#ecfdf5', color: '#10b981', width: '36px', height: '36px', fontSize: '18px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>🎁</div>
           <div className="stat-content">
-            <h3>{stats.activeListings}</h3>
-            <p>Active Listings</p>
+            <h3 style={{ color: '#111827', fontSize: '18px', fontWeight: '700', margin: 0 }}>{stats.propertiesToBonus}/5</h3>
+            <p style={{ color: '#6b7280', fontSize: '11px', fontWeight: '600', margin: 0, textTransform: 'uppercase', letterSpacing: '0.025em' }}>Bonus Progress</p>
           </div>
         </div>
-        <div className="stat-card commission">
-          <div className="stat-icon">💰</div>
+
+        <div className="stat-card white-theme" style={{ background: '#ffffff', color: '#1f2937', padding: '10px 15px', minHeight: 'auto', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div className="stat-icon" style={{ background: '#faf5ff', color: '#9333ea', width: '36px', height: '36px', fontSize: '18px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>💰</div>
           <div className="stat-content">
-            <h3>{(stats.totalCommission / 1000000).toFixed(2)}M</h3>
-            <p>Total Commission (ETB)</p>
+            <h3 style={{ color: '#111827', fontSize: '18px', fontWeight: '700', margin: 0 }}>{(stats.totalCommission / 1000000).toFixed(2)}M</h3>
+            <p style={{ color: '#6b7280', fontSize: '11px', fontWeight: '600', margin: 0, textTransform: 'uppercase', letterSpacing: '0.025em' }}>Total Commission</p>
           </div>
         </div>
-        <div className="stat-card revenue">
-          <div className="stat-icon">📈</div>
+
+        <div className="stat-card white-theme" style={{ background: '#ffffff', color: '#1f2937', padding: '10px 15px', minHeight: 'auto', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div className="stat-icon" style={{ background: '#fef2f2', color: '#dc2626', width: '36px', height: '36px', fontSize: '18px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>📈</div>
           <div className="stat-content">
-            <h3>{(stats.monthlyRevenue / 1000000).toFixed(2)}M</h3>
-            <p>Monthly Revenue (ETB)</p>
+            <h3 style={{ color: '#111827', fontSize: '18px', fontWeight: '700', margin: 0 }}>{(stats.monthlyRevenue / 1000000).toFixed(2)}M</h3>
+            <p style={{ color: '#6b7280', fontSize: '11px', fontWeight: '600', margin: 0, textTransform: 'uppercase', letterSpacing: '0.025em' }}>Monthly Revenue</p>
           </div>
         </div>
-        <div className="stat-card pending">
-          <div className="stat-icon">⏳</div>
+
+        <div className="stat-card white-theme" style={{ background: '#ffffff', color: '#1f2937', padding: '10px 15px', minHeight: 'auto', border: '1px solid #e2e8f0', boxShadow: '0 1px 3px rgba(0,0,0,0.05)', borderRadius: '12px', display: 'flex', alignItems: 'center', gap: '12px' }}>
+          <div className="stat-icon" style={{ background: '#f8fafc', color: '#475569', width: '36px', height: '36px', fontSize: '18px', borderRadius: '10px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>⏳</div>
           <div className="stat-content">
-            <h3>{stats.pendingDeals}</h3>
-            <p>Pending Deals</p>
+            <h3 style={{ color: '#111827', fontSize: '18px', fontWeight: '700', margin: 0 }}>{stats.pendingDeals}</h3>
+            <p style={{ color: '#6b7280', fontSize: '11px', fontWeight: '600', margin: 0, textTransform: 'uppercase', letterSpacing: '0.025em' }}>Pending Deals</p>
           </div>
         </div>
       </div>
 
       {/* Main Content Grid */}
       <div className="dashboard-grid">
-        {/* My Properties */}
-        <div className="dashboard-card full-width">
-          <div className="card-header">
-            <h3>🏠 My Properties</h3>
-            <button className="btn-text" onClick={() => setShowAddProperty(true)}>Add New</button>
-          </div>
-          <div className="properties-table">
-            <table>
-              <thead>
-                <tr>
-                  <th>Property</th>
-                  <th>Type</th>
-                  <th>Listing</th>
-                  <th>Price (ETB)</th>
-                  <th>Location</th>
-                  <th>Status</th>
-                  <th>Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(myProperties || [])
-                  .filter(p => currentView === 'inProgress' ? (p.status === 'pending' || p.status === 'active') : true)
-                  .slice(0, 10).map(property => (
-                    <tr key={property.id}>
-                      <td><strong>{property.title}</strong></td>
-                      <td>{property.type}</td>
-                      <td><span className={`listing-badge ${property.listing_type}`}>{property.listing_type}</span></td>
-                      <td>{(property.price / 1000000).toFixed(2)}M</td>
-                      <td>📍 {property.location}</td>
-                      <td><span className={`status-badge ${property.status}`}>{property.status}</span></td>
-                      <td>
-                        <button className="btn-icon" title="View" onClick={() => viewProperty(property)}>👁️</button>
-                        <button className="btn-icon" title="Edit" onClick={() => editProperty(property)}>✏️</button>
-                        <button className="btn-icon" title="Delete" onClick={() => deleteProperty(property.id)}>🗑️</button>
-                      </td>
-                    </tr>
-                  ))}
-
-              </tbody>
-            </table>
-            {myProperties.length === 0 && (
-              <p className="no-data">No properties yet. Add your first property!</p>
-            )}
-          </div>
+        {/* Browse Properties Part (Replacing My Properties) */}
+        <div className="dashboard-card full-width" style={{ padding: 0, overflow: 'hidden', border: 'none', background: 'transparent', boxShadow: 'none' }}>
+           <BrowseProperties 
+              user={user} 
+              onLogout={onLogout} 
+              onSettingsClick={onSettingsClick} 
+              hideHeader={true} 
+              setCurrentPage={setCurrentPage}
+           />
         </div>
 
         {/* Messages */}
@@ -757,215 +646,7 @@ Generated by DDREMS
         </div>
       </div>
 
-      {/* Add Property Modal - Shared Component */}
-      {showAddProperty && (
-        <PropertyUploaderModal 
-          user={user} 
-          onClose={() => setShowAddProperty(false)} 
-          onSuccess={fetchAgentData} 
-        />
-      )}
 
-      {/* Edit Property Modal */}
-      {showEditProperty && selectedProperty && (
-        <div className="modal-overlay" onClick={() => setShowEditProperty(false)}>
-          <div className="modal-content large" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>✏️ Edit Property: {selectedProperty.title}</h2>
-              <button className="close-btn" onClick={() => setShowEditProperty(false)}>✕</button>
-            </div>
-            <form onSubmit={handleUpdateProperty}>
-              <div className="form-grid">
-                <div className="form-group">
-                  <label>Property Title *</label>
-                  <input
-                    type="text"
-                    value={propertyForm.title}
-                    onChange={(e) => setPropertyForm({ ...propertyForm, title: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Property Type *</label>
-                  <select
-                    value={propertyForm.type}
-                    onChange={(e) => setPropertyForm({ ...propertyForm, type: e.target.value })}
-                    required
-                  >
-                    <option value="apartment">Apartment</option>
-                    <option value="villa">Villa</option>
-                    <option value="house">House</option>
-                    <option value="shop">Shop</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Listing Type *</label>
-                  <select
-                    value={propertyForm.listing_type}
-                    onChange={(e) => setPropertyForm({ ...propertyForm, listing_type: e.target.value })}
-                    required
-                  >
-                    <option value="sale">For Sale</option>
-                    <option value="rent">For Rent</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Price (ETB) *</label>
-                  <input
-                    type="number"
-                    value={propertyForm.price}
-                    onChange={(e) => setPropertyForm({ ...propertyForm, price: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Location *</label>
-                  <input
-                    type="text"
-                    value={propertyForm.location}
-                    onChange={(e) => setPropertyForm({ ...propertyForm, location: e.target.value })}
-                    required
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Distance to Center (km)</label>
-                  <input
-                    type="number"
-                    value={propertyForm.distance_to_center_km}
-                    onChange={(e) => setPropertyForm({ ...propertyForm, distance_to_center_km: e.target.value })}
-                  />
-                </div>
-                <div className="form-group">
-                  <label>Security Rating (1-5)</label>
-                  <select
-                    value={propertyForm.security_rating}
-                    onChange={(e) => setPropertyForm({ ...propertyForm, security_rating: e.target.value })}
-                  >
-                    <option value="1">1</option>
-                    <option value="2">2</option>
-                    <option value="3">3</option>
-                    <option value="4">4</option>
-                    <option value="5">5</option>
-                  </select>
-                </div>
-                <div className="form-group">
-                  <label>Condition</label>
-                  <select
-                    value={propertyForm.condition}
-                    onChange={(e) => setPropertyForm({ ...propertyForm, condition: e.target.value })}
-                  >
-                    <option value="New">New</option>
-                    <option value="Excellent">Excellent</option>
-                    <option value="Good">Good</option>
-                    <option value="Fair">Fair</option>
-                    <option value="Needs Work">Needs Work</option>
-                  </select>
-                </div>
-                <div className="form-group" style={{ gridColumn: 'span 2', display: 'flex', gap: '20px' }}>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <input
-                      type="checkbox"
-                      checked={propertyForm.near_school}
-                      onChange={(e) => setPropertyForm({ ...propertyForm, near_school: e.target.checked })}
-                    /> Near School
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <input
-                      type="checkbox"
-                      checked={propertyForm.near_hospital}
-                      onChange={(e) => setPropertyForm({ ...propertyForm, near_hospital: e.target.checked })}
-                    /> Near Hospital
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <input
-                      type="checkbox"
-                      checked={propertyForm.near_market}
-                      onChange={(e) => setPropertyForm({ ...propertyForm, near_market: e.target.checked })}
-                    /> Near Market
-                  </label>
-                  <label style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                    <input
-                      type="checkbox"
-                      checked={propertyForm.parking}
-                      onChange={(e) => setPropertyForm({ ...propertyForm, parking: e.target.checked })}
-                    /> Parking
-                  </label>
-                </div>
-              </div>
-              <div className="form-group">
-                <label>Description</label>
-                <textarea
-                  value={propertyForm.description}
-                  onChange={(e) => setPropertyForm({ ...propertyForm, description: e.target.value })}
-                  rows="4"
-                />
-              </div>
-              <div className="modal-actions">
-                <button type="button" className="btn-secondary" onClick={() => setShowEditProperty(false)}>
-                  Cancel
-                </button>
-                <button type="submit" className="btn-primary">
-                  Update Property
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* View Property Modal */}
-
-      {showViewProperty && selectedProperty && (
-        <div className="modal-overlay" onClick={() => setShowViewProperty(false)}>
-          <div className="modal-content extra-large" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>🏠 {selectedProperty.title}</h2>
-              <button className="close-btn" onClick={() => setShowViewProperty(false)}>✕</button>
-            </div>
-            <div className="modal-body">
-              <div className="property-view-grid">
-                <div className="property-view-section">
-                  <h3>📷 Images</h3>
-                  <ImageGallery
-                    propertyId={selectedProperty.id}
-                    canDelete={true}
-                    onDelete={fetchAgentData}
-                  />
-                </div>
-                <div className="property-view-section">
-                  <h3>📄 Documents</h3>
-                  <DocumentManager
-                    propertyId={selectedProperty.id}
-                    uploadedBy={user.id}
-                  />
-                </div>
-                <div className="property-view-section full-width">
-                  <h3>ℹ️ Property Details</h3>
-                  <div className="property-details-grid">
-                    <div><strong>Type:</strong> {selectedProperty.type}</div>
-                    <div><strong>Listing:</strong> {selectedProperty.listing_type}</div>
-                    <div><strong>Price:</strong> {(selectedProperty.price / 1000000).toFixed(2)}M ETB</div>
-                    <div><strong>Location:</strong> {selectedProperty.location}</div>
-                    <div><strong>Bedrooms:</strong> {selectedProperty.bedrooms || 'N/A'}</div>
-                    <div><strong>Bathrooms:</strong> {selectedProperty.bathrooms || 'N/A'}</div>
-                    <div><strong>Area:</strong> {selectedProperty.area || 'N/A'} m²</div>
-                    <div><strong>Status:</strong> <span className={`status-badge ${selectedProperty.status}`}>{selectedProperty.status}</span></div>
-                  </div>
-                  {selectedProperty.description && (
-                    <div className="property-description">
-                      <strong>Description:</strong>
-                      <p>{selectedProperty.description}</p>
-                    </div>
-                  )}
-                  <div style={{ marginTop: '20px' }}>
-                    
-                  </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

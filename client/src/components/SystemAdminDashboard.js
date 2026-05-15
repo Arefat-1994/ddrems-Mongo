@@ -13,6 +13,7 @@ import {
 import ProfileApproval from './profiles/ProfileApproval';
 import EditRequestsAdmin from './profiles/EditRequestsAdmin';
 import Users from './Users';
+import Properties from './Properties';
 import AddBroker from './AddBroker';
 import AddUserModal from './AddUserModal';
 import MessageNotificationWidget from './MessageNotificationWidget';
@@ -22,20 +23,20 @@ import AgreementManagement from './AgreementManagement';
 import SystemAdminTransactions from './SystemAdminTransactions';
 import SiteCheckAdmin from './SiteCheckAdmin';
 import BrokerApplicationsAdmin from './BrokerApplicationsAdmin';
-import BookedLists from './BookedLists';
 import BankAccountsAdmin from './BankAccountsAdmin';
 
 ChartJS.register(ArcElement, Tooltip, Legend);
 
 const API_BASE = `http://${window.location.hostname}:5000/api`;
 
-const SystemAdminDashboard = ({ user, onLogout, setCurrentPage, initialView }) => {
+const SystemAdminDashboard = ({ user, onLogout, setCurrentPage, initialView, onSettingsClick }) => {
   const [currentView, setCurrentView] = useState(initialView || 'dashboard'); // dashboard, profileApproval, users
   const [showAddBroker, setShowAddBroker] = useState(false);
   const [showAddUser, setShowAddUser] = useState(false);
   const [showAdminMessages, setShowAdminMessages] = useState(false);
   const [showNotificationModal, setShowNotificationModal] = useState(false);
   const [showAgreementWorkflow, setShowAgreementWorkflow] = useState(false);
+  const [showToolsDropdown, setShowToolsDropdown] = useState(false);
   const [stats, setStats] = useState({
     totalUsers: 0,
     activeUsers: 0,
@@ -44,7 +45,8 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage, initialView }) =
     apiCalls: 0,
     storageUsed: 0,
     errorRate: 0,
-    totalBookings: 0
+    totalBookings: 0,
+    pendingEditRequests: 0
   });
 
   useEffect(() => {
@@ -80,7 +82,7 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage, initialView }) =
         safeFetch('/system/config', []),
         safeFetch('/properties/stats', {}),
         safeFetch('/profiles/pending', { total: 0 }),
-        safeFetch('/broker-bookings', [])
+        safeFetch('/edit-requests/all', [])
       ]);
 
       setSystemLogs(logsData);
@@ -96,7 +98,7 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage, initialView }) =
         apiCalls: 12450,
         storageUsed: 65,
         errorRate: 0.5,
-        totalBookings: Array.isArray(brokerHoldsData) ? brokerHoldsData.length : 0
+        pendingEditRequests: (brokerHoldsData || []).filter(r => r.status === 'pending').length
       });
 
       // Fetch suspicious count
@@ -139,7 +141,7 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage, initialView }) =
           subtitle="Review and approve user profiles"
           user={user}
           onLogout={onLogout}
-          onSettingsClick={() => setCurrentPage('settings')}
+          onSettingsClick={onSettingsClick || (() => setCurrentPage('settings'))}
           actions={
             <button className="btn-secondary" onClick={() => setCurrentView('dashboard')}>
               ← Back to Analytics
@@ -161,7 +163,7 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage, initialView }) =
           subtitle="Review user requests to update locked profile information"
           user={user}
           onLogout={onLogout}
-          onSettingsClick={() => setCurrentPage('settings')}
+          onSettingsClick={onSettingsClick || (() => setCurrentPage('settings'))}
           actions={
             <button className="btn-secondary" onClick={() => setCurrentView('dashboard')}>
               ← Back to Analytics
@@ -204,7 +206,7 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage, initialView }) =
           subtitle="Detailed overview of all financial activities"
           user={user}
           onLogout={onLogout}
-          onSettingsClick={() => setCurrentPage('settings')}
+          onSettingsClick={onSettingsClick || (() => setCurrentPage('settings'))}
           actions={
             <button className="btn-secondary" onClick={() => setCurrentView('dashboard')}>
               ← Back to Analytics
@@ -226,7 +228,7 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage, initialView }) =
           subtitle="Review GPS-verified site checks and legal documents"
           user={user}
           onLogout={onLogout}
-          onSettingsClick={() => setCurrentPage('settings')}
+          onSettingsClick={onSettingsClick || (() => setCurrentPage('settings'))}
           actions={
             <button className="btn-secondary" onClick={() => setCurrentView('dashboard')}>
               ← Back to Analytics
@@ -248,7 +250,7 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage, initialView }) =
           subtitle="Review and approve new broker registration requests"
           user={user}
           onLogout={onLogout}
-          onSettingsClick={() => setCurrentPage('settings')}
+          onSettingsClick={onSettingsClick || (() => setCurrentPage('settings'))}
           actions={
             <button className="btn-secondary" onClick={() => setCurrentView('dashboard')}>
               ← Back to Analytics
@@ -261,17 +263,31 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage, initialView }) =
       </div>
     );
   }
-  if (currentView === 'broker-holds') {
-    return (
-      <div className="system-admin-dashboard">
-        <PageHeader title="Booked Lists (System-Wide)" subtitle="Monitor all property reservations across the platform" user={user} onLogout={onLogout} onSettingsClick={() => setCurrentPage('settings')} actions={<button className="btn-secondary" onClick={() => setCurrentView('dashboard')}>← Back to Analytics</button>} />
-        <BookedLists user={user} />
-      </div>
-    );
-  }
 
   if (currentView === 'bank-accounts') {
     return <BankAccountsAdmin user={user} onLogout={onLogout} setCurrentPage={setCurrentPage} setCurrentView={setCurrentView} />;
+  }
+
+  if (currentView === 'all-properties') {
+    return (
+      <div className="system-admin-dashboard">
+        <PageHeader
+          title="All Properties"
+          subtitle="View and manage all registered properties in the system"
+          user={user}
+          onLogout={onLogout}
+          onSettingsClick={onSettingsClick || (() => setCurrentPage('settings'))}
+          actions={
+            <button className="btn-secondary" onClick={() => setCurrentView('dashboard')}>
+              ← Back to Analytics
+            </button>
+          }
+        />
+        <div style={{ padding: '20px' }}>
+          <Properties user={user} onLogout={onLogout} viewMode="all" setCurrentPage={setCurrentPage} onSettingsClick={() => setCurrentPage('settings')} />
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -281,58 +297,67 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage, initialView }) =
         subtitle="Comprehensive overview of real estate operations"
         user={user}
         onLogout={onLogout}
-        onSettingsClick={() => setCurrentPage('settings')}
+        onSettingsClick={onSettingsClick || (() => setCurrentPage('settings'))}
         actions={
           <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
             <MessageNotificationWidget 
               userId={user?.id}
               onNavigateToMessages={() => setCurrentPage('messages')}
             />
-            <button className="btn-secondary" onClick={() => setCurrentView('agreements')}>
-              🤝 Agreements
+            
+            <div style={{ position: 'relative' }}>
+              <button 
+                className="btn-primary" 
+                style={{ background: 'white', color: '#1e293b', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '6px' }}
+                onClick={() => setShowToolsDropdown(!showToolsDropdown)}
+              >
+                🛠️ Tools {showToolsDropdown ? '▲' : '▼'}
+              </button>
+              
+              {showToolsDropdown && (
+                <div style={{
+                  position: 'absolute', top: '100%', right: 0, marginTop: '8px',
+                  background: 'white', border: '1px solid #e2e8f0', borderRadius: '12px',
+                  boxShadow: '0 10px 25px rgba(0,0,0,0.1)', zIndex: 100, minWidth: '220px',
+                  display: 'flex', flexDirection: 'column', overflow: 'hidden'
+                }}>
+                  <button className="dropdown-tool-btn" onClick={() => { setShowAdminMessages(true); setShowToolsDropdown(false); }}>
+                    📧 Incoming Messages
+                  </button>
+                  <button className="dropdown-tool-btn" onClick={() => { setCurrentPage('complaints-admin'); setShowToolsDropdown(false); }}>
+                    📋 Complaints
+                  </button>
+                  <button className="dropdown-tool-btn" onClick={() => { setCurrentView('transactions'); setShowToolsDropdown(false); }}>
+                    💳 Transactions
+                  </button>
+                  <button className="dropdown-tool-btn" onClick={() => { setShowNotificationModal(true); setShowToolsDropdown(false); }}>
+                    🔔 Send Notifications
+                  </button>
+                  <button className="dropdown-tool-btn" onClick={() => { setCurrentPage('reports'); setShowToolsDropdown(false); }}>
+                    📊 Detailed Reports
+                  </button>
+                  <button className="dropdown-tool-btn" onClick={() => { setCurrentView('editRequests'); setShowToolsDropdown(false); }}>
+                    ✏️ Edit Requests {stats.pendingEditRequests > 0 && `(${stats.pendingEditRequests})`}
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <button className="btn-secondary" style={{ background: 'white', color: '#1e293b' }} onClick={() => setCurrentView('all-properties')}>
+              🏘️ Properties
             </button>
-            <button className="btn-secondary" onClick={() => setCurrentView('broker-holds')}>
-              ⏱️ Booked Lists
-            </button>
-            <button className="btn-primary" onClick={() => setCurrentView('site-checks')} style={{ background: 'linear-gradient(135deg, #0ea5e9, #6366f1)' }}>
+            <button className="btn-secondary" style={{ background: 'white', color: '#1e293b' }} onClick={() => setCurrentView('site-checks')}>
               📍 Site Checks
             </button>
-            <button className="btn-secondary" onClick={() => setCurrentView('transactions')}>
-              💳 Transactions
-            </button>
-            <button className="btn-warning" onClick={() => setCurrentView('bank-accounts')} style={{ background: '#f59e0b', color: 'white' }}>
+            <button className="btn-secondary" style={{ background: 'white', color: '#1e293b' }} onClick={() => setCurrentView('bank-accounts')}>
               🏦 Bank Settings
             </button>
-
-            <button className="btn-primary" onClick={() => setShowNotificationModal(true)}>
-              🔔 Send Notification
+            <button className="btn-secondary" style={{ background: 'white', color: '#1e293b' }} onClick={() => setCurrentView('users')}>
+              👥 Users
             </button>
-            
-            <button className="btn-secondary" onClick={() => setShowAdminMessages(true)}>
-              📧 Message History
+            <button className="btn-warning" style={{ background: 'white', color: '#1e293b', border: '1px solid #f59e0b' }} onClick={() => setCurrentView('profileApproval')}>
+              👥 Approvals {stats.pendingProfiles > 0 && `(${stats.pendingProfiles})`}
             </button>
-            <button className="btn-primary" onClick={() => setCurrentPage('messages')}>
-              📤 Send Message
-            </button>
-            <button className="btn-secondary" onClick={() => setCurrentView('users')}>
-              👥 User Management
-            </button>
-            <button className="btn-secondary" onClick={() => setCurrentPage('reports')}>
-              📊 Detailed Reports
-            </button>
-            <button className="btn-warning" onClick={() => setCurrentView('broker-applications')}>
-              🤝 Broker Applications
-            </button>
-            <button className="btn-warning" onClick={() => setCurrentView('profileApproval')}>
-              👥 Profile Approvals {stats.pendingProfiles > 0 && `(${stats.pendingProfiles})`}
-            </button>
-            <button className="btn-secondary" onClick={() => setCurrentView('editRequests')}>
-              ✏️ Edit Requests
-            </button>
-            <button className="btn-warning" onClick={() => setCurrentPage('complaints-admin')}>
-              📋 Complaints
-            </button>
-
           </div>
         }
       />
@@ -360,13 +385,6 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage, initialView }) =
             <p>Pending Profiles</p>
           </div>
         </div>
-        <div className="stat-card">
-          <div className="stat-icon" style={{ background: '#d1fae5', color: '#10b981' }}>🏠</div>
-          <div className="stat-content">
-            <h3>{propertyStats?.total || 0}</h3>
-            <p>Total Properties</p>
-          </div>
-        </div>
         <div className="stat-card clickable" onClick={() => setCurrentPage('complaints-admin')}>
           <div className="stat-icon" style={{ background: '#fce7f3', color: '#ec4899' }}>📋</div>
           <div className="stat-content">
@@ -374,25 +392,20 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage, initialView }) =
             <p>Complaints</p>
           </div>
         </div>
-        <div className="stat-card">
-          <div className="stat-icon" style={{ background: '#e0f2fe', color: '#0ea5e9' }}>🏷️</div>
+        <div className="stat-card clickable" onClick={() => setCurrentView('editRequests')}>
+          <div className="stat-icon" style={{ background: '#dcfce7', color: '#16a34a' }}>✏️</div>
           <div className="stat-content">
-            <h3>{propertyStats?.active || 0}</h3>
-            <p>Active Listings</p>
+            <h3>{stats.pendingEditRequests}</h3>
+            <p>Edit Requests</p>
           </div>
         </div>
         <div className="stat-card">
           <div className="stat-icon" style={{ background: '#ede9fe', color: '#8b5cf6' }}>💰</div>
           <div className="stat-content">
-            <h3>{(propertyStats?.totalRevenue / 1000000 || 0).toFixed(1)}M</h3>
-            <p>Revenue (ETB)</p>
-          </div>
-        </div>
-        <div className="stat-card clickable" onClick={() => setCurrentView('broker-holds')}>
-          <div className="stat-icon" style={{ background: '#fef3c7', color: '#d97706' }}>⏱️</div>
-          <div className="stat-content">
-            <h3>{stats.totalBookings}</h3>
-            <p>Total Bookings</p>
+            <h3>{propertyStats?.totalRevenue >= 1000000 
+              ? `${(propertyStats.totalRevenue / 1000000).toFixed(2)}M` 
+              : (propertyStats?.totalRevenue || 0).toLocaleString()}</h3>
+            <p>System Fees Revenue (ETB)</p>
           </div>
         </div>
       </div>

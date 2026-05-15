@@ -7,7 +7,20 @@ const bcrypt = require('bcryptjs');
 router.post('/create-account', async (req, res) => {
   try {
     const { name, email, phone, password } = req.body;
-    if (!name || !email || !phone) return res.status(400).json({ success: false, message: 'Name, email, phone required' });
+    
+    // Server-side validation
+    if (!name || name.trim().length < 3) return res.status(400).json({ success: false, message: 'Full name must be at least 3 characters' });
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ success: false, message: 'Please provide a valid email address' });
+    
+    const cleanPhone = (phone || '').replace(/\s/g, '');
+    if (!/^(\+251|0)9[0-9]{8}$/.test(cleanPhone)) {
+      return res.status(400).json({ success: false, message: 'Please provide a valid Ethiopian phone number (09... or +2519...)' });
+    }
+
+    if (password && password.length < 6) {
+      return res.status(400).json({ success: false, message: 'Password must be at least 6 characters long' });
+    }
+
     const existing = await Users.findOne({ email });
     if (existing) return res.status(400).json({ success: false, message: 'Email already exists' });
     const hashedPassword = await bcrypt.hash(password || 'admin123', 10);

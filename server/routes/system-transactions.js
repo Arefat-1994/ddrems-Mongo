@@ -159,11 +159,11 @@ router.get("/rental-revenue", async (req, res) => {
     const { RentalPaymentSchedules } = require('../models');
     
     const rentalStats = await RentalPaymentSchedules.aggregate([
-      { $lookup: { from: 'properties', localField: 'property_id', foreignField: '_id', as: 'property' } },
+      { $lookup: { from: 'properties', let: { pid: '$property_id' }, pipeline: [{ $match: { $expr: { $eq: ['$_id', '$$pid'] } } }, { $project: { title: 1, location: 1 } }], as: 'property' } },
       { $unwind: { path: '$property', preserveNullAndEmptyArrays: true } },
-      { $lookup: { from: 'users', localField: 'tenant_id', foreignField: '_id', as: 'tenant' } },
+      { $lookup: { from: 'users', let: { uid: '$tenant_id' }, pipeline: [{ $match: { $expr: { $eq: ['$_id', '$$uid'] } } }, { $project: { name: 1 } }], as: 'tenant' } },
       { $unwind: { path: '$tenant', preserveNullAndEmptyArrays: true } },
-      { $lookup: { from: 'users', localField: 'owner_id', foreignField: '_id', as: 'owner' } },
+      { $lookup: { from: 'users', let: { uid: '$owner_id' }, pipeline: [{ $match: { $expr: { $eq: ['$_id', '$$uid'] } } }, { $project: { name: 1 } }], as: 'owner' } },
       { $unwind: { path: '$owner', preserveNullAndEmptyArrays: true } },
       { $addFields: {
         id: '$_id',
