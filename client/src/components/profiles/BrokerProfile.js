@@ -128,7 +128,8 @@ const BrokerProfile = ({ user, onComplete }) => {
   useEffect(() => {
     fetchProfile();
     fetchEditRequest();
-  }, [fetchProfile, fetchEditRequest]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;

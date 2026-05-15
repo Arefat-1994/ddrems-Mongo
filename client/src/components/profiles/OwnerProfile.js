@@ -55,7 +55,7 @@ const OwnerProfile = ({ user, onComplete }) => {
     fetchProfile();
     fetchEditRequest();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user.id, user.name, user.phone]);
+  }, []);
 
   const fetchEditRequest = async () => {
     try {
