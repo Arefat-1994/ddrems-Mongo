@@ -1,6 +1,9 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './index.css';
+import App from './App';
+import reportWebVitals from './reportWebVitals';
+
 // Global API Configuration
 const getBaseUrl = () => {
   if (process.env.REACT_APP_API_URL) return process.env.REACT_APP_API_URL.replace(/\/api\/?$/, '');
@@ -11,9 +14,6 @@ const getBaseUrl = () => {
 };
 window.API_BASE = getBaseUrl();
 window.API_URL = `${window.API_BASE}/api`;
-
-import App from './App';
-import reportWebVitals from './reportWebVitals';
 
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(
