@@ -2,8 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './AgentDashboard.css';
 import PageHeader from './PageHeader';
 import CommissionTracking from './CommissionTracking';
-import ImageGallery from './shared/ImageGallery';
-import DocumentManager from './shared/DocumentManager';
+
 import axios from 'axios';
 import MessageNotificationWidget from './MessageNotificationWidget';
 import BrowseProperties from './BrowseProperties';

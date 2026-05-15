@@ -13,7 +13,9 @@ const Complaints = ({ user }) => {
   const [submitting, setSubmitting] = useState(false);
   const [notification, setNotification] = useState(null);
 
-  useEffect(() => { fetchComplaints(); }, []);
+  useEffect(() => { fetchComplaints(); 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchComplaints = async () => {
     try {

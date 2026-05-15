@@ -17,7 +17,9 @@ const ComplaintsAdmin = ({ user }) => {
   const [responding, setResponding] = useState(false);
   const [notification, setNotification] = useState(null);
 
-  useEffect(() => { fetchAll(); }, [filterStatus, filterPriority, filterCategory]);
+  useEffect(() => { fetchAll(); 
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [filterStatus, filterPriority, filterCategory]);
 
   const fetchAll = async () => {
     setLoading(true);

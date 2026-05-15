@@ -10,6 +10,7 @@ const MessageNotificationWidget = ({ userId, onNavigateToMessages }) => {
 
   useEffect(() => {
     if (!userId) return;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     fetchUnreadMessages();
     
     // Set up interval to check for new messages every 60 seconds

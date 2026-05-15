@@ -22,6 +22,7 @@ const AdminMessagesView = ({ user, onClose }) => {
     } else if (view === 'history') {
       fetchHistory();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [view]);
 
   const fetchConversations = async () => {

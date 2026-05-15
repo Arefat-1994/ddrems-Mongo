@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import './BrowseProperties.css';
 import axios from 'axios';
 import PageHeader from './PageHeader';
-import DocumentViewer from './shared/DocumentViewer';
+
 import PropertyImageViewer from './shared/PropertyImageViewer';
 import ImageGallery from './shared/ImageGallery';
 
@@ -13,8 +13,8 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack, hideHeader 
   const [propertyTypeFilter, setPropertyTypeFilter] = useState('all');
   const [selectedProperty, setSelectedProperty] = useState(null);
   const [showViewModal, setShowViewModal] = useState(false);
-  const [showDocumentViewer, setShowDocumentViewer] = useState(false);
-  const [documentPropertyId, setDocumentPropertyId] = useState(null);
+
+
   const [agreementRequests, setAgreementRequests] = useState([]);
   const [showImageViewer, setShowImageViewer] = useState(false);
   const [viewerImages, setViewerImages] = useState([]);
@@ -33,7 +33,7 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack, hideHeader 
   const [actionLoading, setActionLoading] = useState(false);
   const [imageErrors, setImageErrors] = useState({});
   const [propertyPredictions, setPropertyPredictions] = useState({}); // { propertyId: predictionData }
-  const [loadingAiModal, setLoadingAiModal] = useState(false);
+
   const [favorites, setFavorites] = useState([]);
 
   useEffect(() => {
@@ -47,6 +47,7 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack, hideHeader 
     if (user?.role === 'broker') {
       fetchClients();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, user?.role]);
 
   const fetchFavorites = async () => {
@@ -156,15 +157,7 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack, hideHeader 
     return agreementRequests.some(req => req.property_id === propertyId && ['pending', 'active'].includes(req.status));
   };
 
-  const requestAgreement = async (propertyId) => {
-    setAgreementFlowPropertyId(propertyId);
-    setShowAgreementFlowModal(true);
-  };
 
-  const requestDirectAgreement = async (propertyId) => {
-    setAgreementFlowPropertyId(propertyId);
-    setShowAgreementFlowModal(true);
-  };
 
   const validateBookingField = (name, value) => {
     let error = '';
@@ -236,10 +229,7 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack, hideHeader 
   };
 
 
-  const openDocumentViewer = (propertyId) => {
-    setDocumentPropertyId(propertyId);
-    setShowDocumentViewer(true);
-  };
+
 
   const openImageViewer = async (property) => {
     try {
@@ -789,20 +779,6 @@ const BrowseProperties = ({ user, onLogout, onSettingsClick, onBack, hideHeader 
         </div>
       )}
 
-      {/* Document Viewer */}
-      {showDocumentViewer && documentPropertyId && (
-        <div className="modal-overlay" onClick={() => setShowDocumentViewer(false)}>
-          <div className="modal-content extra-large" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h2>📄 Property Documents</h2>
-              <button className="close-btn" onClick={() => setShowDocumentViewer(false)}>✕</button>
-            </div>
-            <div className="modal-body">
-              <DocumentViewer propertyId={documentPropertyId} canDelete={false} />
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Property Image Viewer */}
       {showImageViewer && viewerImages.length > 0 && (

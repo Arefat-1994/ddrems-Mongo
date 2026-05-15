@@ -111,6 +111,7 @@ function App() {
     setPageOptions(options);
   };
 
+  // eslint-disable-next-line no-unused-vars
   const handleThemeChange = (theme) => {
     document.documentElement.setAttribute('data-theme', theme);
   };
