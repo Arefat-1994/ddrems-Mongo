@@ -91,6 +91,19 @@ app.use('/api/service-control', require('./routes/service-control'));
 app.use('/api/document-access', require('./routes/document-access'));
 app.use('/api/user-preferences', require('./routes/user-preferences'));
 
+// Health Check Routes
+app.get('/', (req, res) => {
+  res.status(200).json({ 
+    status: 'success', 
+    message: 'Dire Dawa Real Estate API is fully operational',
+    timestamp: new Date().toISOString()
+  });
+});
+
+app.get('/api/health', (req, res) => {
+  res.status(200).json({ status: 'OK', message: 'API is healthy' });
+});
+
 // 404 Handler to catch unknown routes
 app.use((req, res, next) => {
   console.log(`[404 NOT FOUND] ${req.method} ${req.url}`);
