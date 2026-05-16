@@ -98,7 +98,7 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage, initialView, onS
         apiCalls: 12450,
         storageUsed: 65,
         errorRate: 0.5,
-        pendingEditRequests: (brokerHoldsData || []).filter(r => r.status === 'pending').length
+        pendingEditRequests: (Array.isArray(brokerHoldsData) ? brokerHoldsData : []).filter(r => r.status === 'pending').length
       });
 
       // Fetch suspicious count

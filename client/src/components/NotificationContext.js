@@ -16,7 +16,7 @@ export const useSocketEvent = (eventName, callback) => {
   }, [socket, eventName, callback]);
 };
 
-const SOCKET_URL = `${window.API_BASE}`;
+const SOCKET_URL = window.API_BASE || 'https://ddrems-mongo.onrender.com';
 
 export const NotificationProvider = ({ children, userId }) => {
   const [notifications, setNotifications] = useState([]);
@@ -63,9 +63,9 @@ export const NotificationProvider = ({ children, userId }) => {
 
   // Initialize Socket.io
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !SOCKET_URL || SOCKET_URL.includes('undefined')) return;
 
-    const newSocket = io(SOCKET_URL);
+    const newSocket = io(SOCKET_URL, { transports: ['websocket', 'polling'], reconnectionAttempts: 3 });
     setSocket(newSocket);
 
     newSocket.emit('join', userId);
