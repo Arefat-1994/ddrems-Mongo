@@ -135,13 +135,13 @@ router.put('/update/:id', async (req, res) => {
     // Notifications
     if (status === 'active' && currentUser.status !== 'active') {
       const emailData = templates.accountApproved(currentUser.name);
-      await sendEmail(currentUser.email, emailData.subject, emailData.html);
+      sendEmail(currentUser.email, emailData.subject, emailData.html);
     } else if (profile_approved === true && currentUser.profile_approved !== true) {
       const emailData = {
         subject: 'Your Profile has been Approved! - Dire Dawa Real Estate Management system',
         html: `<h2>Congratulations!</h2><p>Your detailed profile has been approved. You now have full access to the system.</p>`
       };
-      await sendEmail(currentUser.email, emailData.subject, emailData.html);
+      sendEmail(currentUser.email, emailData.subject, emailData.html);
     }
 
     res.json({ message: 'User updated successfully' });

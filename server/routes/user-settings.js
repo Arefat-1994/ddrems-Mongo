@@ -211,7 +211,7 @@ router.post('/:userId/two-factor', async (req, res) => {
       const user = await Users.findById(userId);
       if (user) {
         const emailData = templates.securityAlert(user.name, 'Your Two-Factor Authentication settings have been updated.');
-        await sendEmail(user.email, emailData.subject, emailData.html);
+        sendEmail(user.email, emailData.subject, emailData.html);
       }
     } catch (e) {}
 
@@ -282,7 +282,7 @@ router.post('/:userId/disable-2fa', async (req, res) => {
       const user = await Users.findById(userId);
       if (user) {
         const emailData = templates.securityAlert(user.name, 'Two-Factor Authentication has been disabled on your account.');
-        await sendEmail(user.email, emailData.subject, emailData.html);
+        sendEmail(user.email, emailData.subject, emailData.html);
       }
     } catch (e) {}
 

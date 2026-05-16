@@ -26,10 +26,10 @@ const notifySystemAdmins = async (title, message, type, userName, userEmail, att
       try {
         if (emailTemplate === 'suspicious') {
           const emailData = templates.adminSuspiciousAlert(admin.name, userName, userEmail, attemptCount);
-          await sendEmail(admin.email, emailData.subject, emailData.html);
+          sendEmail(admin.email, emailData.subject, emailData.html);
         } else if (emailTemplate === 'banned') {
           const emailData = templates.adminBannedAlert(admin.name, userName, userEmail, attemptCount);
-          await sendEmail(admin.email, emailData.subject, emailData.html);
+          sendEmail(admin.email, emailData.subject, emailData.html);
         }
       } catch (e) { console.error('Admin email error:', e.message); }
     }
@@ -68,7 +68,7 @@ router.post('/register', async (req, res) => {
     });
 
     const emailData = templates.accountCreated(name);
-    await sendEmail(email, emailData.subject, emailData.html);
+    sendEmail(email, emailData.subject, emailData.html);
 
     res.status(201).json({
       message: 'Registration successful! Your account is pending approval. You will be notified via email once approved.',
@@ -172,7 +172,7 @@ router.post('/login', async (req, res) => {
         // Email user about lockout
         try {
           const emailData = templates.accountLockout(user.name, 1);
-          await sendEmail(user.email, emailData.subject, emailData.html);
+          sendEmail(user.email, emailData.subject, emailData.html);
         } catch (e) { console.error('Lockout email error:', e.message); }
 
         return res.status(429).json({
@@ -207,7 +207,7 @@ router.post('/login', async (req, res) => {
         // Email user
         try {
           const emailData = templates.accountSuspicious(user.name);
-          await sendEmail(user.email, emailData.subject, emailData.html);
+          sendEmail(user.email, emailData.subject, emailData.html);
         } catch (e) { console.error('Suspicious email error:', e.message); }
 
         // Notify system admins
@@ -247,7 +247,7 @@ router.post('/login', async (req, res) => {
         // Email user about ban
         try {
           const emailData = templates.accountBanned(user.name);
-          await sendEmail(user.email, emailData.subject, emailData.html);
+          sendEmail(user.email, emailData.subject, emailData.html);
         } catch (e) { console.error('Ban email error:', e.message); }
 
         // Notify system admins
@@ -381,7 +381,7 @@ router.post('/unban/:userId', async (req, res) => {
     if (user) {
       try {
         const emailData = templates.securityAlert(user.name, 'Your account has been reviewed and reactivated by the system administrator. You can now log in again. Please change your password for security.');
-        await sendEmail(user.email, emailData.subject, emailData.html);
+        sendEmail(user.email, emailData.subject, emailData.html);
       } catch (e) {}
     }
 
@@ -419,7 +419,7 @@ router.post('/forgot-password', async (req, res) => {
              <p>If you did not request this, please ignore this email.</p>`
     };
     
-    await sendEmail(email, emailData.subject, emailData.html);
+    sendEmail(email, emailData.subject, emailData.html);
     res.json({ message: 'OTP sent to your email' });
   } catch (error) {
     res.status(500).json({ message: 'Server error', error: error.message });
@@ -484,7 +484,7 @@ router.post('/admin/reset-password', async (req, res) => {
              <p>Your new password is: <strong>${newPassword}</strong></p>
              <p>Please log in and change this password immediately from your account settings.</p>`
     };
-    await sendEmail(request.email, emailData.subject, emailData.html);
+    sendEmail(request.email, emailData.subject, emailData.html);
 
     res.json({ message: 'Password reset and emailed to user' });
   } catch (error) {

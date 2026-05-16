@@ -49,7 +49,7 @@ router.post('/', upload.fields([
     });
 
     // Send confirmation email to applicant
-    await sendEmail(
+    sendEmail(
       email,
       'Broker Application Received - DDREMS',
       `
@@ -105,7 +105,7 @@ router.post('/:id/approve', async (req, res) => {
     const loginUrl = `http://${req.hostname}:3000/login`;
 
     // Send email to broker
-    await sendEmail(
+    sendEmail(
       application.email,
       'Your Broker Application has been Approved - Account Activated!',
       `
@@ -149,7 +149,7 @@ router.post('/:id/reject', async (req, res) => {
     application.updated_at = new Date();
     await application.save();
 
-    await sendEmail(
+    sendEmail(
       application.email,
       'Broker Application Status',
       `

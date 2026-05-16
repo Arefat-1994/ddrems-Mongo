@@ -55,7 +55,7 @@ router.post('/:userId/approve', async (req, res) => {
     // Send account approved email
     try {
       const emailData = templates.accountApproved(user.name);
-      await sendEmail(user.email, emailData.subject, emailData.html);
+      sendEmail(user.email, emailData.subject, emailData.html);
       console.log(`[PROFILE-APPROVAL] Approval email sent to ${user.email}`);
     } catch (emailErr) {
       console.error('[PROFILE-APPROVAL] Email send failed:', emailErr.message);
@@ -110,7 +110,7 @@ router.post('/:userId/reject', async (req, res) => {
     // Send rejection email
     try {
       const emailData = templates.accountRejected(user.name, reason);
-      await sendEmail(user.email, emailData.subject, emailData.html);
+      sendEmail(user.email, emailData.subject, emailData.html);
       console.log(`[PROFILE-APPROVAL] Rejection email sent to ${user.email}`);
     } catch (emailErr) {
       console.error('[PROFILE-APPROVAL] Email send failed:', emailErr.message);

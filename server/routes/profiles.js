@@ -254,7 +254,7 @@ router.post('/approve/:profileType/:profileId', async (req, res) => {
       const user = await Users.findById(profile.user_id).lean();
       if (user && user.email) {
         const emailData = templates.accountApproved(user.name || profile.full_name);
-        await sendEmail(user.email, emailData.subject, emailData.html);
+        sendEmail(user.email, emailData.subject, emailData.html);
         console.log(`[PROFILES] Approval email sent to ${user.email}`);
       }
     } catch (emailErr) {
@@ -308,7 +308,7 @@ router.post('/suspend/:profileType/:profileId', async (req, res) => {
       const user = await Users.findById(profile.user_id).lean();
       if (user && user.email) {
         const emailData = templates.accountRejected(user.name || profile.full_name, reason || 'Your profile has been suspended by the administrator.');
-        await sendEmail(user.email, emailData.subject, emailData.html);
+        sendEmail(user.email, emailData.subject, emailData.html);
       }
     } catch(emailErr) { console.error('[PROFILES] Suspension email failed:', emailErr.message); }
 
@@ -359,7 +359,7 @@ router.post('/reject/:profileType/:profileId', async (req, res) => {
       const user = await Users.findById(profile.user_id).lean();
       if (user && user.email) {
         const emailData = templates.accountRejected(user.name || profile.full_name, rejectionReason);
-        await sendEmail(user.email, emailData.subject, emailData.html);
+        sendEmail(user.email, emailData.subject, emailData.html);
       }
     } catch(emailErr) { console.error('[PROFILES] Rejection email failed:', emailErr.message); }
 

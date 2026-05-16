@@ -40,8 +40,8 @@ router.post('/', async (req, res) => {
 
     if (email) {
       try {
-        if (tempPassword) { const e = templates.bookingInvitation(buyer_name, property.title, tempPassword, email); await sendEmail(email, e.subject, e.html); }
-        else { const e = templates.bookingConfirmation(buyer_name, property.title, booking._id); await sendEmail(email, e.subject, e.html); }
+        if (tempPassword) { const e = templates.bookingInvitation(buyer_name, property.title, tempPassword, email); sendEmail(email, e.subject, e.html); }
+        else { const e = templates.bookingConfirmation(buyer_name, property.title, booking._id); sendEmail(email, e.subject, e.html); }
       } catch(e) {}
     }
 
