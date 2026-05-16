@@ -7,8 +7,9 @@ const compression = require('compression');
 
 dotenv.config();
 
-// Connect to MongoDB
-require('./config/mongo')();
+// Connect to MongoDB (non-blocking so server starts immediately for Render health checks)
+const connectDB = require('./config/mongo');
+connectDB().catch(err => console.error('[MongoDB] Initial connection failed:', err.message));
 
 const app = express();
 
