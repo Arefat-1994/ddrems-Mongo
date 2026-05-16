@@ -4,7 +4,7 @@ import './index.css';
 import App from './App';
 import reportWebVitals from './reportWebVitals';
 
-// Global API Configuration
+// Global API Configuration — must run before App renders
 const getBaseUrl = () => {
   if (process.env.REACT_APP_API_URL) return process.env.REACT_APP_API_URL.replace(/\/api\/?$/, '');
   const isProd = window.location.hostname.includes('vercel.app') || 
