@@ -19,20 +19,24 @@ require('events').EventEmitter.defaultMaxListeners = 20;
 
 // Middleware
 app.use(compression()); // Compress all routes for faster responses
-app.use(cors({
-  origin: true, // Allow all origins (needed for Vercel preview deployments with dynamic URLs)
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-role', 'x-user-id']
-}));
 
-// Handle Chrome Private Network Access preflight (fixes "Allow/Block" popup)
+// Handle Chrome Private Network Access preflight — MUST be BEFORE cors()
+// Chrome 130+ sends this header in preflight. If the server doesn't respond with
+// Access-Control-Allow-Private-Network: true, Chrome shows "Allow/Block" popup
+// and blocks ALL cross-origin requests when user clicks Block.
 app.use((req, res, next) => {
   if (req.headers['access-control-request-private-network']) {
     res.setHeader('Access-Control-Allow-Private-Network', 'true');
   }
   next();
 });
+
+app.use(cors({
+  origin: true, // Allow all origins (needed for Vercel preview deployments with dynamic URLs)
+  credentials: true,
+  methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'x-user-role', 'x-user-id']
+}));
 app.use(bodyParser.json({ limit: '50mb' }));
 app.use(bodyParser.urlencoded({ extended: true, limit: '50mb' }));
 
