@@ -91,7 +91,7 @@ export const NotificationProvider = ({ children, userId }) => {
     if (!userId) return;
     try {
       const response = await axios.get(`${SOCKET_URL}/api/notifications/${userId}`);
-      const data = response.data;
+      const data = Array.isArray(response.data) ? response.data : [];
       
       const unread = data.filter(n => !n.is_read).length;
       setUnreadCount(unread);

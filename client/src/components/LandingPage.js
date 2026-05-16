@@ -47,7 +47,7 @@ const LandingPage = ({ onNavigateToLogin, onNavigateToRegister }) => {
   const fetchActiveProperties = async () => {
     try {
       const res = await axios.get(`${API_BASE}/api/properties/active`);
-      const properties = res.data || [];
+      const properties = Array.isArray(res.data) ? res.data : [];
       setAllProperties(properties);
       // Top 3 by views for featured carousel
       setFeaturedProperties(properties.slice(0, 3));
@@ -58,7 +58,7 @@ const LandingPage = ({ onNavigateToLogin, onNavigateToRegister }) => {
         properties.map(async (prop) => {
           try {
             const imgRes = await axios.get(`${API_BASE}/api/property-images/property/${prop.id}`);
-            imageMap[prop.id] = imgRes.data || [];
+            imageMap[prop.id] = Array.isArray(imgRes.data) ? imgRes.data : [];
           } catch {
             imageMap[prop.id] = [];
           }
