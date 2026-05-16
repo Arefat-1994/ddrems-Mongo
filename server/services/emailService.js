@@ -1,7 +1,11 @@
 const nodemailer = require('nodemailer');
 
 const transporter = nodemailer.createTransport({
-  service: 'gmail',
+  host: 'smtp.gmail.com',
+  port: 465,
+  secure: true,
+  // Force IPv4 to prevent ENETUNREACH errors on hosts without IPv6 routing
+  family: 4, 
   auth: {
     user: process.env.EMAIL_USER || 'arefatartzy@gmail.com',
     pass: process.env.EMAIL_PASS || 'zaegbnalkrexxsxr'
@@ -54,8 +58,9 @@ const sendEmail = async (to, subject, html) => {
     console.log('Email sent: ' + info.response);
     return { success: true, info };
   } catch (error) {
-    console.error('Email send error:', error);
-    return { success: false, error };
+    // Only log a short summary of the error to avoid cluttering the logs
+    console.error(`[EMAIL SERVICE] Failed to send email to ${to}: ${error.message || 'Unknown error'}`);
+    return { success: false, error: error.message };
   }
 };
 
