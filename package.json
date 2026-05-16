@@ -4,9 +4,10 @@
   "description": "Dire Dawa Real Estate Management System",
   "private": true,
   "scripts": {
-    "start": "npm start --prefix client",
+    "start": "node server/index.js",
+    "start:client": "npm start --prefix client",
     "start:dev": "concurrently \"npm run server\" \"npm run client\"",
-    "server": "nodemon server/index.js",
+    "server": "node server/index.js",
     "client": "npm start --prefix client",
     "dev": "concurrently --kill-others-on-fail \"npm run server\" \"npm run client\"",
     "install:all": "npm install && npm install --prefix client",
