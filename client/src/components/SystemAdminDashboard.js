@@ -484,7 +484,7 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage, initialView, onS
             <button className="btn-text">View All</button>
           </div>
           <div className="activity-list">
-            {userActivity.map((activity, index) => (
+            {(Array.isArray(userActivity) ? userActivity : []).map((activity, index) => (
               <div key={index} className="activity-item">
                 <div className="activity-avatar">{activity.user_name?.charAt(0)}</div>
                 <div className="activity-info">
@@ -513,9 +513,9 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage, initialView, onS
             </div>
           </div>
           <div className="logs-list">
-            {systemLogs.map((log, index) => (
+            {(Array.isArray(systemLogs) ? systemLogs : []).map((log, index) => (
               <div key={index} className={`log-item ${log.level}`}>
-                <span className="log-time">{new Date(log.timestamp).toLocaleTimeString()}</span>
+                <span className="log-time">{log.timestamp ? new Date(log.timestamp).toLocaleTimeString() : 'N/A'}</span>
                 <span className={`log-level ${log.level}`}>{log.level}</span>
                 <span className="log-message">{log.message}</span>
               </div>
@@ -529,7 +529,7 @@ const SystemAdminDashboard = ({ user, onLogout, setCurrentPage, initialView, onS
             <button className="btn-text">Edit</button>
           </div>
           <div className="config-list">
-            {systemConfig.map((config, index) => (
+            {(Array.isArray(systemConfig) ? systemConfig : []).map((config, index) => (
               <div key={index} className="config-item">
                 <div className="config-key">{config.config_key}</div>
                 <div className="config-value">{config.config_value}</div>
