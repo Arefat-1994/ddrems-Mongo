@@ -16,7 +16,7 @@ export const useSocketEvent = (eventName, callback) => {
   }, [socket, eventName, callback]);
 };
 
-const SOCKET_URL = window.API_BASE || 'https://ddrems-mongo.onrender.com';
+const SOCKET_URL = window.API_BASE || window.location.origin || 'https://ddrems-mongo.onrender.com';
 
 export const NotificationProvider = ({ children, userId }) => {
   const [notifications, setNotifications] = useState([]);
