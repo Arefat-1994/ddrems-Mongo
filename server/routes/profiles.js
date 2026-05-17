@@ -58,8 +58,15 @@ router.post('/customer', async (req, res) => {
     const { user_id, full_name, phone_number, address, profile_photo, id_document } = req.body;
     if (!mongoose.Types.ObjectId.isValid(user_id)) return res.status(400).json({ message: 'Invalid user id' });
 
-    const existing = await CustomerProfiles.findOne({ user_id });
-    if (existing) return res.status(400).json({ message: 'Profile already exists' });
+    let existing = await CustomerProfiles.findOne({ user_id });
+    if (existing) {
+      // Upsert if exists
+      const updated = await CustomerProfiles.findByIdAndUpdate(existing._id, {
+        full_name, phone_number, address, profile_photo, id_document, profile_status: existing.profile_status || 'pending'
+      }, { new: true });
+      await Users.findByIdAndUpdate(user_id, { profile_completed: true });
+      return res.status(200).json({ message: 'Profile updated successfully.', profileId: updated._id });
+    }
 
     const newProfile = await CustomerProfiles.create({
       user_id, full_name, phone_number, address, profile_photo, id_document, profile_status: 'pending'
@@ -123,8 +130,14 @@ router.post('/owner', async (req, res) => {
     const { user_id, full_name, phone_number, address, profile_photo, id_document, business_license } = req.body;
     if (!mongoose.Types.ObjectId.isValid(user_id)) return res.status(400).json({ message: 'Invalid user id' });
 
-    const existing = await OwnerProfiles.findOne({ user_id });
-    if (existing) return res.status(400).json({ message: 'Profile already exists' });
+    let existing = await OwnerProfiles.findOne({ user_id });
+    if (existing) {
+      const updated = await OwnerProfiles.findByIdAndUpdate(existing._id, {
+        full_name, phone_number, address, profile_photo, id_document, business_license, profile_status: existing.profile_status || 'pending'
+      }, { new: true });
+      await Users.findByIdAndUpdate(user_id, { profile_completed: true });
+      return res.status(200).json({ message: 'Profile updated successfully.', profileId: updated._id });
+    }
 
     const newProfile = await OwnerProfiles.create({
       user_id, full_name, phone_number, address, profile_photo, id_document, business_license, profile_status: 'pending'
@@ -184,8 +197,14 @@ router.post('/broker', async (req, res) => {
     const { user_id, full_name, phone_number, address, profile_photo, id_document, broker_license, license_number } = req.body;
     if (!mongoose.Types.ObjectId.isValid(user_id)) return res.status(400).json({ message: 'Invalid user id' });
 
-    const existing = await BrokerProfiles.findOne({ user_id });
-    if (existing) return res.status(400).json({ message: 'Profile already exists' });
+    let existing = await BrokerProfiles.findOne({ user_id });
+    if (existing) {
+      const updated = await BrokerProfiles.findByIdAndUpdate(existing._id, {
+        full_name, phone_number, address, profile_photo, id_document, broker_license, license_number, profile_status: existing.profile_status || 'pending'
+      }, { new: true });
+      await Users.findByIdAndUpdate(user_id, { profile_completed: true });
+      return res.status(200).json({ message: 'Profile updated successfully.', profileId: updated._id });
+    }
 
     const newProfile = await BrokerProfiles.create({
       user_id, full_name, phone_number, address, profile_photo, id_document, broker_license, license_number, profile_status: 'pending'

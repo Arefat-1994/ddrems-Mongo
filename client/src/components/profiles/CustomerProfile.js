@@ -353,7 +353,8 @@ const CustomerProfile = ({ user, onComplete }) => {
       fetchProfile();
     } catch (error) {
       console.error('Error saving profile:', error);
-      alert('❌ Failed to save profile. Please try again.');
+      const serverMsg = error.response?.data?.message || error.message;
+      alert(`❌ Failed to save profile: ${serverMsg}`);
     } finally {
       setSubmitting(false);
     }
