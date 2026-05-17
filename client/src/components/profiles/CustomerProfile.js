@@ -188,14 +188,52 @@ const CustomerProfile = ({ user, onComplete }) => {
 
   const handlePhotoUpload = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      if (file.size > 5 * 1024 * 1024) {
-        alert('Photo size must be less than 5MB');
+    if (!file) return;
+
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 1200;
+          const MAX_HEIGHT = 1200;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          // Compress to JPEG with 0.7 quality
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+          setFormData(prev => ({ ...prev, profile_photo: dataUrl }));
+          setPhotoPreview(dataUrl);
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    } else {
+      if (file.size > 2 * 1024 * 1024) {
+        alert('Photo must be less than 2MB');
         return;
       }
       const reader = new FileReader();
       reader.onloadend = () => {
-        setFormData({ ...formData, profile_photo: reader.result });
+        setFormData(prev => ({ ...prev, profile_photo: reader.result }));
         setPhotoPreview(reader.result);
       };
       reader.readAsDataURL(file);
@@ -204,14 +242,51 @@ const CustomerProfile = ({ user, onComplete }) => {
 
   const handleDocUpload = (e) => {
     const file = e.target.files[0];
-    if (file) {
-      if (file.size > 10 * 1024 * 1024) {
-        alert('Document size must be less than 10MB');
+    if (!file) return;
+
+    if (file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        const img = new Image();
+        img.onload = () => {
+          const canvas = document.createElement('canvas');
+          const MAX_WIDTH = 1200;
+          const MAX_HEIGHT = 1200;
+          let width = img.width;
+          let height = img.height;
+
+          if (width > height) {
+            if (width > MAX_WIDTH) {
+              height *= MAX_WIDTH / width;
+              width = MAX_WIDTH;
+            }
+          } else {
+            if (height > MAX_HEIGHT) {
+              width *= MAX_HEIGHT / height;
+              height = MAX_HEIGHT;
+            }
+          }
+
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+          setFormData(prev => ({ ...prev, id_document: dataUrl }));
+          setDocPreview(dataUrl);
+        };
+        img.src = event.target.result;
+      };
+      reader.readAsDataURL(file);
+    } else {
+      if (file.size > 2 * 1024 * 1024) {
+        alert('Document must be less than 2MB');
         return;
       }
       const reader = new FileReader();
       reader.onloadend = () => {
-        setFormData({ ...formData, id_document: reader.result });
+        setFormData(prev => ({ ...prev, id_document: reader.result }));
         setDocPreview(reader.result);
       };
       reader.readAsDataURL(file);
